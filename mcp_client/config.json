@@ -1,0 +1,11 @@
+{
+    "blacklist_sources": {
+        "OpenPhish": "https://openphish.com/feed.txt",
+        "PhishStats": "https://phishstats.info/phish_score.csv",
+        "URLhaus": "https://urlhaus.abuse.ch/downloads/text/"
+    },
+    "update_time": "00:00",
+    "cache_size": 10000,
+    "log_level": "INFO",
+    "db_path": "mcp.db"
+}

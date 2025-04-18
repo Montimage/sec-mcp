@@ -1,0 +1,24 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "mcp-client"
+version = "0.1.0"
+description = "Model Context Protocol (MCP) Client for checking domains, URLs, and IPs against blacklists"
+requires-python = ">=3.11"
+authors = [
+    {name = "Luong NGUYEN"}
+]
+dependencies = [
+    "requests>=2.31.0",
+    "httpx>=0.25.0",
+    "click>=8.1.7",
+    "idna>=3.4",
+    "mcp[cli]>=0.1.0",
+    "schedule>=1.2.0",
+    "tqdm>=4.66.0"
+]
+
+[project.scripts]
+mcp = "mcp_client.interface:cli"
