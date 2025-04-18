@@ -1,6 +1,6 @@
 import sqlite3
 from datetime import datetime
-from typing import List, Optional, Set
+from typing import List, Optional, Set, Tuple
 import threading
 import random
 
@@ -19,13 +19,21 @@ class Storage:
             conn.execute("PRAGMA journal_mode=WAL;")
             conn.execute("PRAGMA synchronous=NORMAL;")
             conn.execute("PRAGMA cache_size=10000;")
+            # Recreate blacklist table with new schema
             conn.execute("""
                 CREATE TABLE IF NOT EXISTS blacklist (
-                    value TEXT PRIMARY KEY,
-                    source TEXT NOT NULL,
-                    added_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                    url TEXT,
+                    ip TEXT,
+                    date TEXT,
+                    score REAL,
+                    source TEXT,
+                    UNIQUE(url)
                 )
             """)
+            conn.execute("""
+                CREATE INDEX IF NOT EXISTS idx_blacklist_url ON blacklist(url);
+            """)
+            # Create updates table (unchanged)
             conn.execute("""
                 CREATE TABLE IF NOT EXISTS updates (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -34,21 +42,19 @@ class Storage:
                     entry_count INTEGER NOT NULL
                 )
             """)
-            conn.execute("CREATE INDEX IF NOT EXISTS idx_blacklist_value ON blacklist(value)")
             conn.commit()
 
     def is_blacklisted(self, value: str) -> bool:
-        """Check if a value is blacklisted using cache first, then database."""
-        # Check in-memory cache first
+        """Check if a URL or IP is blacklisted using cache first, then database."""
+        # In-memory cache check
         with self._cache_lock:
             if value in self._cache:
                 return True
-        
-        # If not in cache, check database
+        # Database lookup by URL or IP
         with sqlite3.connect(self.db_path) as conn:
             cursor = conn.execute(
-                "SELECT 1 FROM blacklist WHERE value = ?",
-                (value,)
+                "SELECT 1 FROM blacklist WHERE url = ? OR ip = ?",
+                (value, value)
             )
             return cursor.fetchone() is not None
 
@@ -56,26 +62,28 @@ class Storage:
         """Get the source that blacklisted a value."""
         with sqlite3.connect(self.db_path) as conn:
             cursor = conn.execute(
-                "SELECT source FROM blacklist WHERE value = ?",
-                (value,)
+                "SELECT source FROM blacklist WHERE url = ? OR ip = ?",
+                (value, value)
             )
             result = cursor.fetchone()
             return result[0] if result else None
 
-    def add_entries(self, entries: List[tuple[str, str]]):
-        """Add multiple entries (value, source) to the blacklist."""
+    def add_entries(self, entries: List[Tuple[str, str, str, float, str]]):
+        """Add multiple entries (url, ip, date, score, source) to the blacklist."""
         with sqlite3.connect(self.db_path) as conn:
             conn.executemany(
-                "INSERT OR IGNORE INTO blacklist (value, source) VALUES (?, ?)",
+                "INSERT OR IGNORE INTO blacklist (url, ip, date, score, source) VALUES (?, ?, ?, ?, ?)",
                 entries
             )
             conn.commit()
-        
-        # Update cache with new entries
+        # Update cache with new URLs and IPs
         with self._cache_lock:
-            self._cache.update(value for value, _ in entries)
-            if len(self._cache) > 10000:  # Keep cache size reasonable
-                self._cache.clear()  # Reset if too large
+            for url, ip, *_ in entries:
+                self._cache.add(url)
+                if ip:
+                    self._cache.add(ip)
+            if len(self._cache) > 10000:
+                self._cache.clear()
 
     def log_update(self, source: str, entry_count: int):
         """Log a successful update from a source."""
@@ -113,7 +121,7 @@ class Storage:
         """Return a random sample of blacklist entries for testing."""
         with sqlite3.connect(self.db_path) as conn:
             cursor = conn.execute(
-                "SELECT value FROM blacklist ORDER BY RANDOM() LIMIT ?",
+                "SELECT url FROM blacklist ORDER BY RANDOM() LIMIT ?",
                 (count,)
             )
             return [row[0] for row in cursor.fetchall()]
