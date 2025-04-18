@@ -23,7 +23,7 @@ classifiers = [
   "License :: OSI Approved :: MIT License",
   "Programming Language :: Python :: 3",
   "Programming Language :: Python :: 3.11",
-  "Topic :: Security :: Utilities",
+  "Topic :: Security",
 ]
 keywords = ["security", "blacklist", "mcp", "phishing", "malware"]
 
