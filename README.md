@@ -89,7 +89,7 @@ To run sec-mcp as an MCP server for AI-driven clients (e.g., Claude):
    {
      "mcpServers": {
        "sec-mcp": {
-         "command": ".venv/bin/python3",
+         "command": "/[ABSOLUTE_PATH_TO_VENV]/.venv/bin/python3",
          "args": ["-m", "sec_mcp.start_server"]
        }
      }
@@ -115,12 +115,29 @@ To use your MCP Server for security checking (sec-mcp) with an MCP client such a
 {
   "mcpServers": {
     "sec-mcp": {
-      "command": ".venv/bin/python3",
+      "command": "/[ABSOLUTE_PATH_TO_VENV]/.venv/bin/python3",
       "args": ["-m", "sec_mcp.start_server"]
     }
   }
 }
 ```
+
+> **Note:** If you installed `sec-mcp` in a virtual environment, set the `command` path to your `.venv` Python as shown above. If you installed it globally or via `pip` (system-wide), use your system Python executable (e.g., `python3` or the full path to your Python):
+
+```json
+{
+  "mcpServers": {
+    "sec-mcp": {
+      "command": "python3",
+      "args": ["-m", "sec_mcp.start_server"]
+    }
+  }
+}
+```
+
+> **Tip:**
+> - Use the absolute path to the Python executable for virtual environments for isolation.
+> - Use `python3` (or `python`) if installed system-wide via pip.
 
 - Ensure you have installed all dependencies in your virtual environment (`.venv`).
 - The `command` should point to your Python executable inside `.venv` for best isolation.
