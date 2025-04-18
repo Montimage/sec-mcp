@@ -1,10 +1,12 @@
 [build-system]
-requires = ["setuptools>=61.0"]
+requires = ["setuptools>=61.0", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
 name = "sec-mcp"
 version = "0.1.0"
+readme = "README.md"
+license = { text = "MIT" }
 description = "Model Context Protocol (MCP) Client for checking domains, URLs, and IPs against blacklists"
 requires-python = ">=3.11"
 authors = [
@@ -19,6 +21,24 @@ dependencies = [
     "schedule>=1.2.0",
     "tqdm>=4.66.0",
 ]
+
+[project.urls]
+Homepage      = "https://github.com/Montimage/sec-mcp"
+Repository    = "https://github.com/Montimage/sec-mcp.git"
+Documentation = "https://github.com/Montimage/sec-mcp#readme"
+
+[project.classifiers]
+"License :: OSI Approved :: MIT License"
+"Programming Language :: Python :: 3"
+"Programming Language :: Python :: 3.11"
+"Topic :: Security :: Front-ends"
+
+[project.keywords]
+security
+blacklist
+mcp
+phishing
+malware
 
 [project.scripts]
 sec-mcp = "sec_mcp.cli:cli"
