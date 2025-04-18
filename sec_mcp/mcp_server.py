@@ -12,14 +12,6 @@ mcp = FastMCP("mcp-blacklist")
 # Global SecMCP instance for MCP server
 core = SecMCP()
 
-@mcp.tool(name="check", description="Check if a domain, URL, or IP address is in the blacklist. Returns JSON: {is_safe: bool, explain: str}.")
-async def check_blacklist(value: str):
-    """Check a single value against the blacklist."""
-    if not validate_input(value):
-        return {"is_safe": False, "explain": "Invalid input format. Must be a valid domain, URL, or IP address."}
-    result = core.check(value)
-    return {"is_safe": not result.blacklisted, "explain": result.explanation}
-
 @mcp.tool(description="Get status of the blacklist. Returns JSON: {entry_count: int, last_update: str, sources: List[str], server_status: str, source_counts: dict}.")
 async def get_blacklist_status():
     """Return current blacklist status, including per-source entry counts."""
