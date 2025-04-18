@@ -119,6 +119,19 @@ To run sec-mcp as an MCP server for AI-driven clients (e.g., Claude):
 
 Clients will then use the built-in `check_blacklist` tool over JSON/STDIO for real-time security checks.
 
+## New MCP Server Tools
+
+The following RPC endpoints are now available:
+
+- **check_batch(values: List[str])**: Bulk check multiple domains/URLs/IPs in one call. Returns a list of `{ value, is_safe, explanation }`.
+- **sample_blacklist(count: int)**: Return a random sample of blacklist entries for quick inspection.
+- **get_source_stats()**: Retrieve detailed stats: total entries, per-source counts, and last update timestamps. Returns `{ total_entries, per_source, last_updates }`.
+- **get_update_history(source?: str, start?: str, end?: str)**: Fetch update history records, optionally filtered by source and time range.
+- **flush_cache()**: Clear the in-memory URL/IP cache. Returns `{ cleared: bool }`.
+- **health_check()**: Perform a health check of the database and scheduler. Returns `{ db_ok: bool, scheduler_alive: bool, last_update: timestamp }`.
+- **add_entry(url: str, ip?: str, date?: str, score?: float, source?: str)**: Manually add a blacklist entry. Returns `{ success: bool }`.
+- **remove_entry(value: str)**: Remove a blacklist entry by URL or IP address. Returns `{ success: bool }`.
+
 ## Configuration
 
 The client can be configured via `config.json`:
