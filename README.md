@@ -16,90 +16,86 @@ A Python library and CLI tool for checking domains, URLs, or IP addresses agains
 pip install sec-mcp
 ```
 
-## Usage
+## Usage via CLI
 
-### CLI Usage
+1. Install the package:
+   ```bash
+   pip install sec-mcp
+   ```
+2. Check a single URL/domain/IP:
+   ```bash
+   sec-mcp check https://example.com
+   ```
+3. Batch check from a file:
+   ```bash
+   sec-mcp batch urls.txt
+   ```
+4. View blacklist status:
+   ```bash
+   sec-mcp status
+   ```
+5. Manually trigger an update:
+   ```bash
+   sec-mcp update
+   ```
 
-Check a single URL:
-```bash
-sec-mcp check https://example.com
-```
+## Usage via API (Python)
 
-Check multiple URLs from a file:
-```bash
-sec-mcp batch urls.txt
-```
+1. Install in your project:
+   ```bash
+   pip install sec-mcp
+   ```
+2. Import and initialize:
+   ```python
+   from sec_mcp import SecMCP
 
-View blacklist status:
-```bash
-sec-mcp status
-```
+   client = SecMCP()
+   ```
+3. Single check:
+   ```python
+   result = client.check("https://example.com")
+   print(result.to_json())
+   ```
+4. Batch check:
+   ```python
+   urls = ["https://example.com", "https://test.com"]
+   results = client.check_batch(urls)
+   for r in results:
+       print(r.to_json())
+   ```
+5. Get status and update:
+   ```python
+   status = client.get_status()
+   print(status.to_json())
 
-Update the blacklist database manually:
-```bash
-sec-mcp update
-```
+   client.update()
+   ```
 
-If `sec-mcp update` is not found, reinstall or run via module:
-```bash
-pip install -e .
-sec-mcp update
-# or
-python3 -m sec_mcp.interface update
-```
+## Usage via MCP Client
 
-### MCP Server Usage
+To run sec-mcp as an MCP server for AI-driven clients (e.g., Claude):
 
-**Ensure package is installed locally (e.g., development mode):**
-```bash
-pip install -e .
-```
+1. Install in editable mode (for development):
+   ```bash
+   pip install -e .
+   ```
+2. Start the MCP server:
+   ```bash
+   sec-mcp-server
+   ```
+3. Configure your MCP client (e.g., Claude) to point at the command:
+   ```json
+   {
+     "mcpServers": {
+       "sec-mcp": {
+         "command": ".venv/bin/python3",
+         "args": ["-m", "sec_mcp.start_server"]
+       }
+     }
+   }
+   ```
 
-Start the MCP server in persistent mode:
-```bash
-python3 start_server.py
-```
-
-**Server Logs**
-
-- A log file `mcp-server.log` is created in the project root (same folder as `start_server.py`).
-- All server activity and errors are recorded here using the configured log level (default: INFO).
-- To follow logs live:
-```bash
-tail -f mcp-server.log
-```
-
-### Quick STDIO Test
-
-Test the MCP server directly over STDIO without an external client.
-Suppress the startup banner (stderr) to get only the JSON response:
-```bash
-printf '{"tool":"check_blacklist","input":{"value":"https://example.com"}}\n' \
-  | python3 start_server.py 2>/dev/null
-```
-
-You should see the JSON response on stdout:
-```json
-{"is_safe": true, "explain": "Not blacklisted"}
-```
-
-### Python Library Usage
-
-```python
-from sec_mcp import Core
-
-# Initialize the client
-core = Core()
-
-# Check a single URL
-result = core.check("https://example.com")
-print(f"Safe: {not result.blacklisted}")
-print(f"Explanation: {result.explanation}")
-
-# Check multiple URLs
-urls = ["https://example.com", "https://test.com"]
-results = core.check_batch(urls)
-```
+Clients will then use the built-in `check_blacklist` tool over JSON/STDIO for real-time security checks.
 
 ## Configuration
 

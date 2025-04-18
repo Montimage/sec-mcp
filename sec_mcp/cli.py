@@ -1,8 +1,8 @@
 import click
-from .core import Core
+from .sec_mcp import SecMCP
 
-# Global Core instance for CLI
-core = Core()
+# Global SecMCP instance for CLI
+core = SecMCP()
 
 @click.group()
 @click.version_option(version="0.1.0", message="%(version)s (MCP Client)")

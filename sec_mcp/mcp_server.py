@@ -1,12 +1,14 @@
 from mcp.server.fastmcp import FastMCP
 import anyio
-from .core import Core
+# import SecMCP for server logic
+from .sec_mcp import SecMCP
 from .utility import validate_input
 
 # Initialize FastMCP server
 mcp = FastMCP("mcp-blacklist")
 
-# Global Core instance for MCP servercore = Core()
+# Global SecMCP instance for MCP server
+core = SecMCP()
 
 @mcp.tool(description="Calculate sum of two numbers. Returns JSON: {sum: number}.")
 async def sum_numbers(a: float, b: float):
