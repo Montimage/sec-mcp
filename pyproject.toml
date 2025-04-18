@@ -5,45 +5,37 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "sec-mcp"
 version = "0.1.0"
+description = "Python toolkit providing security checks for domains, URLs, IPs, and more."
 readme = "README.md"
 license = { text = "MIT" }
-description = "Model Context Protocol (MCP) Client for checking domains, URLs, and IPs against blacklists"
 requires-python = ">=3.11"
-authors = [
-    {name = "Luong NGUYEN"}
-]
+authors = [ { name = "Luong NGUYEN" } ]
 dependencies = [
-    "requests>=2.31.0",
-    "httpx>=0.25.0",
-    "click>=8.1.7",
-    "idna>=3.4",
-    "mcp[cli]>=0.1.0",
-    "schedule>=1.2.0",
-    "tqdm>=4.66.0",
+  "requests>=2.31.0",
+  "httpx>=0.25.0",
+  "click>=8.1.7",
+  "idna>=3.4",
+  "mcp[cli]>=0.1.0",
+  "schedule>=1.2.0",
+  "tqdm>=4.66.0",
 ]
+classifiers = [
+  "License :: OSI Approved :: MIT License",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.11",
+  "Topic :: Security :: Utilities",
+]
+keywords = ["security", "blacklist", "mcp", "phishing", "malware"]
 
 [project.urls]
 Homepage      = "https://github.com/Montimage/sec-mcp"
 Repository    = "https://github.com/Montimage/sec-mcp.git"
 Documentation = "https://github.com/Montimage/sec-mcp#readme"
 
-[project.classifiers]
-"License :: OSI Approved :: MIT License"
-"Programming Language :: Python :: 3"
-"Programming Language :: Python :: 3.11"
-"Topic :: Security :: Front-ends"
-
-[project.keywords]
-security
-blacklist
-mcp
-phishing
-malware
-
 [project.scripts]
 sec-mcp = "sec_mcp.cli:cli"
 sec-mcp-server = "sec_mcp.start_server:main"
 
 [tool.setuptools.packages.find]
-where = [".",]
+where = ["."]
 include = ["sec_mcp*"]
