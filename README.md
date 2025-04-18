@@ -1,14 +1,15 @@
-# MCP Server for security checking (url, domain, ip address)
+# sec-mcp: Security Checking Toolkit
 
-A Python library and CLI tool for checking domains, URLs, or IP addresses against a blacklist for phishing and malware threats. Integrated with an always-running MCP server for AI-driven workflows.
+A Python toolkit providing security checks for domains, URLs, IPs, and more. Integrate easily into any Python application, use via terminal CLI, or run as an MCP server to enrich LLM context with real-time threat insights.
 
 ## Features
 
-- Check domains, URLs, and IPs against multiple blacklist sources
-- Automated daily updates from OpenPhish, PhishStats, and URLhaus
-- High-throughput performance with SQLite backend and in-memory caching
-- CLI interface for manual checks and batch processing
-- MCP server integration for AI-driven workflows
+- Comprehensive security checks for domains, URLs, IP addresses, and more against multiple blacklist feeds
+- On-demand updates from OpenPhish, PhishStats, URLhaus and custom sources
+- High-performance, thread-safe SQLite storage with in-memory caching for fast lookups
+- Python API via `SecMCP` class for easy integration into your applications
+- Intuitive Click-based CLI for interactive single or batch scans
+- Built-in MCP server support for LLM/AI integrations over JSON/STDIO
 
 ## Installation
 
