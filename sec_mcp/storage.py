@@ -123,6 +123,12 @@ class Storage:
             cursor = conn.execute("SELECT COUNT(*) FROM blacklist")
             return cursor.fetchone()[0]
 
+    def get_source_counts(self) -> dict:
+        """Get the number of blacklist entries for each source."""
+        with sqlite3.connect(self.db_path) as conn:
+            cursor = conn.execute("SELECT source, COUNT(*) FROM blacklist GROUP BY source")
+            return {row[0]: row[1] for row in cursor.fetchall()}
+
     def get_last_update(self) -> datetime:
         """Get timestamp of last update."""
         with sqlite3.connect(self.db_path) as conn:

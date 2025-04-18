@@ -10,11 +10,6 @@ mcp = FastMCP("mcp-blacklist")
 # Global SecMCP instance for MCP server
 core = SecMCP()
 
-@mcp.tool(description="Calculate sum of two numbers. Returns JSON: {sum: number}.")
-async def sum_numbers(a: float, b: float):
-    """Sum two numbers."""
-    return {"sum": a + b}
-
 @mcp.tool(name="check", description="Check if a domain, URL, or IP address is in the blacklist. Returns JSON: {is_safe: bool, explain: str}.")
 async def check_blacklist(value: str):
     """Check a single value against the blacklist."""
@@ -23,15 +18,17 @@ async def check_blacklist(value: str):
     result = core.check(value)
     return {"is_safe": not result.blacklisted, "explain": result.explanation}
 
-@mcp.tool(description="Get status of the blacklist. Returns JSON: {entry_count: int, last_update: str, sources: List[str], server_status: str}.")
+@mcp.tool(description="Get status of the blacklist. Returns JSON: {entry_count: int, last_update: str, sources: List[str], server_status: str, source_counts: dict}.")
 async def get_blacklist_status():
-    """Return current blacklist status."""
+    """Return current blacklist status, including per-source entry counts."""
     status = core.get_status()
+    source_counts = core.storage.get_source_counts()
     return {
         "entry_count": status.entry_count,
         "last_update": status.last_update,
         "sources": status.sources,
-        "server_status": status.server_status
+        "server_status": status.server_status,
+        "source_counts": source_counts
     }
 
 @mcp.tool(description="Force immediate update of all blacklists. Returns JSON: {updated: bool}.")

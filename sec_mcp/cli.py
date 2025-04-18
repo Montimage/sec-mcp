@@ -53,15 +53,20 @@ def batch(file: str, json: bool):
 @click.option('--json', is_flag=True, help='Output in JSON format')
 def status(json):
     status = core.get_status()
+    source_counts = core.storage.get_source_counts()
     if json:
         import json as _json
-        click.echo(_json.dumps(status.to_json(), indent=2))
+        # Add source_counts to the JSON output
+        data = status.to_json()
+        data['source_counts'] = source_counts
+        click.echo(_json.dumps(data, indent=2))
     else:
         click.secho(f"Total entries: {status.entry_count}", bold=True)
         click.echo(f"Last update: {status.last_update}")
         click.echo("Active sources:")
         for source in status.sources:
-            click.echo(f"  - {source}")
+            count = source_counts.get(source, 0)
+            click.echo(f"  - {source}: {count} entries")
         click.echo(f"Server status: {status.server_status}")
 
 @cli.command(help="Update blacklist feeds immediately.")

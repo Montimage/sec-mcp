@@ -2,7 +2,9 @@
     "blacklist_sources": {
         "OpenPhish": "https://raw.githubusercontent.com/openphish/public_feed/refs/heads/main/feed.txt",
         "PhishStats": "https://phishstats.info/phish_score.csv",
-        "URLhaus": "https://urlhaus.abuse.ch/downloads/text/"
+        "URLhaus": "https://urlhaus.abuse.ch/downloads/text/",
+        "PhishTank": "https://data.phishtank.com/data/online-valid.csv",
+        "SpamhausDROP": "https://www.spamhaus.org/drop/drop.txt"
     },
     "update_time": "00:00",
     "cache_size": 10000,
