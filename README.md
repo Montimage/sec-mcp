@@ -84,17 +84,22 @@ To run sec-mcp as an MCP server for AI-driven clients (e.g., Claude):
    ```bash
    sec-mcp-server
    ```
-3. Configure your MCP client (e.g., Claude) to point at the command:
+3. Configure your MCP client (e.g., Claude, Windsurf, Cursor) to point at the command:
    ```json
    {
      "mcpServers": {
        "sec-mcp": {
-         "command": "/[ABSOLUTE_PATH_TO_VENV]/.venv/bin/python3",
-         "args": ["-m", "sec_mcp.start_server"]
+         "command": "uv",
+         "args": ["--directory","/Users/montimage/workspace/montimage/sec-mcp","run", "-m", "sec_mcp.start_server"]
        }
      }
    }
    ```
+   > **Note:**
+   > - The `--directory` argument ensures the working directory is set to your project root, so Python treats `sec_mcp` as a package and all relative imports work correctly. This is essential for correct module resolution when running as a module (`-m`).
+   > - Update the path in `--directory` if your project is in a different location.
+   > - Ensure all dependencies are installed in your virtual environment (`.venv`).
+   > - This is the recommended configuration for integration with AI-driven clients.
 
 Clients will then use the built-in `check_blacklist` tool over JSON/STDIO for real-time security checks.
 
