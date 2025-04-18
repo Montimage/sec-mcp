@@ -34,11 +34,10 @@ import os
 import json
 
 class SecMCP:
-    def __init__(self):
+    def __init__(self, db_path=None):
         config_path = os.path.join(os.path.dirname(__file__), "config.json")
         with open(config_path) as f:
             config = json.load(f)
-        db_path = config.get("db_path", "mcp.db")
         self.storage = Storage(db_path=db_path)
         self.updater = BlacklistUpdater(self.storage)
 

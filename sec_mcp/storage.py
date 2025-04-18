@@ -3,11 +3,34 @@ from datetime import datetime
 from typing import List, Optional, Set, Tuple
 import threading
 import random
+import os
+import sys
+from pathlib import Path
 
 class Storage:
     """SQLite-based storage with in-memory caching for high-throughput blacklist checks."""
     
-    def __init__(self, db_path: str = "mcp.db"):
+    def __init__(self, db_path=None):
+        if db_path is None:
+            db_path = os.environ.get("MCP_DB_PATH")
+        if db_path is None:
+            try:
+                from platformdirs import user_data_dir
+                db_dir = user_data_dir("sec-mcp", "montimage")
+            except ImportError:
+                if os.name == "nt":
+                    db_dir = os.path.join(os.environ.get("APPDATA", str(Path.home() / "AppData" / "Roaming")), "sec-mcp")
+                elif os.name == "posix":
+                    if sys.platform == "darwin":
+                        db_dir = str(Path.home() / "Library" / "Application Support" / "sec-mcp")
+                    else:
+                        db_dir = str(Path.home() / ".local" / "share" / "sec-mcp")
+                else:
+                    db_dir = str(Path.home() / ".sec-mcp")
+            os.makedirs(db_dir, exist_ok=True)
+            db_path = os.path.join(db_dir, "mcp.db")
+        else:
+            os.makedirs(os.path.dirname(db_path), exist_ok=True)
         self.db_path = db_path
         self._cache: Set[str] = set()  # In-memory cache for faster lookups
         self._cache_lock = threading.Lock()

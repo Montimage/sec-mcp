@@ -11,6 +11,22 @@ A Python toolkit providing security checks for domains, URLs, IPs, and more. Int
 - Intuitive Click-based CLI for interactive single or batch scans
 - Built-in MCP server support for LLM/AI integrations over JSON/STDIO
 
+## Environment Variable: MCP_DB_PATH
+
+By default, sec-mcp stores its SQLite database (`mcp.db`) in a shared, cross-platform location:
+
+- **macOS:** `~/Library/Application Support/sec-mcp/mcp.db`
+- **Linux:** `~/.local/share/sec-mcp/mcp.db`
+- **Windows:** `%APPDATA%\sec-mcp\mcp.db`
+
+You can override this location by setting the `MCP_DB_PATH` environment variable:
+
+```sh
+export MCP_DB_PATH=/path/to/your/custom/location/mcp.db
+```
+
+Set this variable before running any sec-mcp commands or starting the server. The directory will be created if it does not exist.
+
 ## Installation
 
 ```bash
