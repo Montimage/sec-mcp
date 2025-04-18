@@ -6,7 +6,8 @@ import schedule
 import threading
 from typing import List, Dict
 from .storage import Storage
-from .utility import validate_input
+from .utility import validate_input, setup_logging
+import logging
 
 class BlacklistUpdater:
     """Handles downloading and updating blacklists from various sources."""
@@ -19,6 +20,8 @@ class BlacklistUpdater:
 
     def __init__(self, storage: Storage):
         self.storage = storage
+        setup_logging()
+        self.logger = logging.getLogger("mcp_client.update_blacklist")
         self._start_scheduler()
 
     def _start_scheduler(self):
@@ -46,24 +49,28 @@ class BlacklistUpdater:
             response = await client.get(url)
             response.raise_for_status()
             content = response.text
-
             entries = []
             if source == "PhishStats":
-                # Parse CSV format
-                reader = csv.DictReader(content.splitlines())
-                entries = [(row['url'], source) for row in reader if validate_input(row['url'])]
+                try:
+                    reader = csv.DictReader(content.splitlines())
+                    entries = [(row['url'], source) for row in reader if validate_input(row.get('url', ''))]
+                except Exception as e:
+                    self.logger.error(f"CSV parsing error for {source}: {e}")
+                    return
             else:
-                # Parse plain text format (one URL per line)
                 entries = [(line.strip(), source) for line in content.splitlines() 
                           if line.strip() and validate_input(line.strip())]
-
-            # Add entries to storage
+            if not entries:
+                self.logger.warning(f"No valid entries found for {source} during update.")
             self.storage.add_entries(entries)
             self.storage.log_update(source, len(entries))
-
+            self.logger.info(f"Updated {source}: {len(entries)} entries.")
+        except httpx.RequestError as e:
+            self.logger.error(f"Network error updating {source}: {e}")
+        except httpx.HTTPStatusError as e:
+            self.logger.error(f"HTTP error updating {source}: {e.response.status_code}")
         except Exception as e:
-            # Log error but don't crash
-            print(f"Error updating {source}: {str(e)}")
+            self.logger.error(f"Unexpected error updating {source}: {e}")
 
     def force_update(self):
         """Force an immediate update of all blacklists."""

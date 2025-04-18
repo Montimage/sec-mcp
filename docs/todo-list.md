@@ -9,9 +9,9 @@
 - [x] Implement Interface Module (CLI and MCP Server)
 
 ## Sprint 2
-- [ ] Enhance Security Features
-- [ ] Improve CLI Usability
-- [ ] Add Error Handling for Updates
+- [x] Enhance Security Features
+- [x] Improve CLI Usability
+- [x] Add Error Handling for Updates
 
 ## Sprint 3
 - [ ] Develop Unit Tests
