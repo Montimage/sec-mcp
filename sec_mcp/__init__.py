@@ -6,5 +6,5 @@ from .sec_mcp import SecMCP, CheckResult, StatusInfo
 from .cli import cli
 from .utility import validate_input, setup_logging
 
-__version__ = "0.1.0"
+__version__ = "0.1.1"
 __all__ = ['SecMCP', 'CheckResult', 'StatusInfo', 'cli', 'validate_input', 'setup_logging']

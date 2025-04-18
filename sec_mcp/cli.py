@@ -5,7 +5,7 @@ from .sec_mcp import SecMCP
 core = SecMCP()
 
 @click.group()
-@click.version_option(version="0.1.0", message="%(version)s (MCP Client)")
+@click.version_option(version="0.1.1", message="%(version)s (MCP Client)")
 def cli():
     """MCP Client CLI for checking domains, URLs, and IPs against blacklists.
 
