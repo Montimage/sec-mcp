@@ -1,6 +1,6 @@
 import sqlite3
 from datetime import datetime
-from typing import List, Optional, Set, Tuple
+from typing import List, Optional, Set, Tuple, Dict
 import threading
 import random
 import os
@@ -123,7 +123,7 @@ class Storage:
             cursor = conn.execute("SELECT COUNT(*) FROM blacklist")
             return cursor.fetchone()[0]
 
-    def get_source_counts(self) -> dict:
+    def get_source_counts(self) -> Dict[str, int]:
         """Get the number of blacklist entries for each source."""
         with sqlite3.connect(self.db_path) as conn:
             cursor = conn.execute("SELECT source, COUNT(*) FROM blacklist GROUP BY source")
@@ -154,3 +154,50 @@ class Storage:
                 (count,)
             )
             return [row[0] for row in cursor.fetchall()]
+
+    def get_last_update_per_source(self) -> Dict[str, str]:
+        """Get last update timestamp for each source."""
+        with sqlite3.connect(self.db_path) as conn:
+            cursor = conn.execute(
+                "SELECT source, MAX(timestamp) FROM updates GROUP BY source"
+            )
+            return {row[0]: row[1] for row in cursor.fetchall()}
+
+    def get_update_history(self, source: str = None, start: str = None, end: str = None) -> list:
+        """Return update history records, optionally filtered by source and time range."""
+        with sqlite3.connect(self.db_path) as conn:
+            parts = []
+            params = []
+            if source:
+                parts.append("source = ?") and params.append(source)
+            if start:
+                parts.append("timestamp >= ?") and params.append(start)
+            if end:
+                parts.append("timestamp <= ?") and params.append(end)
+            query = "SELECT timestamp, source, entry_count FROM updates"
+            if parts:
+                query += " WHERE " + " AND ".join(parts)
+            query += " ORDER BY timestamp"
+            cursor = conn.execute(query, params)
+            return [
+                {"timestamp": row[0], "source": row[1], "entry_count": row[2]}
+                for row in cursor.fetchall()
+            ]
+
+    def flush_cache(self) -> bool:
+        """Clear the in-memory URL/IP cache."""
+        with self._cache_lock:
+            self._cache.clear()
+        return True
+
+    def remove_entry(self, value: str) -> bool:
+        """Remove a blacklist entry by URL or IP."""
+        with sqlite3.connect(self.db_path) as conn:
+            cursor = conn.execute(
+                "DELETE FROM blacklist WHERE url = ? OR ip = ?",
+                (value, value)
+            )
+            conn.commit()
+        with self._cache_lock:
+            self._cache.discard(value)
+        return cursor.rowcount > 0
