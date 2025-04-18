@@ -1,7 +1,7 @@
 """Test the core functionality of the MCP client."""
 import pytest
-from mcp_client.core import Core, CheckResult
-from mcp_client.storage import Storage
+from sec_mcp.core import Core, CheckResult
+from sec_mcp.storage import Storage
 from datetime import datetime
 
 @pytest.fixture

@@ -1,18 +1,15 @@
 #!/usr/bin/env python3
 """Start the MCP server in persistent mode."""
 
-from mcp_client.interface import mcp, MCPServer
-from mcp_client.core import Core
-from mcp_client.utility import setup_logging
+from sec_mcp.mcp_server import mcp
+import sys
+from sec_mcp.utility import setup_logging
+
+def main():
+    """Entrypoint for MCP server via console script."""
+    setup_logging()
+    print("Starting MCP server with STDIO transport...", file=sys.stderr)
+    mcp.run(transport='stdio')
 
 if __name__ == "__main__":
-    # Set up logging
-    setup_logging()
-    
-    # Initialize core and server
-    core = Core()
-    server = MCPServer(core)
-    
-    # Start the server with STDIO transport
-    print("Starting MCP server with STDIO transport...")
-    mcp.run(transport='stdio')
+    main()

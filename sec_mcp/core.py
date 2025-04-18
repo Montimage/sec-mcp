@@ -60,3 +60,11 @@ class Core:
             sources=self.storage.get_active_sources(),
             server_status="Running (STDIO)"
         )
+
+    def update(self) -> None:
+        """Force an immediate update of all blacklists."""
+        self.updater.force_update()
+
+    def sample(self, count: int = 10) -> List[str]:
+        """Return a random sample of blacklist entries for testing."""
+        return self.storage.sample_entries(count)

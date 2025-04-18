@@ -1,6 +1,6 @@
 """Test the utility functions."""
 import pytest
-from mcp_client.utility import validate_input, load_config, setup_logging
+from sec_mcp.utility import validate_input, load_config, setup_logging
 import logging
 
 def test_validate_url():
@@ -33,5 +33,5 @@ def test_load_config():
 def test_setup_logging():
     """Test logging configuration."""
     setup_logging("DEBUG")
-    logger = logging.getLogger("mcp_client")
+    logger = logging.getLogger("sec_mcp")
     assert logger.level == logging.DEBUG

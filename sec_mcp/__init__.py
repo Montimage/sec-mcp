@@ -3,7 +3,7 @@ MCP Client - A Python library and CLI for checking domains, URLs, and IPs agains
 """
 
 from .core import Core, CheckResult, StatusInfo
-from .interface import cli
+from .cli import cli
 from .utility import validate_input, setup_logging
 
 __version__ = "0.1.0"

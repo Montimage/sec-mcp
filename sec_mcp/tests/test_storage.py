@@ -1,7 +1,7 @@
 """Test the storage functionality."""
 import pytest
 import os
-from mcp_client.storage import Storage
+from sec_mcp.storage import Storage
 from datetime import datetime, timedelta
 
 @pytest.fixture

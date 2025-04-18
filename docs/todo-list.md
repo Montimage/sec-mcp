@@ -14,6 +14,6 @@
 - [x] Add Error Handling for Updates
 
 ## Sprint 3
-- [ ] Develop Unit Tests
-- [ ] Optimize Performance
-- [ ] Package and Distribute
+- [x] Develop Unit Tests
+- [x] Optimize Performance
+- [x] Package and Distribute

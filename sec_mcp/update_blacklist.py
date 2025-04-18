@@ -21,7 +21,7 @@ class BlacklistUpdater:
     def __init__(self, storage: Storage):
         self.storage = storage
         setup_logging()
-        self.logger = logging.getLogger("mcp_client.update_blacklist")
+        self.logger = logging.getLogger("sec_mcp.update_blacklist")
         self._start_scheduler()
 
     def _start_scheduler(self):

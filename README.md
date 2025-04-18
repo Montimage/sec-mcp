@@ -1,4 +1,4 @@
-# Model Context Protocol (MCP) Client
+# MCP Server for security checking (url, domain, ip address)
 
 A Python library and CLI tool for checking domains, URLs, or IP addresses against a blacklist for phishing and malware threats. Integrated with an always-running MCP server for AI-driven workflows.
 
@@ -13,7 +13,7 @@ A Python library and CLI tool for checking domains, URLs, or IP addresses agains
 ## Installation
 
 ```bash
-pip install mcp-client
+pip install sec-mcp
 ```
 
 ## Usage
@@ -22,37 +22,71 @@ pip install mcp-client
 
 Check a single URL:
 ```bash
-mcp check https://example.com
+sec-mcp check https://example.com
 ```
 
 Check multiple URLs from a file:
 ```bash
-mcp batch urls.txt
+sec-mcp batch urls.txt
 ```
 
 View blacklist status:
 ```bash
-mcp status
+sec-mcp status
+```
+
+Update the blacklist database manually:
+```bash
+sec-mcp update
+```
+
+If `sec-mcp update` is not found, reinstall or run via module:
+```bash
+pip install -e .
+sec-mcp update
+# or
+python3 -m sec_mcp.interface update
 ```
 
 ### MCP Server Usage
 
-The MCP server can be started in persistent mode:
-
+**Ensure package is installed locally (e.g., development mode):**
 ```bash
-./start_server.py
+pip install -e .
 ```
 
-This starts an MCP server with STDIO transport that exposes the following tool:
+Start the MCP server in persistent mode:
+```bash
+python3 start_server.py
+```
 
-- `check_blacklist`: Check if a domain, URL, or IP is in the blacklist
-  - Input: `value` (string) - The domain, URL, or IP to check
-  - Output: JSON with `is_safe` (boolean) and `explain` (string)
+**Server Logs**
+
+- A log file `mcp-server.log` is created in the project root (same folder as `start_server.py`).
+- All server activity and errors are recorded here using the configured log level (default: INFO).
+- To follow logs live:
+```bash
+tail -f mcp-server.log
+```
+
+### Quick STDIO Test
+
+Test the MCP server directly over STDIO without an external client.
+Suppress the startup banner (stderr) to get only the JSON response:
+```bash
+printf '{"tool":"check_blacklist","input":{"value":"https://example.com"}}\n' \
+  | python3 start_server.py 2>/dev/null
+```
+
+You should see the JSON response on stdout:
+```json
+{"is_safe": true, "explain": "Not blacklisted"}
+```
 
 ### Python Library Usage
 
 ```python
-from mcp_client import Core
+from sec_mcp import Core
 
 # Initialize the client
 core = Core()
@@ -76,13 +110,37 @@ The client can be configured via `config.json`:
 - `cache_size`: In-memory cache size (default: 10000)
 - `log_level`: Logging verbosity (default: "INFO")
 
+## Configuring sec-mcp with Claude (MCP Client)
+
+To use your MCP Server for security checking (sec-mcp) with an MCP client such as Claude, add it to your Claude configuration as follows:
+
+```json
+{
+  "mcpServers": {
+    "sec-mcp": {
+      "command": ".venv/bin/python3",
+      "args": ["-m", "sec_mcp.start_server"]
+    }
+  }
+}
+```
+
+- Ensure you have installed all dependencies in your virtual environment (`.venv`).
+- The `command` should point to your Python executable inside `.venv` for best isolation.
+- The `args` array should launch your MCP server using the provided script.
+- You can add other MCP servers in the same configuration if needed.
+
+This setup allows Claude (or any compatible MCP client) to connect to your sec-mcp server and use its `check_blacklist` tool for real-time security checks on URLs, domains, or IP addresses.
+
+For more details and advanced configuration, see the [Model Context Protocol examples](https://modelcontextprotocol.io/examples).
+
 ## Development
 
 Clone the repository and install in development mode:
 
 ```bash
 git clone <repository-url>
-cd mcp-client
+cd sec-mcp
 pip install -e .
 ```
 

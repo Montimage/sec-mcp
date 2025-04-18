@@ -2,6 +2,7 @@ import sqlite3
 from datetime import datetime
 from typing import List, Optional, Set
 import threading
+import random
 
 class Storage:
     """SQLite-based storage with in-memory caching for high-throughput blacklist checks."""
@@ -13,8 +14,11 @@ class Storage:
         self._init_db()
 
     def _init_db(self):
-        """Initialize the SQLite database with required tables."""
+        """Initialize the SQLite database with required tables and performance PRAGMAs."""
         with sqlite3.connect(self.db_path) as conn:
+            conn.execute("PRAGMA journal_mode=WAL;")
+            conn.execute("PRAGMA synchronous=NORMAL;")
+            conn.execute("PRAGMA cache_size=10000;")
             conn.execute("""
                 CREATE TABLE IF NOT EXISTS blacklist (
                     value TEXT PRIMARY KEY,
@@ -102,5 +106,14 @@ class Storage:
         with sqlite3.connect(self.db_path) as conn:
             cursor = conn.execute(
                 "SELECT DISTINCT source FROM blacklist"
+            )
+            return [row[0] for row in cursor.fetchall()]
+
+    def sample_entries(self, count: int = 10) -> List[str]:
+        """Return a random sample of blacklist entries for testing."""
+        with sqlite3.connect(self.db_path) as conn:
+            cursor = conn.execute(
+                "SELECT value FROM blacklist ORDER BY RANDOM() LIMIT ?",
+                (count,)
             )
             return [row[0] for row in cursor.fetchall()]

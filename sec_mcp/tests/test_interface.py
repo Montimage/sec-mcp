@@ -1,7 +1,7 @@
 """Test the MCP server interface."""
 import pytest
-from mcp_client.interface import MCPServer
-from mcp_client.core import Core
+from sec_mcp.interface import MCPServer
+from sec_mcp.core import Core
 
 @pytest.fixture
 def mcp_server():

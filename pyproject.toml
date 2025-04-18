@@ -3,7 +3,7 @@ requires = ["setuptools>=61.0"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "mcp-client"
+name = "sec-mcp"
 version = "0.1.0"
 description = "Model Context Protocol (MCP) Client for checking domains, URLs, and IPs against blacklists"
 requires-python = ">=3.11"
@@ -17,8 +17,13 @@ dependencies = [
     "idna>=3.4",
     "mcp[cli]>=0.1.0",
     "schedule>=1.2.0",
-    "tqdm>=4.66.0"
+    "tqdm>=4.66.0",
 ]
 
 [project.scripts]
-mcp = "mcp_client.interface:cli"
+sec-mcp = "sec_mcp.cli:cli"
+sec-mcp-server = "sec_mcp.start_server:main"
+
+[tool.setuptools.packages.find]
+where = [".",]
+include = ["sec_mcp*"]

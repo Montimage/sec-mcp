@@ -9,13 +9,22 @@ import idna
 import ipaddress
 
 def setup_logging(log_level: str = "INFO") -> None:
-    """Configure logging for the MCP client."""
+    """Configure logging for the MCP client and server."""
     level = getattr(logging, log_level)
+    # Configure console output
     logging.basicConfig(
         level=level,
         format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
     )
-    logging.getLogger("mcp_client").setLevel(level)
+    # Add file handler for persistent logs
+    project_root = Path(__file__).parent.parent
+    log_path = project_root / 'mcp-server.log'
+    file_handler = logging.FileHandler(log_path)
+    file_handler.setLevel(level)
+    file_handler.setFormatter(logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s'))
+    logging.getLogger().addHandler(file_handler)
+    # Set sec_mcp logger level
+    logging.getLogger("sec_mcp").setLevel(level)
 
 def load_config() -> Dict[str, Any]:
     """Load configuration from config.json."""
