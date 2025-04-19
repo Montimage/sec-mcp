@@ -105,11 +105,39 @@ const Features = () => {
                                 </tr>
                                 <tr>
                                     <td className="py-3 px-4 border-b text-sm font-mono text-blue-600">get_blacklist_status</td>
-                                    <td className="py-3 px-4 border-b text-sm">Get status of the blacklist, including entry counts</td>
+                                    <td className="py-3 px-4 border-b text-sm">Get status of the blacklist, including entry counts and per-source breakdown</td>
+                                </tr>
+                                <tr>
+                                    <td className="py-3 px-4 border-b text-sm font-mono text-blue-600">sample_blacklist</td>
+                                    <td className="py-3 px-4 border-b text-sm">Return a random sample of blacklist entries</td>
+                                </tr>
+                                <tr>
+                                    <td className="py-3 px-4 border-b text-sm font-mono text-blue-600">get_source_stats</td>
+                                    <td className="py-3 px-4 border-b text-sm">Retrieve detailed stats: total entries, per-source counts, last update timestamps</td>
+                                </tr>
+                                <tr>
+                                    <td className="py-3 px-4 border-b text-sm font-mono text-blue-600">get_update_history</td>
+                                    <td className="py-3 px-4 border-b text-sm">Fetch update history records, optionally filtered by source and time range</td>
+                                </tr>
+                                <tr>
+                                    <td className="py-3 px-4 border-b text-sm font-mono text-blue-600">flush_cache</td>
+                                    <td className="py-3 px-4 border-b text-sm">Clear the in-memory URL/IP cache</td>
+                                </tr>
+                                <tr>
+                                    <td className="py-3 px-4 border-b text-sm font-mono text-blue-600">add_entry</td>
+                                    <td className="py-3 px-4 border-b text-sm">Manually add a blacklist entry</td>
+                                </tr>
+                                <tr>
+                                    <td className="py-3 px-4 border-b text-sm font-mono text-blue-600">remove_entry</td>
+                                    <td className="py-3 px-4 border-b text-sm">Remove a blacklist entry by URL or IP address</td>
                                 </tr>
                                 <tr>
                                     <td className="py-3 px-4 border-b text-sm font-mono text-blue-600">update_blacklists</td>
                                     <td className="py-3 px-4 border-b text-sm">Force immediate update of all blacklists</td>
+                                </tr>
+                                <tr>
+                                    <td className="py-3 px-4 border-b text-sm font-mono text-blue-600">health_check</td>
+                                    <td className="py-3 px-4 border-b text-sm">Perform a health check of the database and scheduler</td>
                                 </tr>
                             </tbody>
                         </table>
