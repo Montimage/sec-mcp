@@ -13,6 +13,39 @@ A Python toolkit providing security checks for domains, URLs, IPs, and more. Int
 
 ---
 
+## API Functions
+
+| Function Name        | Signature                                             | Description                                                     |
+|---------------------|------------------------------------------------------|-----------------------------------------------------------------|
+| `check`             | `check(value: str) -> CheckResult`                   | Check a single domain, URL, or IP against the blacklist.        |
+| `check_batch`       | `check_batch(values: List[str]) -> List[CheckResult]`| Batch check of multiple values.                                 |
+| `check_ip`          | `check_ip(ip: str) -> CheckResult`                   | Check if an IP (or network) is blacklisted.                     |
+| `check_domain`      | `check_domain(domain: str) -> CheckResult`           | Check if a domain (including parent domains) is blacklisted.    |
+| `check_url`         | `check_url(url: str) -> CheckResult`                 | Check if a URL is blacklisted.                                  |
+| `get_status`        | `get_status() -> StatusInfo`                         | Get current status of the blacklist service.                    |
+| `update`            | `update() -> None`                                   | Force an immediate update of all blacklists.                    |
+| `sample`            | `sample(count: int = 10) -> List[str]`               | Return a random sample of blacklist entries.                    |
+
+---
+
+## Available MCP Tools
+
+| Tool Name              | Signature / Endpoint            | Description                                                                           |
+|-----------------------|---------------------------------|---------------------------------------------------------------------------------------|
+| `check_blacklist`     | `check_blacklist(value: str)`   | Check a single value (domain, URL, or IP) against the blacklist.                      |
+| `check_batch`         | `check_batch(values: List[str])`| Bulk check multiple domains/URLs/IPs in one call.                                     |
+| `get_blacklist_status`| `get_blacklist_status()`        | Get status of the blacklist, including entry counts and per-source breakdown.         |
+| `sample_blacklist`    | `sample_blacklist(count: int)`  | Return a random sample of blacklist entries.                                          |
+| `get_source_stats`    | `get_source_stats()`            | Retrieve detailed stats: total entries, per-source counts, last update timestamps.    |
+| `get_update_history`  | `get_update_history(...)`       | Fetch update history records, optionally filtered by source and time range.           |
+| `flush_cache`         | `flush_cache()`                 | Clear the in-memory URL/IP cache.                                                     |
+| `add_entry`           | `add_entry(url, ip, ...)`       | Manually add a blacklist entry.                                                       |
+| `remove_entry`        | `remove_entry(value: str)`      | Remove a blacklist entry by URL or IP address.                                        |
+| `update_blacklists`   | `update_blacklists()`           | Force immediate update of all blacklists.                                             |
+| `health_check`        | `health_check()`                | Perform a health check of the database and scheduler.                                 |
+
+---
+
 ## Changelog (v0.1.8)
 
 ### Major Updates
