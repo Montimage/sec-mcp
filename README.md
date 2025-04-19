@@ -11,6 +11,28 @@ A Python toolkit providing security checks for domains, URLs, IPs, and more. Int
 - Intuitive Click-based CLI for interactive single or batch scans
 - Built-in MCP server support for LLM/AI integrations over JSON/STDIO
 
+---
+
+## Changelog (v0.1.8)
+
+### Major Updates
+- **SpamhausDROP network/CIDR support:**
+  - The blacklist now fully supports network masks (CIDR ranges) from SpamhausDROP. All IPs within these ranges are correctly detected as blacklisted.
+- **Enhanced IP blacklisting logic:**
+  - IP checks now match both exact IPs and any IPs contained within stored network ranges.
+- **Dedicated handlers for PhishTank and SpamhausDROP:**
+  - PhishTank CSV and SpamhausDROP.txt are parsed with custom logic for accurate extraction of URLs, dates, scores, and network masks.
+- **Improved deduplication:**
+  - Deduplication for SpamhausDROP is now performed on network masks (not URLs), ensuring all unique networks are stored.
+- **Improved logging:**
+  - First 5 parsed entries for each source are logged for easier debugging.
+- **JSON output support:**
+  - Many CLI commands provide JSON-formatted results for better integration.
+- **Batch and MCP server logic clarified:**
+  - Both batch and server modes now use the enhanced blacklist logic, including network range checks.
+
+---
+
 ## Environment Variable: MCP_DB_PATH
 
 By default, sec-mcp stores its SQLite database (`mcp.db`) in a shared, cross-platform location:
@@ -105,15 +127,13 @@ To run sec-mcp as an MCP server for AI-driven clients (e.g., Claude):
    {
      "mcpServers": {
        "sec-mcp": {
-         "command": "uv",
-         "args": ["--directory","/Users/montimage/workspace/montimage/sec-mcp","run", "-m", "sec_mcp.start_server"]
+         "command": "/[ABSOLUTE_PATH_TO_VENV]/.venv/bin/python3",
+         "args": ["-m", "sec_mcp.start_server"]
        }
      }
    }
    ```
    > **Note:**
-   > - The `--directory` argument ensures the working directory is set to your project root, so Python treats `sec_mcp` as a package and all relative imports work correctly. This is essential for correct module resolution when running as a module (`-m`).
-   > - Update the path in `--directory` if your project is in a different location.
    > - Ensure all dependencies are installed in your virtual environment (`.venv`).
    > - This is the recommended configuration for integration with AI-driven clients.
 

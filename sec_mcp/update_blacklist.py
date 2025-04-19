@@ -98,6 +98,87 @@ class BlacklistUpdater:
                 except Exception as e:
                     self.logger.error(f"CSV parsing error for {source}: {e}. Raw content head: {content[:300]}")
                     return
+            elif source == "PhishTank":
+                try:
+                    lines = content.splitlines()
+                    data_lines = [line for line in lines if line.strip()]
+                    reader = csv.DictReader(data_lines)
+                    first5 = []
+                    for idx, row in enumerate(reader):
+                        url_val = row.get("url", "").strip()
+                        date_val = row.get("submission_time", "").replace("T", " ").split("+")[0] if row.get("submission_time") else ""
+                        score_val = 8
+                        target_val = row.get("target", "")
+                        # Optionally: use target_val for tagging or notes
+                        ip_val = None  # PhishTank doesn't provide direct IP
+                        if idx < 5:
+                            first5.append({'date': date_val, 'score': score_val, 'url': url_val, 'target': target_val})
+                        if url_val:
+                            entries.append((url_val, ip_val, date_val, score_val, source))
+                    if first5:
+                        self.logger.warning(f"PhishTank first 5 parsed rows: {first5}")
+                except Exception as e:
+                    self.logger.error(f"CSV parsing error for {source}: {e}. Raw content head: {content[:300]}")
+                    return
+            elif source == "SpamhausDROP":
+                try:
+                    lines = content.splitlines()
+                    first5 = []
+                    from datetime import datetime
+                    now_str = datetime.now().isoformat(sep=' ', timespec='seconds')
+                    for idx, line in enumerate(lines[4:]):  # skip the first 4 lines (headers)
+                        line = line.strip()
+                        if not line or line.startswith(';'):
+                            continue
+                        # Extract the network mask (before the first ';')
+                        netmask = line.split(';')[0].strip()
+                        if not netmask:
+                            continue
+                        ip_val = netmask
+                        url_val = None
+                        date_val = now_str
+                        score_val = 8
+                        if idx < 5:
+                            first5.append({'ip_network': ip_val, 'date': date_val, 'score': score_val})
+                        entries.append((url_val, ip_val, date_val, score_val, source))
+                    if first5:
+                        self.logger.warning(f"SpamhausDROP first 5 parsed rows: {first5}")
+                except Exception as e:
+                    self.logger.error(f"Parsing error for {source}: {e}. Raw content head: {content[:300]}")
+                    return
+
+                # Insert SpamhausDROP networks into the IP table
+                ip_count = 0
+                for entry in entries:
+                    url_val, ip_val, date_val, score_val, src = entry
+                    if ip_val:
+                        try:
+                            self.storage.add_ip(ip_val, date_val, score_val, src)
+                            ip_count += 1
+                        except Exception:
+                            continue
+
+                try:
+                    lines = content.splitlines()
+                    data_lines = [line for line in lines if line.strip()]
+                    reader = csv.DictReader(data_lines)
+                    first5 = []
+                    for idx, row in enumerate(reader):
+                        url_val = row.get("url", "").strip()
+                        date_val = row.get("submission_time", "").replace("T", " ").split("+")[0] if row.get("submission_time") else ""
+                        score_val = 8
+                        target_val = row.get("target", "")
+                        # Optionally: use target_val for tagging or notes
+                        ip_val = None  # PhishTank doesn't provide direct IP
+                        if idx < 5:
+                            first5.append({'date': date_val, 'score': score_val, 'url': url_val, 'target': target_val})
+                        if url_val:
+                            entries.append((url_val, ip_val, date_val, score_val, source))
+                    if first5:
+                        self.logger.warning(f"PhishTank first 5 parsed rows: {first5}")
+                except Exception as e:
+                    self.logger.error(f"CSV parsing error for {source}: {e}. Raw content head: {content[:300]}")
+                    return
             else:
                 from datetime import datetime
                 now_str = datetime.now().isoformat(sep=' ', timespec='seconds')
@@ -123,21 +204,56 @@ class BlacklistUpdater:
                     entries.append((url_val, ip_val, date_val, score_val, source))
             # To count number of entries for each source in the database, use:
             #   SELECT source, COUNT(*) FROM blacklist GROUP BY source;
-            # Deduplicate by URL for non-PhishStats sources
-            seen_url = set()
+            # Deduplicate: for SpamhausDROP use ip_val, otherwise use url_val
+            seen = set()
             deduped_entries = []
             for entry in entries:
                 url_val, ip_val, date_val, score_val, source = entry
-                if url_val not in seen_url:
-                    seen_url.add(url_val)
+                key = ip_val if source == "SpamhausDROP" else url_val
+                if key not in seen:
+                    seen.add(key)
                     deduped_entries.append(entry)
             if deduped_entries:
                 self.logger.info(f"First 5 parsed entries for {source}: {deduped_entries[:5]}")
             else:
                 self.logger.warning(f"No valid entries found for {source} during update.")
-            self.storage.add_entries(deduped_entries)
-            self.storage.log_update(source, len(deduped_entries))
-            self.logger.info(f"Updated {source}: {len(deduped_entries)} entries.")
+            # Insert entries into the new tables
+            url_count = 0
+            ip_count = 0
+            domain_count = 0
+            for entry in deduped_entries:
+                url_val, ip_val, date_val, score_val, src = entry
+                # Add URL if present and valid
+                if url_val and url_val.startswith(('http://', 'https://')):
+                    self.storage.add_url(url_val, date_val, score_val, src)
+                    url_count += 1
+                    # Extract and add domain
+                    try:
+                        from urllib.parse import urlparse
+                        parsed = urlparse(url_val)
+                        domain = parsed.hostname
+                        if domain:
+                            self.storage.add_domain(domain, date_val, score_val, src)
+                            domain_count += 1
+                    except Exception:
+                        pass
+                # Add IP/network if present and valid
+                if ip_val:
+                    try:
+                        if src == "SpamhausDROP":
+                            from ipaddress import ip_network
+                            ip_network(ip_val, strict=False)
+                            self.storage.add_ip(ip_val, date_val, score_val, src)
+                            ip_count += 1
+                        else:
+                            from ipaddress import ip_address
+                            ip_address(ip_val)
+                            self.storage.add_ip(ip_val, date_val, score_val, src)
+                            ip_count += 1
+                    except Exception:
+                        pass
+            self.storage.log_update(source, url_count + ip_count + domain_count)
+            self.logger.info(f"Updated {source}: {url_count} URLs, {domain_count} domains, {ip_count} IPs.")
         except httpx.RequestError as e:
             self.logger.error(f"Network error updating {source}: {e}")
         except httpx.HTTPStatusError as e:

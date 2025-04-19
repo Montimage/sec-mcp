@@ -51,12 +51,18 @@ async def sample_blacklist(count: int):
     return entries
 
 # Detailed source statistics
-@mcp.tool(name="get_source_stats", description="Get per-source entry counts and last update times.")
+@mcp.tool(name="get_source_stats", description="Get per-source entry counts and last update times, including domain/url/ip breakdown.")
 async def get_source_stats():
     total = core.storage.count_entries()
     per_source = core.storage.get_source_counts()
     last_updates = core.storage.get_last_update_per_source()
-    return {"total_entries": total, "per_source": per_source, "last_updates": last_updates}
+    per_source_detail = core.storage.get_source_type_counts()
+    return {
+        "total_entries": total,
+        "per_source": per_source,
+        "last_updates": last_updates,
+        "per_source_detail": per_source_detail
+    }
 
 # Retrieve update history
 @mcp.tool(name="get_update_history", description="Get update history records. Optional filters: source, start, end.")

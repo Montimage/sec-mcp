@@ -58,6 +58,7 @@ The MCP Client aims to achieve the following measurable outcomes:
 | As a cybersecurity developer, I want to check a single domain, URL, or IP against a blacklist so I can determine if it’s safe. | High | Call `check(value)` or `mcp check <value>` to get JSON: `{"is_safe": true/false, "explain": "Reason"}`. |
 | As a cybersecurity developer, I want to check multiple inputs in batch so I can process large datasets efficiently. | High | Call `check_batch(values)` or `mcp batch <file>` for a list of JSON results. |
 | As a cybersecurity developer, I want automated daily blacklist updates so I don’t need to manually manage data. | High | Blacklists update daily from OpenPhish, PhishStats, URLhaus, stored in SQLite. |
+| As a cybersecurity developer, I want to check specifically a domain, URL, or IP so I can optimize checks and get more precise results. | High | Use `mcp check_domain <domain>`, `mcp check_url <url>`, or `mcp check_ip <ip>` for targeted lookups. |
 | As a cybersecurity developer, I want to view blacklist status so I can monitor update frequency and data volume. | Medium | Call `status()` or `mcp status` for stats (entry count, last update, sources). |
 | As an MCP client developer, I want to query the MCP server so I can integrate blacklist checks into AI workflows. | High | Query `check_blacklist` tool via MCP server (STDIO transport) for JSON output. |
 
@@ -97,36 +98,29 @@ The MCP Client aims to achieve the following measurable outcomes:
 
 ---
 
-## 5. Non-Functional Requirements
+## 5. Architecture / Technical Design
 
-### Performance
-- **Response Time**: Near real-time (<5s) for single and batch checks, even with ~80k blacklist entries.
-- **Throughput**: Support thousands of checks per second, achieved via SQLite indexing and in-memory caching (~10k entries in a Python `set`).
-- **Update Speed**: Process ~80k entries in <10s during daily updates, using efficient parsing and deduplication.
+### Blacklist Storage Schema (v2)
 
-### Scalability
-- **Blacklist Size**: Handle ~80k unique URLs in SQLite (~10MB), with future support for 1M entries via table partitioning.
-- **Batch Processing**: Scale to thousands of inputs per batch with chunked queries (1000 inputs per chunk).
-- **Future Caching**: SQLite `cache` table for third-party results (e.g., Google Safe Browsing) with TTL (7 days).
+- The blacklist is now split into three separate tables for improved performance and clarity:
+  - `blacklist_domain(domain TEXT PRIMARY KEY, date TEXT, score REAL, source TEXT)`
+  - `blacklist_url(url TEXT PRIMARY KEY, date TEXT, score REAL, source TEXT)`
+  - `blacklist_ip(ip TEXT PRIMARY KEY, date TEXT, score REAL, source TEXT)`
+- This allows fast, type-specific lookups and avoids unnecessary full-table scans.
+- All add/check/remove logic is routed to the appropriate table based on input type.
 
-### Security
-- **Input Validation**: Validate domains (`idna`), URLs (`urllib.parse`), IPs (`ipaddress`) to prevent crashes or exploits.
-- **Blacklist Sanitization**: Reject invalid URLs during updates, logging errors.
-- **Database Security**: Set read-only permissions on `mcp.db` to prevent tampering.
-- **Logging**: Log all checks, updates, and errors to `mcp.log` for auditing.
+### Input Handling & CLI/API
 
-### Usability
-- **CLI Interface**: Intuitive commands (`mcp check`, `mcp batch`, `mcp update`, `mcp status`) with `--json` and `--verbose` options.
-- **Machine-Readable Output**: JSON format for all check results, suitable for automation.
-- **Progress Feedback**: `tqdm` progress bars for batch checks and updates.
-
-### Maintainability
-- **Modular Design**: Independent modules for easy testing and updates.
-- **Error Handling**: Robust handling for download failures, invalid inputs, and SQLite errors.
-- **Documentation**: Code comments and clear interfaces (deferred per user request, but recommended for production).
-
-### Accessibility
-- **CLI Accessibility**: Text-based interface compatible with terminal emulators, no specific accessibility features required for MVP.
+- The core logic auto-detects input type (domain, URL, IP) and applies blacklist logic accordingly:
+  - **Domain:** Checks domain and all parent domains in `blacklist_domain`.
+  - **URL:** Checks for an exact match in `blacklist_url`, then extracts the domain and checks `blacklist_domain`.
+  - **IP:** Checks for an exact match in `blacklist_ip`.
+- New CLI commands:
+  - `mcp check_domain <domain>`: Checks a domain and its parent domains.
+  - `mcp check_url <url>`: Checks a URL and its domain.
+  - `mcp check_ip <ip>`: Checks an IP address.
+- The generic `mcp check <value>` command auto-detects type and uses the correct logic.
+- Batch and status commands remain available.
 
 ---
 
