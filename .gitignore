@@ -70,3 +70,32 @@ coverage.xml
 .hypothesis/
 .pytest_cache/
 cover/
+
+# Node.js and React
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+.npm/
+.pnp/
+.pnp.js
+.next/
+out/
+.vercel
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# Vite
+react-landing-page/dist/
+react-landing-page/dist-ssr/
+react-landing-page/.vite/
+
+# Misc
+.DS_Store
+Thumbs.db
+*.pem
+*.cert
+*.key

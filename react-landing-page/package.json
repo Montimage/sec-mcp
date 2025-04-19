@@ -1,0 +1,25 @@
+{
+  "name": "react-landing-page",
+  "version": "1.0.0",
+  "description": "A landing page built with React, Vite, and Tailwind CSS.",
+  "main": "src/main.jsx",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "serve": "vite preview"
+  },
+  "dependencies": {
+    "react": "^18.0.0",
+    "react-dom": "^18.0.0",
+    "tailwindcss": "^3.0.0"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-react": "^4.4.0",
+    "autoprefixer": "^10.4.21",
+    "postcss": "^8.0.0",
+    "vite": "^4.2.0"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC"
+}

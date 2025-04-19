@@ -1,1 +1,0 @@
-always use virtual environment at .venv
