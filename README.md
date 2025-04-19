@@ -2,14 +2,59 @@
 
 A Python toolkit providing security checks for domains, URLs, IPs, and more. Integrate easily into any Python application, use via terminal CLI, or run as an MCP server to enrich LLM context with real-time threat insights.
 
-## Features
+## MCP Server & LLM Support
 
-- Comprehensive security checks for domains, URLs, IP addresses, and more against multiple blacklist feeds
-- On-demand updates from OpenPhish, PhishStats, URLhaus and custom sources
-- High-performance, thread-safe SQLite storage with in-memory caching for fast lookups
-- Python API via `SecMCP` class for easy integration into your applications
-- Intuitive Click-based CLI for interactive single or batch scans
-- Built-in MCP server support for LLM/AI integrations over JSON/STDIO
+sec-mcp is designed for seamless integration with Model Context Protocol (MCP) compatible clients (e.g., Claude, Windsurf, Cursor) for real-time security checks in LLM workflows.
+
+### Available MCP Tools
+
+| Tool Name              | Signature / Endpoint            | Description                                                                           |
+|-----------------------|---------------------------------|---------------------------------------------------------------------------------------|
+| `check_blacklist`     | `check_blacklist(value: str)`   | Check a single value (domain, URL, or IP) against the blacklist.                      |
+| `check_batch`         | `check_batch(values: List[str])`| Bulk check multiple domains/URLs/IPs in one call.                                     |
+| `get_blacklist_status`| `get_blacklist_status()`        | Get status of the blacklist, including entry counts and per-source breakdown.         |
+| `sample_blacklist`    | `sample_blacklist(count: int)`  | Return a random sample of blacklist entries.                                          |
+| `get_source_stats`    | `get_source_stats()`            | Retrieve detailed stats: total entries, per-source counts, last update timestamps.    |
+| `get_update_history`  | `get_update_history(...)`       | Fetch update history records, optionally filtered by source and time range.           |
+| `flush_cache`         | `flush_cache()`                 | Clear the in-memory URL/IP cache.                                                     |
+| `add_entry`           | `add_entry(url, ip, ...)`       | Manually add a blacklist entry.                                                       |
+| `remove_entry`        | `remove_entry(value: str)`      | Remove a blacklist entry by URL or IP address.                                        |
+| `update_blacklists`   | `update_blacklists()`           | Force immediate update of all blacklists.                                             |
+| `health_check`        | `health_check()`                | Perform a health check of the database and scheduler.                                 |
+
+### MCP Server Usage
+
+To run sec-mcp as an MCP server for AI-driven clients (e.g., Claude):
+
+1. Install in editable mode (for development):
+   ```bash
+   pip install -e .
+   ```
+2. Start the MCP server:
+   ```bash
+   sec-mcp-server
+   ```
+3. Configure your MCP client (e.g., Claude, Windsurf, Cursor) to point at the command:
+   ```json
+   {
+     "mcpServers": {
+       "sec-mcp": {
+         "command": "/[ABSOLUTE_PATH_TO_VENV]/.venv/bin/python3",
+         "args": ["-m", "sec_mcp.start_server"]
+       }
+     }
+   }
+   ```
+   > **Note:**
+   > - Use `python3` (or `python`) if installed system-wide via pip.
+   > - Ensure you have installed all dependencies in your virtual environment (`.venv`).
+   > - The `command` should point to your Python executable inside `.venv` for best isolation.
+   > - The `args` array should launch your MCP server using the provided script.
+   > - You can add other MCP servers in the same configuration if needed.
+
+This setup allows Claude (or any compatible MCP client) to connect to your sec-mcp server and use its `check_blacklist` tool for real-time security checks on URLs, domains, or IP addresses.
+
+For more details and advanced configuration, see the [Model Context Protocol examples](https://modelcontextprotocol.io/examples).
 
 ---
 
@@ -28,41 +73,14 @@ A Python toolkit providing security checks for domains, URLs, IPs, and more. Int
 
 ---
 
-## Available MCP Tools
+## Features
 
-| Tool Name              | Signature / Endpoint            | Description                                                                           |
-|-----------------------|---------------------------------|---------------------------------------------------------------------------------------|
-| `check_blacklist`     | `check_blacklist(value: str)`   | Check a single value (domain, URL, or IP) against the blacklist.                      |
-| `check_batch`         | `check_batch(values: List[str])`| Bulk check multiple domains/URLs/IPs in one call.                                     |
-| `get_blacklist_status`| `get_blacklist_status()`        | Get status of the blacklist, including entry counts and per-source breakdown.         |
-| `sample_blacklist`    | `sample_blacklist(count: int)`  | Return a random sample of blacklist entries.                                          |
-| `get_source_stats`    | `get_source_stats()`            | Retrieve detailed stats: total entries, per-source counts, last update timestamps.    |
-| `get_update_history`  | `get_update_history(...)`       | Fetch update history records, optionally filtered by source and time range.           |
-| `flush_cache`         | `flush_cache()`                 | Clear the in-memory URL/IP cache.                                                     |
-| `add_entry`           | `add_entry(url, ip, ...)`       | Manually add a blacklist entry.                                                       |
-| `remove_entry`        | `remove_entry(value: str)`      | Remove a blacklist entry by URL or IP address.                                        |
-| `update_blacklists`   | `update_blacklists()`           | Force immediate update of all blacklists.                                             |
-| `health_check`        | `health_check()`                | Perform a health check of the database and scheduler.                                 |
-
----
-
-## Changelog (v0.1.8)
-
-### Major Updates
-- **SpamhausDROP network/CIDR support:**
-  - The blacklist now fully supports network masks (CIDR ranges) from SpamhausDROP. All IPs within these ranges are correctly detected as blacklisted.
-- **Enhanced IP blacklisting logic:**
-  - IP checks now match both exact IPs and any IPs contained within stored network ranges.
-- **Dedicated handlers for PhishTank and SpamhausDROP:**
-  - PhishTank CSV and SpamhausDROP.txt are parsed with custom logic for accurate extraction of URLs, dates, scores, and network masks.
-- **Improved deduplication:**
-  - Deduplication for SpamhausDROP is now performed on network masks (not URLs), ensuring all unique networks are stored.
-- **Improved logging:**
-  - First 5 parsed entries for each source are logged for easier debugging.
-- **JSON output support:**
-  - Many CLI commands provide JSON-formatted results for better integration.
-- **Batch and MCP server logic clarified:**
-  - Both batch and server modes now use the enhanced blacklist logic, including network range checks.
+- Comprehensive security checks for domains, URLs, IP addresses, and more against multiple blacklist feeds
+- On-demand updates from OpenPhish, PhishStats, URLhaus and custom sources
+- High-performance, thread-safe SQLite storage with in-memory caching for fast lookups
+- Python API via `SecMCP` class for easy integration into your applications
+- Intuitive Click-based CLI for interactive single or batch scans
+- Built-in MCP server support for LLM/AI integrations over JSON/STDIO
 
 ---
 
