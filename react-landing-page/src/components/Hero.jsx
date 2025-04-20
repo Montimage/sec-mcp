@@ -1,22 +1,5 @@
 import React from 'react';
-import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
-import { atomDark } from 'react-syntax-highlighter/dist/esm/styles/prism';
-
-// Custom theme based on atomDark with blue accent
-const codeTheme = {
-    ...atomDark,
-    'pre[class*="language-"]': {
-        ...atomDark['pre[class*="language-"]'],
-        background: '#1e293b', // slate-800
-        margin: 0,
-        borderRadius: '0.25rem',
-        padding: '1rem'
-    },
-    'code[class*="language-"]': {
-        ...atomDark['code[class*="language-"]'],
-        background: 'transparent'
-    }
-};
+import CodeBlock from './CodeBlock';
 
 const Hero = () => {
     return (
@@ -46,15 +29,7 @@ const Hero = () => {
                             <div className="w-3 h-3 rounded-full bg-green-500"></div>
                             <span className="ml-4 text-slate-400 text-sm">code example</span>
                         </div>
-                        <div className="relative">
-                            <div className="absolute -left-2 -top-2 bottom-0 w-1 bg-blue-500 rounded"></div>
-                            <SyntaxHighlighter
-                                language="bash"
-                                style={codeTheme}
-                                customStyle={{marginTop: 0, marginBottom: 0}}
-                                wrapLines={true}
-                                showLineNumbers={false}
-                            >
+                        <CodeBlock>
 {`# Step 3: Install the package
 pip install sec-mcp
 
@@ -67,8 +42,7 @@ pip install sec-mcp
     }
   }
 }`}
-                            </SyntaxHighlighter>
-                        </div>
+                        </CodeBlock>
                     </div>
                 </div>
             </div>

@@ -1,41 +1,5 @@
 import React from 'react';
-import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
-import { atomDark } from 'react-syntax-highlighter/dist/esm/styles/prism';
-
-// Custom theme based on atomDark with blue accent
-const codeTheme = {
-    ...atomDark,
-    'pre[class*="language-"]': {
-        ...atomDark['pre[class*="language-"]'],
-        background: '#1e293b', // slate-800
-        margin: 0,
-        borderRadius: '0.25rem',
-        padding: '1rem'
-    },
-    'code[class*="language-"]': {
-        ...atomDark['code[class*="language-"]'],
-        background: 'transparent'
-    }
-};
-
-const CodeBlock = ({ children, language = "python", label = null }) => {
-    return (
-        <div className="relative">
-            <div className="absolute top-0 right-0 bg-slate-700 text-xs px-2 py-1 rounded-bl text-slate-300 font-mono">
-                {label || language.toUpperCase()}
-            </div>
-            <div className="absolute -left-1 top-0 bottom-0 w-1 bg-blue-500 rounded"></div>
-            <SyntaxHighlighter
-                language={language}
-                style={codeTheme}
-                customStyle={{marginTop: 0, marginBottom: 0}}
-                wrapLines={true}
-            >
-                {children}
-            </SyntaxHighlighter>
-        </div>
-    );
-};
+import CodeBlock from './CodeBlock';
 
 const APIReference = () => {
     const apiFunctions = [
