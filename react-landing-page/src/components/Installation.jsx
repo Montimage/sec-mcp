@@ -1,130 +1,160 @@
 import React from 'react';
+import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
+import { atomDark } from 'react-syntax-highlighter/dist/esm/styles/prism';
+
+// Custom theme based on atomDark with blue accent
+const codeTheme = {
+    ...atomDark,
+    'pre[class*="language-"]': {
+        ...atomDark['pre[class*="language-"]'],
+        background: '#1e293b', // slate-800
+        margin: 0,
+        borderRadius: '0.25rem',
+        padding: '1rem'
+    },
+    'code[class*="language-"]': {
+        ...atomDark['code[class*="language-"]'],
+        background: 'transparent'
+    }
+};
+
+const CodeBlock = ({ children, language = "bash", label = null }) => {
+    return (
+        <div className="relative">
+            <div className="absolute top-0 right-0 bg-slate-700 text-xs px-2 py-1 rounded-bl text-slate-300 font-mono">
+                {label || language.toUpperCase()}
+            </div>
+            <div className="absolute -left-1 top-0 bottom-0 w-1 bg-blue-500 rounded"></div>
+            <SyntaxHighlighter
+                language={language}
+                style={codeTheme}
+                customStyle={{marginTop: 0, marginBottom: 0}}
+                wrapLines={true}
+            >
+                {children}
+            </SyntaxHighlighter>
+        </div>
+    );
+};
 
 const Installation = () => {
     return (
-        <section id="installation" className="py-16 bg-white">
+        <section id="installation" className="py-16 bg-gray-50">
             <div className="container mx-auto px-4">
-                <h2 className="text-3xl font-bold text-center mb-8">Installation & Usage</h2>
+                <h2 className="text-3xl font-bold text-center mb-4">Installation Guide</h2>
+                <p className="text-gray-600 text-center mb-12 max-w-3xl mx-auto">
+                    Follow these simple steps to install and configure sec-mcp for your environment.
+                </p>
 
                 <div className="max-w-4xl mx-auto">
-                    {/* Installation Card */}
-                    <div className="mb-12 bg-gray-50 rounded-lg p-6 shadow-md">
-                        <h3 className="text-2xl font-semibold mb-4">Quick Installation</h3>
-
-                        <div className="bg-slate-800 rounded-lg p-4 mb-4">
-                            <pre className="text-green-400 overflow-x-auto">
-                                <code>pip install sec-mcp</code>
-                            </pre>
+                    <div className="bg-white rounded-lg shadow-lg overflow-hidden mb-8">
+                        <div className="bg-blue-600 text-white py-3 px-6">
+                            <h3 className="text-xl font-semibold">Basic Installation</h3>
                         </div>
+                        <div className="p-6">
+                            <div className="mb-6">
+                                <h4 className="text-lg font-medium mb-2">1. Create a virtual environment (recommended)</h4>
+                                <div className="bg-slate-900 rounded-lg p-4 border border-slate-700">
+                                    <CodeBlock>
+{`# Python 3.10+ is required
+python3.12 -m venv .venv
+source .venv/bin/activate  # On Windows: .venv\\Scripts\\activate`}
+                                    </CodeBlock>
+                                </div>
+                            </div>
 
-                        <p className="text-gray-600 mb-2">
-                            This installs the sec-mcp package with all dependencies required for security checks
-                            against multiple blacklist feeds.
-                        </p>
+                            <div className="mb-6">
+                                <h4 className="text-lg font-medium mb-2">2. Install the package</h4>
+                                <div className="bg-slate-900 rounded-lg p-4 border border-slate-700">
+                                    <CodeBlock>
+{`pip install sec-mcp
 
-                        <div className="mt-4">
-                            <h4 className="text-lg font-semibold mb-2">Environment Configuration</h4>
-                            <p className="text-gray-600 mb-2">
-                                By default, sec-mcp stores its SQLite database in a platform-specific location:
-                            </p>
-                            <ul className="list-disc list-inside text-gray-600 ml-4 space-y-1">
-                                <li><span className="font-mono">macOS:</span> ~/Library/Application Support/sec-mcp/mcp.db</li>
-                                <li><span className="font-mono">Linux:</span> ~/.local/share/sec-mcp/mcp.db</li>
-                                <li><span className="font-mono">Windows:</span> %APPDATA%\sec-mcp\mcp.db</li>
-                            </ul>
-                            <p className="text-gray-600 mt-2">
-                                You can override this location by setting the <span className="font-mono">MCP_DB_PATH</span> environment variable.
-                            </p>
+# Verify installation
+sec-mcp --version`}
+                                    </CodeBlock>
+                                </div>
+                            </div>
+
+                            <div className="mb-6">
+                                <h4 className="text-lg font-medium mb-2">3. Initialize and update the database</h4>
+                                <div className="bg-slate-900 rounded-lg p-4 border border-slate-700">
+                                    <CodeBlock>
+{`# This will download and process blacklists
+sec-mcp update
+
+# Check status
+sec-mcp status`}
+                                    </CodeBlock>
+                                </div>
+                                <p className="text-gray-500 text-sm mt-2">Initial download may take a few minutes. The database will update automatically every 12 hours by default.</p>
+                            </div>
+
+                            <div>
+                                <h4 className="text-lg font-medium mb-2">4. Test the installation</h4>
+                                <div className="bg-slate-900 rounded-lg p-4 border border-slate-700">
+                                    <CodeBlock>
+{`# Check a domain
+sec-mcp check example.com
+
+# Check an IP address
+sec-mcp check 8.8.8.8`}
+                                    </CodeBlock>
+                                </div>
+                            </div>
                         </div>
                     </div>
 
-                    {/* Usage Cards */}
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-12">
-                        {/* CLI Usage */}
-                        <div className="bg-gray-50 rounded-lg p-6 shadow-md">
-                            <h3 className="text-xl font-semibold mb-3">CLI Usage</h3>
-                            <div className="bg-slate-800 rounded-lg p-3 mb-3">
-                                <pre className="text-blue-400 text-sm overflow-x-auto">
-                                    <code>{`# Check a single URL/domain/IP
-sec-mcp check https://example.com
-
-# Batch check from a file
-sec-mcp batch urls.txt
-
-# View blacklist status
-sec-mcp status
-
-# Trigger an update
-sec-mcp update`}</code>
-                                </pre>
-                            </div>
-                            <p className="text-gray-600 text-sm">
-                                The CLI provides quick access to all sec-mcp features from your terminal.
-                            </p>
+                    <div className="bg-white rounded-lg shadow-lg overflow-hidden">
+                        <div className="bg-blue-600 text-white py-3 px-6">
+                            <h3 className="text-xl font-semibold">Python API Integration</h3>
                         </div>
+                        <div className="p-6">
+                            <div className="mb-6">
+                                <h4 className="text-lg font-medium mb-2">Import and initialize</h4>
+                                <div className="bg-slate-900 rounded-lg p-4 border border-slate-700">
+                                    <CodeBlock language="python" label="PYTHON">
+{`from sec_mcp import SecMCP
 
-                        {/* Python API Usage */}
-                        <div className="bg-gray-50 rounded-lg p-6 shadow-md">
-                            <h3 className="text-xl font-semibold mb-3">Python API</h3>
-                            <div className="bg-slate-800 rounded-lg p-3 mb-3">
-                                <pre className="text-blue-400 text-sm overflow-x-auto">
-                                    <code>{`# Import and initialize
-from sec_mcp import SecMCP
-
+# Initialize the client
 client = SecMCP()
 
-# Single check
-result = client.check("example.com")
-print(result.to_json())
-
-# Batch check
-urls = ["example1.com", "example2.com"]
-results = client.check_batch(urls)`}</code>
-                                </pre>
+# Optional: Custom configuration
+client = SecMCP(
+    db_path="/path/to/custom/database.db",
+    update_interval=24,  # hours
+    log_level="INFO"
+)`}
+                                    </CodeBlock>
+                                </div>
                             </div>
-                            <p className="text-gray-600 text-sm">
-                                Integrate sec-mcp directly into your Python applications.
-                            </p>
-                        </div>
 
-                        {/* MCP Server Usage */}
-                        <div className="bg-gray-50 rounded-lg p-6 shadow-md">
-                            <h3 className="text-xl font-semibold mb-3">MCP Server</h3>
-                            <div className="bg-slate-800 rounded-lg p-3 mb-3">
-                                <pre className="text-blue-400 text-sm overflow-x-auto">
-                                    <code>{`# Start the MCP server
-sec-mcp-server
+                            <div>
+                                <h4 className="text-lg font-medium mb-2">Basic usage examples</h4>
+                                <div className="bg-slate-900 rounded-lg p-4 border border-slate-700">
+                                    <CodeBlock language="python" label="PYTHON">
+{`# Check a URL
+result = client.check("https://example.com/path")
+print(f"Is blacklisted: {result.is_blacklisted}")
+print(f"Match found in: {result.source if result.is_blacklisted else 'None'}")
 
-# In your MCP client config (e.g., Claude):
-{
-  "mcpServers": {
-    "sec-mcp": {
-      "command": "python3",
-      "args": ["-m", "sec_mcp.start_server"]
-    }
-  }
-}`}</code>
-                                </pre>
+# Check multiple values
+results = client.check_batch([
+    "example.com",
+    "192.168.1.1",
+    "https://suspicious-site.com/path"
+])
+
+# Process results
+for result in results:
+    if result.is_blacklisted:
+        print(f"⚠️ {result.value} is blacklisted in {result.source}")
+    else:
+        print(f"✅ {result.value} is not blacklisted")`}
+                                    </CodeBlock>
+                                </div>
+                                <p className="text-gray-500 text-sm mt-2">See the <a href="#api" className="text-blue-600 hover:underline">API Reference</a> for more advanced usage examples.</p>
                             </div>
-                            <p className="text-gray-600 text-sm">
-                                Run as an MCP server for LLM integrations.
-                            </p>
                         </div>
-                    </div>
-
-                    {/* Development Setup */}
-                    <div className="bg-gray-50 rounded-lg p-6 shadow-md">
-                        <h3 className="text-xl font-semibold mb-3">Development Setup</h3>
-                        <div className="bg-slate-800 rounded-lg p-4 mb-3">
-                            <pre className="text-green-400 overflow-x-auto">
-                                <code>{`git clone <repository-url>
-cd sec-mcp
-pip install -e .`}</code>
-                            </pre>
-                        </div>
-                        <p className="text-gray-600">
-                            Clone the repository and install in development mode for contributing to sec-mcp.
-                        </p>
                     </div>
                 </div>
             </div>

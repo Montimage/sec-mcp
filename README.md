@@ -22,39 +22,56 @@ sec-mcp is designed for seamless integration with Model Context Protocol (MCP) c
 | `update_blacklists`   | `update_blacklists()`           | Force immediate update of all blacklists.                                             |
 | `health_check`        | `health_check()`                | Perform a health check of the database and scheduler.                                 |
 
-### MCP Server Usage
+### MCP Server Setup
 
-To run sec-mcp as an MCP server for AI-driven clients (e.g., Claude):
+To run sec-mcp as an MCP server for AI-driven clients (e.g., Claude), follow these steps:
 
-1. Install in editable mode (for development):
+1. Create a virtual environment:
    ```bash
-   pip install -e .
+   python3.12 -m venv .venv
    ```
-2. Start the MCP server:
+
+2. Activate the virtual environment:
    ```bash
-   sec-mcp-server
+   source .venv/bin/activate  # On Windows: .venv\Scripts\activate.bat
    ```
-3. Configure your MCP client (e.g., Claude, Windsurf, Cursor) to point at the command:
+
+3. Install sec-mcp:
+   ```bash
+   pip install sec-mcp
+   ```
+
+4. Verify the status:
+   ```bash
+   sec-mcp status
+   ```
+
+5. Update the blacklist database:
+   ```bash
+   sec-mcp update
+   ```
+
+6. Verify the database:
+   ```bash
+   sec-mcp status
+   ```
+
+7. Configure your MCP client (e.g., Claude, Windsurf, Cursor) to point at the command:
    ```json
    {
      "mcpServers": {
        "sec-mcp": {
-         "command": "/[ABSOLUTE_PATH_TO_VENV]/.venv/bin/python3",
+         "command": "/absolute/path/to/.venv/bin/python",
          "args": ["-m", "sec_mcp.start_server"]
        }
      }
    }
    ```
-   > **Note:**
-   > - Use `python3` (or `python`) if installed system-wide via pip.
-   > - Ensure you have installed all dependencies in your virtual environment (`.venv`).
-   > - The `command` should point to your Python executable inside `.venv` for best isolation.
-   > - The `args` array should launch your MCP server using the provided script.
-   > - You can add other MCP servers in the same configuration if needed.
+   > **Important:**
+   > - Use the absolute path to the Python executable in your virtual environment.
+   > - For Windows, the path might look like: `C:\path\to\.venv\Scripts\python.exe`
 
-This setup allows Claude (or any compatible MCP client) to connect to your sec-mcp server and use its `check_blacklist` tool for real-time security checks on URLs, domains, or IP addresses.
-
-For more details and advanced configuration, see the [Model Context Protocol examples](https://modelcontextprotocol.io/examples).
+8. The sec-mcp tools should now be available in your MCP client for checking URLs, domains, and IPs.
 
 ---
 
@@ -108,87 +125,129 @@ pip install sec-mcp
 
 ## Usage via CLI
 
-1. Install the package:
+1. Create and activate a virtual environment (recommended):
+   ```bash
+   python3 -m venv .venv
+   source .venv/bin/activate  # On Windows: .venv\Scripts\activate.bat
+   ```
+
+2. Install the package:
    ```bash
    pip install sec-mcp
    ```
-2. Check a single URL/domain/IP:
-   ```bash
-   sec-mcp check https://example.com
-   ```
-3. Batch check from a file:
-   ```bash
-   sec-mcp batch urls.txt
-   ```
-4. View blacklist status:
+
+3. Verify the status:
    ```bash
    sec-mcp status
    ```
-5. Manually trigger an update:
+
+4. Populate the database with security data:
    ```bash
    sec-mcp update
    ```
 
+5. Verify the database has been populated:
+   ```bash
+   sec-mcp status
+   ```
+
+6. Check a single URL/domain/IP:
+   ```bash
+   sec-mcp check https://example.com
+   ```
+
+7. Batch check from a file:
+   ```bash
+   sec-mcp batch urls.txt
+   ```
+
 ## Usage via API (Python)
 
-1. Install in your project:
+1. Create and activate a virtual environment (recommended):
+   ```bash
+   python3 -m venv .venv
+   source .venv/bin/activate  # On Windows: .venv\Scripts\activate.bat
+   ```
+
+2. Install in your project:
    ```bash
    pip install sec-mcp
    ```
-2. Import and initialize:
+
+3. Import, initialize, and update the database:
    ```python
    from sec_mcp import SecMCP
 
    client = SecMCP()
+
+   # Populate the database with security data (run once after installation)
+   client.update()
    ```
-3. Single check:
+
+4. Single check:
    ```python
    result = client.check("https://example.com")
    print(result.to_json())
    ```
-4. Batch check:
+
+5. Batch check:
    ```python
    urls = ["https://example.com", "https://test.com"]
    results = client.check_batch(urls)
    for r in results:
        print(r.to_json())
    ```
-5. Get status and update:
-   ```python
-   status = client.get_status()
-   print(status.to_json())
-
-   client.update()
-   ```
 
 ## Usage via MCP Client
 
 To run sec-mcp as an MCP server for AI-driven clients (e.g., Claude):
 
-1. Install in editable mode (for development):
+1. Create a virtual environment:
    ```bash
-   pip install -e .
+   python3.12 -m venv .venv
    ```
-2. Start the MCP server:
+
+2. Activate the virtual environment:
    ```bash
-   sec-mcp-server
+   source .venv/bin/activate  # On Windows: .venv\Scripts\activate.bat
    ```
-3. Configure your MCP client (e.g., Claude, Windsurf, Cursor) to point at the command:
+
+3. Install sec-mcp:
+   ```bash
+   pip install sec-mcp
+   ```
+
+4. Verify the status:
+   ```bash
+   sec-mcp status
+   ```
+
+5. Update the blacklist database:
+   ```bash
+   sec-mcp update
+   ```
+
+6. Verify the database:
+   ```bash
+   sec-mcp status
+   ```
+
+7. Configure your MCP client (e.g., Claude, Windsurf, Cursor) with:
    ```json
    {
      "mcpServers": {
        "sec-mcp": {
-         "command": "/[ABSOLUTE_PATH_TO_VENV]/.venv/bin/python3",
+         "command": "/absolute/path/to/.venv/bin/python",
          "args": ["-m", "sec_mcp.start_server"]
        }
      }
    }
    ```
    > **Note:**
-   > - Ensure all dependencies are installed in your virtual environment (`.venv`).
-   > - This is the recommended configuration for integration with AI-driven clients.
+   > - Use the absolute path to the Python executable in your virtual environment.
+   > - For Windows, the path might look like: `C:\path\to\.venv\Scripts\python.exe`
 
-Clients will then use the built-in `check_blacklist` tool over JSON/STDIO for real-time security checks.
+8. The sec-mcp tools should now be available in your MCP client.
 
 ## New MCP Server Tools
 
@@ -212,47 +271,6 @@ The client can be configured via `config.json`:
 - `cache_size`: In-memory cache size (default: 10000)
 - `log_level`: Logging verbosity (default: "INFO")
 
-## Configuring sec-mcp with Claude (MCP Client)
-
-To use your MCP Server for security checking (sec-mcp) with an MCP client such as Claude, add it to your Claude configuration as follows:
-
-```json
-{
-  "mcpServers": {
-    "sec-mcp": {
-      "command": "/[ABSOLUTE_PATH_TO_VENV]/.venv/bin/python3",
-      "args": ["-m", "sec_mcp.start_server"]
-    }
-  }
-}
-```
-
-> **Note:** If you installed `sec-mcp` in a virtual environment, set the `command` path to your `.venv` Python as shown above. If you installed it globally or via `pip` (system-wide), use your system Python executable (e.g., `python3` or the full path to your Python):
-
-```json
-{
-  "mcpServers": {
-    "sec-mcp": {
-      "command": "python3",
-      "args": ["-m", "sec_mcp.start_server"]
-    }
-  }
-}
-```
-
-> **Tip:**
-> - Use the absolute path to the Python executable for virtual environments for isolation.
-> - Use `python3` (or `python`) if installed system-wide via pip.
-
-- Ensure you have installed all dependencies in your virtual environment (`.venv`).
-- The `command` should point to your Python executable inside `.venv` for best isolation.
-- The `args` array should launch your MCP server using the provided script.
-- You can add other MCP servers in the same configuration if needed.
-
-This setup allows Claude (or any compatible MCP client) to connect to your sec-mcp server and use its `check_blacklist` tool for real-time security checks on URLs, domains, or IP addresses.
-
-For more details and advanced configuration, see the [Model Context Protocol examples](https://modelcontextprotocol.io/examples).
-
 ## Development
 
 Clone the repository and install in development mode:
@@ -260,6 +278,8 @@ Clone the repository and install in development mode:
 ```bash
 git clone <repository-url>
 cd sec-mcp
+python -m venv .venv
+source .venv/bin/activate
 pip install -e .
 ```
 

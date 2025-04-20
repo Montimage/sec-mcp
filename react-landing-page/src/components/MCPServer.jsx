@@ -1,4 +1,41 @@
 import React from 'react';
+import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
+import { atomDark } from 'react-syntax-highlighter/dist/esm/styles/prism';
+
+// Custom theme based on atomDark with blue accent
+const codeTheme = {
+    ...atomDark,
+    'pre[class*="language-"]': {
+        ...atomDark['pre[class*="language-"]'],
+        background: '#1e293b', // slate-800
+        margin: 0,
+        borderRadius: '0.25rem',
+        padding: '1rem'
+    },
+    'code[class*="language-"]': {
+        ...atomDark['code[class*="language-"]'],
+        background: 'transparent'
+    }
+};
+
+const CodeBlock = ({ children, language = "bash", label = null }) => {
+    return (
+        <div className="relative">
+            <div className="absolute top-0 right-0 bg-slate-700 text-xs px-2 py-1 rounded-bl text-slate-300 font-mono">
+                {label || language.toUpperCase()}
+            </div>
+            <div className="absolute -left-1 top-0 bottom-0 w-1 bg-blue-500 rounded"></div>
+            <SyntaxHighlighter
+                language={language}
+                style={codeTheme}
+                customStyle={{marginTop: 0, marginBottom: 0}}
+                wrapLines={true}
+            >
+                {children}
+            </SyntaxHighlighter>
+        </div>
+    );
+};
 
 const MCPServer = () => {
     const mcpTools = [
@@ -27,49 +64,53 @@ const MCPServer = () => {
                     <div className="bg-slate-50 p-6 rounded-lg shadow-md">
                         <h3 className="text-xl font-semibold mb-4">MCP Server Setup</h3>
 
-                        <div className="space-y-4">
-                            <div>
-                                <h4 className="font-semibold mb-2">1. Install sec-mcp</h4>
-                                <div className="bg-slate-800 rounded-lg p-3">
-                                    <pre className="text-blue-400 text-sm overflow-x-auto">
-                                        <code>pip install sec-mcp</code>
-                                    </pre>
-                                </div>
+                        <div className="space-y-6">
+                            {/* Step summary card */}
+                            <div className="bg-blue-50 p-4 rounded-md border border-blue-200">
+                                <h4 className="font-semibold text-blue-700 mb-2">Complete Setup Process</h4>
+                                <ol className="list-decimal list-inside space-y-1 text-gray-700">
+                                    <li>Create a virtual environment: <code className="bg-slate-900 text-yellow-400 px-2 py-0.5 rounded">python3.12 -m venv .venv</code></li>
+                                    <li>Activate the environment: <code className="bg-slate-900 text-yellow-400 px-2 py-0.5 rounded">source .venv/bin/activate</code></li>
+                                    <li>Install sec-mcp: <code className="bg-slate-900 text-yellow-400 px-2 py-0.5 rounded">pip install sec-mcp</code></li>
+                                    <li>Verify status: <code className="bg-slate-900 text-yellow-400 px-2 py-0.5 rounded">sec-mcp status</code></li>
+                                    <li>Update database: <code className="bg-slate-900 text-yellow-400 px-2 py-0.5 rounded">sec-mcp update</code></li>
+                                    <li>Verify database: <code className="bg-slate-900 text-yellow-400 px-2 py-0.5 rounded">sec-mcp status</code></li>
+                                    <li>Configure MCP client with command and args</li>
+                                    <li>Use sec-mcp tools in your MCP client</li>
+                                </ol>
+                                <p className="mt-3 text-sm text-blue-800">
+                                    For detailed instructions, see the <a href="#installation" className="underline hover:text-blue-600">Installation Guide</a>.
+                                </p>
                             </div>
 
+                            {/* MCP Client Config */}
                             <div>
-                                <h4 className="font-semibold mb-2">2. Start the MCP server</h4>
-                                <div className="bg-slate-800 rounded-lg p-3">
-                                    <pre className="text-blue-400 text-sm overflow-x-auto">
-                                        <code>sec-mcp-server</code>
-                                    </pre>
-                                </div>
-                            </div>
-
-                            <div>
-                                <h4 className="font-semibold mb-2">3. Configure your MCP client (e.g., Claude)</h4>
-                                <div className="bg-slate-800 rounded-lg p-3">
-                                    <pre className="text-blue-400 text-sm overflow-x-auto">
-                                        <code>{`{
+                                <h4 className="font-semibold mb-2">MCP Client Configuration</h4>
+                                <div className="bg-slate-900 rounded-lg p-4 border border-slate-700">
+                                    <CodeBlock language="json" label="JSON">
+{`{
   "mcpServers": {
     "sec-mcp": {
-      "command": "/path/to/your/python3",
+      "command": "/absolute/path/to/.venv/bin/python",
       "args": ["-m", "sec_mcp.start_server"]
     }
   }
-}`}</code>
-                                    </pre>
+}`}
+                                    </CodeBlock>
+                                </div>
+                                <div className="mt-2 text-gray-600 text-sm">
+                                    <p><strong>Important:</strong> Use the absolute path to the Python executable in your virtual environment.</p>
                                 </div>
                             </div>
                         </div>
 
-                        <div className="mt-6 p-4 bg-blue-50 border border-blue-100 rounded-md">
-                            <h4 className="font-semibold text-blue-700 mb-2">Integration Tips</h4>
+                        <div className="mt-6 p-4 bg-amber-50 border border-amber-100 rounded-md">
+                            <h4 className="font-semibold text-amber-700 mb-2">Integration Tips</h4>
                             <ul className="list-disc list-inside text-gray-600 space-y-1">
-                                <li>For virtual environments, use the absolute path to the Python executable</li>
-                                <li>For system-wide installations, use <code className="bg-gray-100 px-1 rounded">python3</code> or <code className="bg-gray-100 px-1 rounded">python</code></li>
-                                <li>Ensure all dependencies are installed in your environment</li>
-                                <li>The MCP server will automatically maintain the blacklist database</li>
+                                <li>For virtual environments, always use the <strong>absolute path</strong> to the Python executable</li>
+                                <li>Check that the database is populated before using the MCP client</li>
+                                <li>If the database update fails, check your internet connection</li>
+                                <li>The MCP server will automatically start when your MCP client runs</li>
                             </ul>
                         </div>
                     </div>
@@ -89,7 +130,7 @@ const MCPServer = () => {
                                         {mcpTools.map((tool, index) => (
                                             <tr key={index} className={index % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
                                                 <td className="py-2 px-4 border-b">
-                                                    <code className="font-mono text-blue-600">{tool.name}</code>
+                                                    <code className="font-mono bg-slate-100 px-2 py-0.5 rounded text-purple-600">{tool.name}</code>
                                                 </td>
                                                 <td className="py-2 px-4 border-b text-sm text-gray-700">
                                                     {tool.description}
@@ -103,17 +144,17 @@ const MCPServer = () => {
 
                         <div className="mt-6">
                             <h4 className="font-semibold mb-3">Example LLM Integration</h4>
-                            <div className="bg-slate-800 rounded-lg p-3">
-                                <pre className="text-green-400 text-sm overflow-x-auto">
-                                    <code>{`User: "Is example.com safe to visit?"
+                            <div className="bg-slate-900 rounded-lg p-4 border border-slate-700">
+                                <CodeBlock language="markdown" label="Chat">
+{`User: "Is example.com safe to visit?"
 
 AI: Let me check that URL for you.
 [Uses sec-mcp.check_blacklist tool]
 
 I've checked example.com against our security database.
 The domain is not found in any blacklists and
-appears to be safe to visit.`}</code>
-                                </pre>
+appears to be safe to visit.`}
+                                </CodeBlock>
                             </div>
                         </div>
                     </div>

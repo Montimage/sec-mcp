@@ -1,4 +1,41 @@
 import React from 'react';
+import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
+import { atomDark } from 'react-syntax-highlighter/dist/esm/styles/prism';
+
+// Custom theme based on atomDark with blue accent
+const codeTheme = {
+    ...atomDark,
+    'pre[class*="language-"]': {
+        ...atomDark['pre[class*="language-"]'],
+        background: '#1e293b', // slate-800
+        margin: 0,
+        borderRadius: '0.25rem',
+        padding: '1rem'
+    },
+    'code[class*="language-"]': {
+        ...atomDark['code[class*="language-"]'],
+        background: 'transparent'
+    }
+};
+
+const CodeBlock = ({ children, language = "python", label = null }) => {
+    return (
+        <div className="relative">
+            <div className="absolute top-0 right-0 bg-slate-700 text-xs px-2 py-1 rounded-bl text-slate-300 font-mono">
+                {label || language.toUpperCase()}
+            </div>
+            <div className="absolute -left-1 top-0 bottom-0 w-1 bg-blue-500 rounded"></div>
+            <SyntaxHighlighter
+                language={language}
+                style={codeTheme}
+                customStyle={{marginTop: 0, marginBottom: 0}}
+                wrapLines={true}
+            >
+                {children}
+            </SyntaxHighlighter>
+        </div>
+    );
+};
 
 const APIReference = () => {
     const apiFunctions = [
@@ -66,10 +103,10 @@ const APIReference = () => {
                                 {apiFunctions.map((func, index) => (
                                     <tr key={index} className={index % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
                                         <td className="py-3 px-6 border-b border-gray-200">
-                                            <span className="font-mono text-blue-600">{func.name}</span>
+                                            <code className="font-mono bg-slate-100 px-2 py-0.5 rounded text-purple-600">{func.name}</code>
                                         </td>
                                         <td className="py-3 px-6 border-b border-gray-200">
-                                            <span className="font-mono text-sm">{func.signature}</span>
+                                            <code className="font-mono text-sm text-gray-600">{func.signature}</code>
                                         </td>
                                         <td className="py-3 px-6 border-b border-gray-200 text-gray-700">
                                             {func.description}
@@ -82,9 +119,9 @@ const APIReference = () => {
 
                     <div className="mt-12 bg-white p-6 rounded-lg shadow">
                         <h3 className="text-xl font-bold mb-4">Example API Usage</h3>
-                        <div className="bg-slate-800 rounded-lg p-4">
-                            <pre className="text-blue-400 overflow-x-auto">
-                                <code>{`from sec_mcp import SecMCP
+                        <div className="bg-slate-900 p-4 rounded-lg border border-slate-700">
+                            <CodeBlock>
+{`from sec_mcp import SecMCP
 
 # Initialize the client
 client = SecMCP()
@@ -111,8 +148,8 @@ for result in results:
 # Get current blacklist status
 status = client.get_status()
 print(f"Total entries: {status.total_entries}")
-print(f"Last update: {status.last_update}")`}</code>
-                            </pre>
+print(f"Last update: {status.last_update}")`}
+                            </CodeBlock>
                         </div>
                     </div>
                 </div>

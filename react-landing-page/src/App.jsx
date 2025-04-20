@@ -14,9 +14,9 @@ const App = () => {
       <main className="flex-grow">
         <Hero />
         <Features />
+        <MCPServer />
         <Installation />
         <APIReference />
-        <MCPServer />
       </main>
       <Footer />
     </div>
