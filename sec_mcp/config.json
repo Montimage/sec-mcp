@@ -4,7 +4,12 @@
         "PhishStats": "https://phishstats.info/phish_score.csv",
         "URLhaus": "https://urlhaus.abuse.ch/downloads/text/",
         "PhishTank": "https://data.phishtank.com/data/online-valid.csv",
-        "SpamhausDROP": "https://www.spamhaus.org/drop/drop.txt"
+        "SpamhausDROP": "https://www.spamhaus.org/drop/drop.txt",
+        "Dshield": "https://www.dshield.org/block.txt",
+        "CINSSCORE": "http://cinsscore.com/list/ci-badguys.txt",
+        "EmergingThreats": "https://rules.emergingthreats.net/blockrules/compromised-ips.txt",
+        "FeodoTracker": "https://feodotracker.abuse.ch/downloads/ipblocklist_recommended.txt",
+        "BlocklistDE": "https://lists.blocklist.de/lists/all.txt"
     },
     "update_time": "00:00",
     "cache_size": 10000,
