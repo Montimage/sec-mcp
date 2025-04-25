@@ -63,7 +63,7 @@ class BlacklistUpdater:
                 if file_age < timedelta(days=1):
                     use_cache = True
             if use_cache:
-                with open(filename, "r", encoding="utf-8") as f:
+                with open(filename, "r", encoding="utf-8", errors='ignore') as f:
                     content = f.read()
             else:
                 response = await client.get(url)
@@ -72,6 +72,8 @@ class BlacklistUpdater:
                 with open(filename, "w", encoding="utf-8") as f:
                     f.write(content)
             entries = []
+            
+            # Source-specific parsing logic
             if source == "PhishStats":
                 try:
                     # Skip comment lines and use the first non-comment line as header
@@ -94,7 +96,7 @@ class BlacklistUpdater:
                         if url_val:
                             entries.append((url_val, ip_val, date_val, score_val, source))
                     if first5:
-                        self.logger.warning(f"PhishStats first 5 parsed rows: {first5}")
+                        self.logger.debug(f"PhishStats first 5 parsed rows: {first5}")
                 except Exception as e:
                     self.logger.error(f"CSV parsing error for {source}: {e}. Raw content head: {content[:300]}")
                     return
@@ -116,7 +118,7 @@ class BlacklistUpdater:
                         if url_val:
                             entries.append((url_val, ip_val, date_val, score_val, source))
                     if first5:
-                        self.logger.warning(f"PhishTank first 5 parsed rows: {first5}")
+                        self.logger.debug(f"PhishTank first 5 parsed rows: {first5}")
                 except Exception as e:
                     self.logger.error(f"CSV parsing error for {source}: {e}. Raw content head: {content[:300]}")
                     return
@@ -126,7 +128,7 @@ class BlacklistUpdater:
                     first5 = []
                     from datetime import datetime
                     now_str = datetime.now().isoformat(sep=' ', timespec='seconds')
-                    for idx, line in enumerate(lines[4:]):  # skip the first 4 lines (headers)
+                    for idx, line in enumerate(lines):
                         line = line.strip()
                         if not line or line.startswith(';'):
                             continue
@@ -142,51 +144,122 @@ class BlacklistUpdater:
                             first5.append({'ip_network': ip_val, 'date': date_val, 'score': score_val})
                         entries.append((url_val, ip_val, date_val, score_val, source))
                     if first5:
-                        self.logger.warning(f"SpamhausDROP first 5 parsed rows: {first5}")
+                        self.logger.debug(f"SpamhausDROP first 5 parsed rows: {first5}")
                 except Exception as e:
                     self.logger.error(f"Parsing error for {source}: {e}. Raw content head: {content[:300]}")
                     return
-
-                # Insert SpamhausDROP networks into the IP table
-                ip_count = 0
-                for entry in entries:
-                    url_val, ip_val, date_val, score_val, src = entry
-                    if ip_val:
-                        try:
-                            self.storage.add_ip(ip_val, date_val, score_val, src)
-                            ip_count += 1
-                        except Exception:
-                            continue
-
+            elif source == "Dshield":
                 try:
                     lines = content.splitlines()
-                    data_lines = [line for line in lines if line.strip()]
-                    reader = csv.DictReader(data_lines)
+                    from datetime import datetime
+                    now_str = datetime.now().isoformat(sep=' ', timespec='seconds')
                     first5 = []
-                    for idx, row in enumerate(reader):
-                        url_val = row.get("url", "").strip()
-                        date_val = row.get("submission_time", "").replace("T", " ").split("+")[0] if row.get("submission_time") else ""
+                    for idx, line in enumerate(lines):
+                        line = line.strip()
+                        # Skip header lines and empty lines
+                        if not line or line.startswith('#') or line.startswith('Start') or line.startswith('('):
+                            continue
+                        
+                        # Parse tab-delimited fields
+                        fields = line.split('\t')
+                        if len(fields) < 3:  # Ensure at least IP range start, end, and subnet
+                            continue
+                            
+                        # Use the start IP of the range
+                        ip_val = fields[0].strip()
+                        url_val = None
+                        date_val = now_str
                         score_val = 8
-                        target_val = row.get("target", "")
-                        # Optionally: use target_val for tagging or notes
-                        ip_val = None  # PhishTank doesn't provide direct IP
+                        
                         if idx < 5:
-                            first5.append({'date': date_val, 'score': score_val, 'url': url_val, 'target': target_val})
-                        if url_val:
-                            entries.append((url_val, ip_val, date_val, score_val, source))
+                            first5.append({'ip': ip_val, 'date': date_val, 'score': score_val})
+                        entries.append((url_val, ip_val, date_val, score_val, source))
+                    
                     if first5:
-                        self.logger.warning(f"PhishTank first 5 parsed rows: {first5}")
+                        self.logger.info(f"Dshield first 5 parsed entries: {first5}")
                 except Exception as e:
-                    self.logger.error(f"CSV parsing error for {source}: {e}. Raw content head: {content[:300]}")
+                    self.logger.error(f"Parsing error for {source}: {e}. Raw content head: {content[:300]}")
+                    return
+            elif source == "CINSSCORE":
+                try:
+                    lines = content.splitlines()
+                    from datetime import datetime
+                    now_str = datetime.now().isoformat(sep=' ', timespec='seconds')
+                    first5 = []
+                    
+                    for idx, line in enumerate(lines):
+                        line = line.strip()
+                        # Skip empty lines and comments
+                        if not line or line.startswith('#'):
+                            continue
+                            
+                        # Each line contains a single IP address
+                        ip_val = line
+                        url_val = None
+                        date_val = now_str
+                        score_val = 8
+                        
+                        if idx < 5:
+                            first5.append({'ip': ip_val, 'date': date_val, 'score': score_val})
+                        entries.append((url_val, ip_val, date_val, score_val, source))
+                    
+                    if first5:
+                        self.logger.info(f"CINSSCORE first 5 parsed entries: {first5}")
+                except Exception as e:
+                    self.logger.error(f"Parsing error for {source}: {e}. Raw content head: {content[:300]}")
+                    return
+            elif source == "EmergingThreats" or source == "FeodoTracker" or source == "BlocklistDE":
+                try:
+                    lines = content.splitlines()
+                    from datetime import datetime
+                    now_str = datetime.now().isoformat(sep=' ', timespec='seconds')
+                    first5 = []
+                    
+                    for idx, line in enumerate(lines):
+                        line = line.strip()
+                        # Skip empty lines and comments
+                        if not line or line.startswith('#'):
+                            continue
+                            
+                        # Each line should contain an IP address or domain
+                        entry = line
+                        
+                        # Determine if the entry is an IP address
+                        try:
+                            from ipaddress import ip_address
+                            ip_address(entry)
+                            ip_val = entry
+                            url_val = None
+                        except ValueError:
+                            # If not an IP, treat as domain/URL
+                            if not entry.startswith(('http://', 'https://')):
+                                url_val = f"http://{entry}"
+                            else:
+                                url_val = entry
+                            ip_val = None
+                        
+                        date_val = now_str
+                        score_val = 8
+                        
+                        if idx < 5:
+                            first5.append({'ip': ip_val, 'url': url_val, 'date': date_val, 'score': score_val})
+                        entries.append((url_val, ip_val, date_val, score_val, source))
+                    
+                    if first5:
+                        self.logger.info(f"{source} first 5 parsed entries: {first5}")
+                except Exception as e:
+                    self.logger.error(f"Parsing error for {source}: {e}. Raw content head: {content[:300]}")
                     return
             else:
                 from datetime import datetime
+                from ipaddress import ip_address
                 now_str = datetime.now().isoformat(sep=' ', timespec='seconds')
                 for line in content.splitlines():
                     line = line.strip()
                     if not line or line.startswith("#") or not validate_input(line):
                         continue
-                    # Try to parse fields if CSV, else treat as single URL
+                    
+                    # Try to parse fields if CSV, else treat as single value (IP or URL)
                     if ',' in line:
                         parts = [p.strip() for p in line.split(',')]
                         url_val = parts[0] if parts else None
@@ -197,27 +270,42 @@ class BlacklistUpdater:
                         except Exception:
                             score_val = 8
                     else:
-                        url_val = line
-                        ip_val = None
+                        # Determine if the single value is an IP address or URL
+                        try:
+                            # Try parsing as IP address
+                            ip_address(line)
+                            url_val = None
+                            ip_val = line
+                        except ValueError:
+                            # If not an IP, treat as URL
+                            # Add http:// prefix if neither http:// nor https:// is present
+                            if not line.startswith(('http://', 'https://')):
+                                url_val = f"http://{line}"
+                            else:
+                                url_val = line
+                            ip_val = None
+                        
                         date_val = now_str
                         score_val = 8
+                        
                     entries.append((url_val, ip_val, date_val, score_val, source))
-            # To count number of entries for each source in the database, use:
-            #   SELECT source, COUNT(*) FROM blacklist GROUP BY source;
-            # Deduplicate: for SpamhausDROP use ip_val, otherwise use url_val
+            
+            # Deduplicate: for IP-based sources use ip_val, otherwise use url_val
             seen = set()
             deduped_entries = []
             for entry in entries:
                 url_val, ip_val, date_val, score_val, source = entry
-                key = ip_val if source == "SpamhausDROP" else url_val
-                if key not in seen:
+                key = ip_val if ip_val else url_val  # Use IP if available, otherwise URL
+                if key and key not in seen:
                     seen.add(key)
                     deduped_entries.append(entry)
+            
             if deduped_entries:
                 self.logger.info(f"First 5 parsed entries for {source}: {deduped_entries[:5]}")
             else:
                 self.logger.warning(f"No valid entries found for {source} during update.")
-            # Insert entries into the new tables
+            
+            # Insert entries into database
             url_count = 0
             ip_count = 0
             domain_count = 0
@@ -225,41 +313,35 @@ class BlacklistUpdater:
                 url_val, ip_val, date_val, score_val, src = entry
                 # Add URL if present and valid
                 if url_val and url_val.startswith(('http://', 'https://')):
-                    self.storage.add_url(url_val, date_val, score_val, src)
-                    url_count += 1
-                    # Extract and add domain
                     try:
                         from urllib.parse import urlparse
-                        parsed = urlparse(url_val)
-                        domain = parsed.hostname
+                        parsed_url = urlparse(url_val)
+                        domain = parsed_url.netloc
                         if domain:
-                            self.storage.add_domain(domain, date_val, score_val, src)
-                            domain_count += 1
-                    except Exception:
-                        pass
-                # Add IP/network if present and valid
+                            if validate_input(domain):  # Validate domain
+                                self.storage.add_domain(domain, date_val, score_val, src)
+                                domain_count += 1
+                            self.storage.add_url(url_val, date_val, score_val, src)
+                            url_count += 1
+                    except Exception as e:
+                        self.logger.debug(f"URL parsing error: {e} for {url_val}")
+                        continue
+                
+                # Add IP if present and valid
                 if ip_val:
                     try:
-                        if src == "SpamhausDROP":
-                            from ipaddress import ip_network
-                            ip_network(ip_val, strict=False)
-                            self.storage.add_ip(ip_val, date_val, score_val, src)
-                            ip_count += 1
-                        else:
-                            from ipaddress import ip_address
-                            ip_address(ip_val)
-                            self.storage.add_ip(ip_val, date_val, score_val, src)
-                            ip_count += 1
-                    except Exception:
-                        pass
-            self.storage.log_update(source, url_count + ip_count + domain_count)
+                        self.storage.add_ip(ip_val, date_val, score_val, src)
+                        ip_count += 1
+                    except Exception as e:
+                        self.logger.debug(f"IP insertion error: {e} for {ip_val}")
+                        continue
+            
             self.logger.info(f"Updated {source}: {url_count} URLs, {domain_count} domains, {ip_count} IPs.")
-        except httpx.RequestError as e:
-            self.logger.error(f"Network error updating {source}: {e}")
-        except httpx.HTTPStatusError as e:
-            self.logger.error(f"HTTP error updating {source}: {e.response.status_code}")
+        
         except Exception as e:
-            self.logger.error(f"Unexpected error updating {source}: {e}")
+            self.logger.error(f"Failed to update {source}: {e}")
+            import traceback
+            self.logger.debug(traceback.format_exc())
 
     def force_update(self):
         """Force an immediate update of all blacklists."""
