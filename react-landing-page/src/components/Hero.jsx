@@ -17,13 +17,6 @@ const Hero = () => {
                         Integrate easily into any Python application, use via terminal CLI, or run as an MCP server
                         to enrich LLM context with real-time threat insights.
                     </p>
-                    <div className="flex items-center mb-6">
-                        <p className="text-sm text-slate-300 mr-3">Developed by</p>
-                        <a href="https://www.montimage.eu" target="_blank" rel="noopener noreferrer" className="transition-opacity hover:opacity-80">
-                            <img src={montimageIconSvg} alt="Montimage" className="h-10" />
-                        </a>
-                    </div>
-                    
                     <div className="flex flex-wrap gap-4">
                         <a href="#installation" className="bg-blue-600 hover:bg-blue-700 text-white font-semibold px-6 py-3 rounded-lg transition-colors">
                             Get Started

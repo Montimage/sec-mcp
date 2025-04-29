@@ -33,7 +33,7 @@ const Header = () => {
                         <span className="text-sm text-gray-400 mr-2">by</span>
                         <a href="https://www.montimage.eu" target="_blank" rel="noopener noreferrer" className="transition-opacity hover:opacity-80">
                             <img src={montimageIconSvg} alt="Montimage" className="h-6" />
-                        </a>
+                        </a> <span className="text-md text-gray-200 ml-2">Montimage</span>
                     </div>
                 </div>
                 <nav className="w-full md:w-auto">
