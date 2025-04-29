@@ -1,6 +1,7 @@
 import React from 'react';
 import CodeBlock from './CodeBlock';
 import logoSvg from '../assets/logo.svg';
+import montimageIconSvg from '../assets/montimage-logo.svg';
 
 const Hero = () => {
     return (
@@ -11,11 +12,17 @@ const Hero = () => {
                         <img src={logoSvg} alt="sec-mcp logo" className="w-16 h-16 mr-4" />
                         <h1 className="text-4xl lg:text-5xl font-bold">sec-mcp: Security Checking Toolkit</h1>
                     </div>
-                    <p className="text-xl mb-8 text-slate-200">
+                    <p className="text-xl mb-6 text-slate-200">
                         A Python toolkit providing security checks for domains, URLs, IPs, and more.
                         Integrate easily into any Python application, use via terminal CLI, or run as an MCP server
                         to enrich LLM context with real-time threat insights.
                     </p>
+                    <div className="flex items-center mb-6">
+                        <p className="text-sm text-slate-300 mr-3">Developed by</p>
+                        <a href="https://www.montimage.eu" target="_blank" rel="noopener noreferrer" className="transition-opacity hover:opacity-80">
+                            <img src={montimageIconSvg} alt="Montimage" className="h-10" />
+                        </a>
+                    </div>
                     
                     <div className="flex flex-wrap gap-4">
                         <a href="#installation" className="bg-blue-600 hover:bg-blue-700 text-white font-semibold px-6 py-3 rounded-lg transition-colors">

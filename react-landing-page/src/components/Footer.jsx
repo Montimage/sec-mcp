@@ -1,4 +1,5 @@
 import React from 'react';
+import montimageIconSvg from '../assets/montimage-logo.svg';
 
 const Footer = () => {
     return (
@@ -29,7 +30,7 @@ const Footer = () => {
                             with support for CLI, Python API, and MCP server for LLMs.
                         </p>
                         <p className="text-sm text-slate-400">
-                            &copy; {new Date().getFullYear()} sec-mcp. Released under MIT License.
+                            &copy; {new Date().getFullYear()} Montimage. Released under MIT License.
                         </p>
                     </div>
 
@@ -92,7 +93,7 @@ const Footer = () => {
                             </li>
                             <li>
                                 <a
-                                    href="mailto:contact@example.com"
+                                    href="mailto:contact@montimage.eu"
                                     className="text-slate-300 hover:text-blue-400 transition-colors flex items-center"
                                 >
                                     <svg className="w-4 h-4 mr-2" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -107,11 +108,16 @@ const Footer = () => {
                 </div>
 
                 <div className="border-t border-gray-700 mt-8 pt-8 text-sm text-center text-slate-400">
-                    <p>
-                        Powered by React, Vite, and TailwindCSS. Built on {new Date().toLocaleDateString()}
-                    </p>
                     <p className="mt-2">
                         sec-mcp uses blacklist data from multiple sources including OpenPhish, PhishStats, and URLhaus.
+                    </p>
+                    <p className="mt-4 flex items-center justify-center">
+                        Developed by 
+                        <a href="https://www.montimage.eu" target="_blank" rel="noopener noreferrer" className="flex items-center mx-2">
+                            <img src={montimageIconSvg} alt="Montimage" className="h-8 mr-2" />
+                            <span className="text-blue-400 hover:text-blue-300">Montimage</span>
+                        </a>, 
+                        a company specializing in cybersecurity and network monitoring solutions.
                     </p>
                 </div>
             </div>

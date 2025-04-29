@@ -2,6 +2,8 @@
 
 A Python toolkit providing security checks for domains, URLs, IPs, and more. Integrate easily into any Python application, use via terminal CLI, or run as an MCP server to enrich LLM context with real-time threat insights.
 
+Developed by [Montimage](https://www.montimage.eu), a company specializing in cybersecurity and network monitoring solutions.
+
 <p align="left">
    <a href="https://pepy.tech/projects/sec-mcp"><img src="https://static.pepy.tech/badge/sec-mcp" alt="PyPI Downloads"></a>
    <a href="https://pypi.org/project/sec-mcp/"><img src="https://img.shields.io/pypi/v/sec-mcp.svg?label=PyPI&color=blue" alt="PyPI"></a>
@@ -293,3 +295,9 @@ pip install -e .
 ## License
 
 MIT
+
+## About Montimage
+
+sec-mcp is developed and maintained by [Montimage](https://www.montimage.eu), a company specializing in cybersecurity and network monitoring solutions. Montimage provides innovative security tools and services to help organizations protect their digital assets and ensure the security of their networks.
+
+For questions or support, please contact us at contact@montimage.eu.

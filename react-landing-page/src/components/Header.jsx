@@ -1,38 +1,55 @@
 import React from 'react';
+import montimageIconSvg from '../assets/montimage-logo.svg';
 
 const Header = () => {
     return (
         <header className="bg-slate-800 text-white p-4 shadow-md">
-            <div className="container mx-auto flex justify-between items-center">
-                <h1 className="text-2xl font-bold flex items-center">
-                    <svg className="w-8 h-8 mr-2" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
-                        {/* Security shield with network/check elements */}
-                        <defs>
-                            <linearGradient id="gradient" x1="0%" y1="0%" x2="100%" y2="100%">
-                                <stop offset="0%" stopColor="#3B82F6" />
-                                <stop offset="100%" stopColor="#2563EB" />
-                            </linearGradient>
-                        </defs>
-                        {/* Shield background */}
-                        <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" fill="url(#gradient)" stroke="#1E40AF" strokeWidth="1" />
-                        
-                        {/* Network/globe grid lines representing security scanning */}
-                        <path d="M12 4 L12 18" stroke="white" strokeWidth="0.5" opacity="0.7" />
-                        <path d="M6 8 L18 8" stroke="white" strokeWidth="0.5" opacity="0.7" />
-                        <path d="M6 12 L18 12" stroke="white" strokeWidth="0.5" opacity="0.7" />
-                        <path d="M6 16 L18 16" stroke="white" strokeWidth="0.5" opacity="0.7" />
-                        
-                        {/* Checkmark for security verification */}
-                        <path d="M8 12L11 15L16 9" stroke="white" strokeWidth="1.5" fill="none" strokeLinecap="round" strokeLinejoin="round" />
-                    </svg>
-                    sec-mcp
-                </h1>
-                <nav>
-                    <ul className="flex space-x-6">
+            <div className="container mx-auto flex flex-col md:flex-row md:justify-between items-center">
+                <div className="flex items-center mb-6 md:mb-0">
+                    <h1 className="text-2xl font-bold flex items-center">
+                        <svg className="w-8 h-8 mr-2" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
+                            {/* Security shield with network/check elements */}
+                            <defs>
+                                <linearGradient id="gradient" x1="0%" y1="0%" x2="100%" y2="100%">
+                                    <stop offset="0%" stopColor="#3B82F6" />
+                                    <stop offset="100%" stopColor="#2563EB" />
+                                </linearGradient>
+                            </defs>
+                            {/* Shield background */}
+                            <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" fill="url(#gradient)" stroke="#1E40AF" strokeWidth="1" />
+                            
+                            {/* Network/globe grid lines representing security scanning */}
+                            <path d="M12 4 L12 18" stroke="white" strokeWidth="0.5" opacity="0.7" />
+                            <path d="M6 8 L18 8" stroke="white" strokeWidth="0.5" opacity="0.7" />
+                            <path d="M6 12 L18 12" stroke="white" strokeWidth="0.5" opacity="0.7" />
+                            <path d="M6 16 L18 16" stroke="white" strokeWidth="0.5" opacity="0.7" />
+                            
+                            {/* Checkmark for security verification */}
+                            <path d="M8 12L11 15L16 9" stroke="white" strokeWidth="1.5" fill="none" strokeLinecap="round" strokeLinejoin="round" />
+                        </svg>
+                        sec-mcp
+                    </h1>
+                    <div className="flex items-center ml-4 pl-4 border-l border-gray-600">
+                        <span className="text-sm text-gray-400 mr-2">by</span>
+                        <a href="https://www.montimage.eu" target="_blank" rel="noopener noreferrer" className="transition-opacity hover:opacity-80">
+                            <img src={montimageIconSvg} alt="Montimage" className="h-6" />
+                        </a>
+                    </div>
+                </div>
+                <nav className="w-full md:w-auto">
+                    <ul className="flex flex-wrap justify-center md:justify-start gap-4 md:gap-6">
                         <li><a href="#features" className="hover:text-blue-400 transition-colors">Features</a></li>
                         <li><a href="#api" className="hover:text-blue-400 transition-colors">API</a></li>
                         <li><a href="#installation" className="hover:text-blue-400 transition-colors">Installation</a></li>
                         <li><a href="#mcp" className="hover:text-blue-400 transition-colors">MCP Server</a></li>
+                        <li>
+                            <a href="mailto:contact@montimage.eu" className="flex items-center hover:text-blue-400 transition-colors">
+                                <svg className="w-5 h-5 mr-1" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" strokeWidth="0.5">
+                                    <path d="M20 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 4l-8 5-8-5V6l8 5 8-5v2z" />
+                                </svg>
+                                Contact
+                            </a>
+                        </li>
                         <li>
                             <a href="https://github.com/montimage/sec-mcp" className="flex items-center hover:text-blue-400 transition-colors" target="_blank" rel="noopener noreferrer">
                                 <svg className="w-5 h-5 mr-1" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor">
