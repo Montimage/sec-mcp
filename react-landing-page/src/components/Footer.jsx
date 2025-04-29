@@ -8,8 +8,19 @@ const Footer = () => {
                     {/* Logo & Description */}
                     <div>
                         <div className="flex items-center mb-4">
-                            <svg className="w-6 h-6 mr-2" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                                <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path>
+                            <svg className="w-6 h-6 mr-2" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
+                                <defs>
+                                    <linearGradient id="footerGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+                                        <stop offset="0%" stopColor="#3B82F6" />
+                                        <stop offset="100%" stopColor="#2563EB" />
+                                    </linearGradient>
+                                </defs>
+                                <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" fill="url(#footerGradient)" stroke="#1E40AF" strokeWidth="1" />
+                                <path d="M12 4 L12 18" stroke="white" strokeWidth="0.5" opacity="0.7" />
+                                <path d="M6 8 L18 8" stroke="white" strokeWidth="0.5" opacity="0.7" />
+                                <path d="M12 12 L18 12" stroke="white" strokeWidth="0.5" opacity="0.7" />
+                                <path d="M6 16 L18 16" stroke="white" strokeWidth="0.5" opacity="0.7" />
+                                <path d="M8 12L11 15L16 9" stroke="white" strokeWidth="1.5" fill="none" strokeLinecap="round" strokeLinejoin="round" />
                             </svg>
                             <h2 className="text-xl font-bold">sec-mcp</h2>
                         </div>
@@ -39,7 +50,7 @@ const Footer = () => {
                         <ul className="space-y-2">
                             <li>
                                 <a
-                                    href="https://github.com/yourusername/sec-mcp"
+                                    href="https://github.com/montimage/sec-mcp"
                                     className="text-slate-300 hover:text-blue-400 transition-colors flex items-center"
                                     target="_blank"
                                     rel="noopener noreferrer"

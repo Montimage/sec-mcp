@@ -1,0 +1,21 @@
+{
+  "name": "sec-mcp Security Checking Toolkit",
+  "short_name": "sec-mcp",
+  "description": "A Python toolkit providing security checks for domains, URLs, IPs, and more.",
+  "icons": [
+    {
+      "src": "/sec-mcp/favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml"
+    },
+    {
+      "src": "/sec-mcp/apple-touch-icon.svg",
+      "sizes": "180x180",
+      "type": "image/svg+xml"
+    }
+  ],
+  "theme_color": "#2563EB",
+  "background_color": "#F8FAFC",
+  "display": "standalone",
+  "start_url": "/sec-mcp/"
+}

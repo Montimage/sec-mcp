@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 180 180">
+  <!-- Security shield with network/check elements -->
+  <defs>
+    <linearGradient id="gradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#3B82F6" />
+      <stop offset="100%" stop-color="#2563EB" />
+    </linearGradient>
+  </defs>
+  <!-- Background circle -->
+  <circle cx="90" cy="90" r="90" fill="#F8FAFC" />
+  <!-- Shield background -->
+  <path d="M90 160s50-25 50-62.5V37.5L90 15 40 37.5v60c0 37.5 50 62.5 50 62.5z" fill="url(#gradient)" stroke="#1E40AF" stroke-width="3" />
+  
+  <!-- Network/globe grid lines representing security scanning -->
+  <path d="M90 40 L90 130" stroke="white" stroke-width="2" opacity="0.7" />
+  <path d="M50 60 L130 60" stroke="white" stroke-width="2" opacity="0.7" />
+  <path d="M50 90 L130 90" stroke="white" stroke-width="2" opacity="0.7" />
+  <path d="M50 120 L130 120" stroke="white" stroke-width="2" opacity="0.7" />
+  
+  <!-- Checkmark for security verification -->
+  <path d="M60 90L80 110L115 65" stroke="white" stroke-width="5" fill="none" stroke-linecap="round" stroke-linejoin="round" />
+</svg>
