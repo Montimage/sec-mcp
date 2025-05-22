@@ -2,7 +2,7 @@ from setuptools import setup, find_packages
 
 setup(
     name="sec-mcp",
-    version="0.2.4",
+    version="0.2.6",
     packages=find_packages(),
     install_requires=[
         "requests",
@@ -19,7 +19,8 @@ setup(
         ],
     },
     python_requires=">=3.11",
-    author="Luong NGUYEN",
+    author="Montimage",
+    author_email="contact@montimage.eu",
     description="Model Context Protocol (MCP) Client for checking domains, URLs, and IPs against blacklists",
     package_data={
         "sec_mcp": ["config.json"],

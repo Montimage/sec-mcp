@@ -9,9 +9,9 @@ def secmcp():
             yield SecMCP()
 
 def test_check_blacklisted_and_safe(secmcp):
-    # Mock storage behavior
-    secmcp.storage.is_blacklisted.side_effect = lambda v: v == 'bad.com'
-    secmcp.storage.get_blacklist_source.return_value = 'TestSource'
+    # Mock storage behavior for domain checks
+    secmcp.storage.is_domain_blacklisted.side_effect = lambda domain: domain == 'bad.com'
+    secmcp.storage.get_domain_blacklist_source.return_value = 'TestSource'
 
     result = secmcp.check('bad.com')
     assert isinstance(result, CheckResult)
@@ -24,8 +24,10 @@ def test_check_blacklisted_and_safe(secmcp):
     assert 'Not blacklisted' in result2.explanation
 
 def test_check_batch(secmcp):
-    secmcp.storage.is_blacklisted.side_effect = lambda v: v == 'bad.com'
-    secmcp.storage.get_blacklist_source.return_value = 'BatchSource'
+    # Mock storage behavior for domain checks
+    secmcp.storage.is_domain_blacklisted.side_effect = lambda domain: domain == 'bad.com'
+    # get_domain_blacklist_source will be called for 'bad.com'
+    secmcp.storage.get_domain_blacklist_source.return_value = 'BatchSource'
     results = secmcp.check_batch(['bad.com', 'good.com'])
     assert len(results) == 2
     assert results[0].blacklisted is True

@@ -30,7 +30,9 @@ class Storage:
             os.makedirs(db_dir, exist_ok=True)
             db_path = os.path.join(db_dir, "mcp.db")
         else:
-            os.makedirs(os.path.dirname(db_path), exist_ok=True)
+            db_dir_from_path = os.path.dirname(db_path)
+            if db_dir_from_path:  # Only attempt to create if dirname is not empty
+                os.makedirs(db_dir_from_path, exist_ok=True)
         self.db_path = db_path
         self._cache: Set[str] = set()  # In-memory cache for faster lookups
         self._cache_lock = threading.Lock()
@@ -93,23 +95,39 @@ class Storage:
         domain_parts = domain.lower().split('.')
         for i in range(len(domain_parts) - 1):
             sub = '.'.join(domain_parts[i:])
+            # Check cache first
+            with self._cache_lock:
+                if sub in self._cache:
+                    return True
+            # If not in cache, check DB
             with sqlite3.connect(self.db_path) as conn:
                 cursor = conn.execute(
                     "SELECT 1 FROM blacklist_domain WHERE domain = ?",
                     (sub,)
                 )
                 if cursor.fetchone():
+                    with self._cache_lock:
+                        self._cache.add(sub) # Add to cache if found in DB
                     return True
         return False
 
     def is_url_blacklisted(self, url: str) -> bool:
         """Check if a URL is blacklisted (exact match)."""
+        # Check cache first
+        with self._cache_lock:
+            if url in self._cache:
+                return True
+        # If not in cache, check DB
         with sqlite3.connect(self.db_path) as conn:
             cursor = conn.execute(
                 "SELECT 1 FROM blacklist_url WHERE url = ?",
                 (url,)
             )
-            return cursor.fetchone() is not None
+            if cursor.fetchone():
+                with self._cache_lock:
+                    self._cache.add(url) # Add to cache if found in DB
+                return True
+        return False
 
     def is_ip_blacklisted(self, ip: str) -> bool:
         """Check if an IP is blacklisted (either exact match or contained in any network mask)."""
@@ -118,20 +136,47 @@ class Storage:
             ip_obj = ipaddress.ip_address(ip)
         except ValueError:
             return False
+        # Check cache first for exact IP
+        with self._cache_lock:
+            if ip in self._cache:
+                return True
+        # If not in cache, check DB for exact IP
         with sqlite3.connect(self.db_path) as conn:
-            cursor = conn.execute("SELECT ip FROM blacklist_ip")
-            for (entry,) in cursor.fetchall():
-                try:
-                    # Try to parse as a network, fallback to exact IP
-                    if '/' in entry:
-                        net = ipaddress.ip_network(entry, strict=False)
-                        if ip_obj in net:
+            cursor = conn.execute(
+                "SELECT 1 FROM blacklist_ip WHERE ip = ?",
+                (ip,)
+            )
+            if cursor.fetchone():
+                with self._cache_lock:
+                    self._cache.add(ip) # Add exact IP to cache if found
+                return True
+
+            # Check for network mask (this part is more complex and less cacheable directly without processing all masks)
+            # The current implementation checks all network masks, which might be slow.
+            # For CIDR matches, we won't cache the specific IP 'ip' under the CIDR key directly here,
+            # as the cache is for exact matches. A positive CIDR match means the IP is bad,
+            # but caching 'ip' itself might be misleading if 'ip' isn't an exact entry.
+            # However, if an IP is found via CIDR, it IS blacklisted.
+            cursor = conn.execute(
+                "SELECT ip FROM blacklist_ip WHERE INSTR(ip, '/') > 0"  # Select only CIDRs
+            )
+            try:
+                addr = ipaddress.ip_address(ip)
+                for row in cursor.fetchall():
+                    net_str = row[0]
+                    # Ensure net_str is a valid network before creating ip_network object
+                    try:
+                        network = ipaddress.ip_network(net_str, strict=False)
+                        if addr in network:
+                            # We found it via CIDR. We can cache the specific IP as blacklisted.
+                            with self._cache_lock:
+                                self._cache.add(ip)
                             return True
-                    else:
-                        if ip_obj == ipaddress.ip_address(entry):
-                            return True
-                except Exception:
-                    continue
+                    except ValueError:
+                        # Invalid network string in DB, log or handle as appropriate
+                        continue 
+            except ValueError:
+                pass # Invalid IP format for 'ip', should not happen if input is validated
         return False
 
     def add_domain(self, domain: str, date: str, score: float, source: str):

@@ -99,3 +99,6 @@ Thumbs.db
 *.pem
 *.cert
 *.key
+
+*.db-shm
+*.db-wal

@@ -91,25 +91,37 @@ class BlacklistUpdater:
                 try:
                     # Skip comment lines and use the first non-comment line as header
                     lines = content.splitlines()
-                    # Skip all comment lines; treat all remaining as data (date, score, url, ip)
                     data_lines = [line for line in lines if line.strip() and not line.strip().startswith('#')]
-                    if not data_lines:
-                        raise ValueError("No CSV data found for PhishStats")
-                    reader = csv.reader(data_lines)
+                    if len(data_lines) < 2: # Need at least a header and one data row
+                        self.logger.warning(f"No data (or only header) found for PhishStats after stripping comments. Content head: {content[:300]}")
+                        return
+                    
+                    reader = csv.DictReader(data_lines) # Uses the first line of data_lines as fieldnames
+                    now_str = datetime.now().isoformat(sep=' ', timespec='seconds')
                     first5 = []
-                    for idx, row in enumerate(reader):
-                        if len(row) < 3:
-                            continue  # skip incomplete rows
-                        date_val = row[0].strip()
-                        score_val = float(row[1].strip()) if row[1].strip() else 8
-                        url_val = row[2].strip()
-                        ip_val = row[3].strip() if len(row) > 3 else None
-                        if idx < 5:
+                    for idx, row_dict in enumerate(reader):
+                        url_val = row_dict.get('url', '').strip()
+                        ip_val = row_dict.get('ip', '').strip() or None # Ensures empty string becomes None
+                        
+                        date_str = row_dict.get('date', '').strip()
+                        # Validate or default date_val. PhishStats format can be 'YYYY-MM-DD HH:MM:SS'
+                        # For simplicity, we'll use it as is if present, or default to now_str
+                        date_val = date_str if date_str else now_str
+                        
+                        score_str = row_dict.get('score', '').strip()
+                        try:
+                            score_val = float(score_str) if score_str else 8.0
+                        except ValueError:
+                            self.logger.warning(f"Could not parse score '{score_str}' for {source} at row {idx+1}, using default 8.0. Row: {row_dict}")
+                            score_val = 8.0
+
+                        if idx < 5: # For debugging
                             first5.append({'date': date_val, 'score': score_val, 'url': url_val, 'ip': ip_val})
-                        if url_val:
+                        
+                        if url_val: # Must have a URL at least
                             entries.append((url_val, ip_val, date_val, score_val, source))
-                    if first5:
-                        self.logger.debug(f"PhishStats first 5 parsed rows: {first5}")
+                        if first5:
+                            self.logger.debug(f"PhishStats first 5 parsed rows: {first5}")
                 except Exception as e:
                     self.logger.error(f"CSV parsing error for {source}: {e}. Raw content head: {content[:300]}")
                     return
