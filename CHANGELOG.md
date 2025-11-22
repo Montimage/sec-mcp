@@ -32,6 +32,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Integer IP conversion tests
   - Hot/cold source classification tests
   - Backward compatibility tests
+- **Benchmark script** (`benchmark.py`) for performance comparison
+  - Compare v1, v0.3.0, and v0.4.0 storage implementations
+  - Production-like data distribution (449K entries)
+  - Detailed performance metrics and memory usage
+  - Easy-to-read comparison tables with speedup calculations
 
 ### Changed
 - **Memory usage**: Further reduced from 60-80MB to **40-50MB** (30-40% reduction)

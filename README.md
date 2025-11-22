@@ -173,6 +173,45 @@ await get_storage_metrics()
 }
 ```
 
+#### Running Benchmarks
+
+To compare performance across different storage versions, use the included benchmark script:
+
+```bash
+# Install required dependencies first
+pip install pytricia psutil
+
+# Quick benchmark (10K entries, ~30 seconds)
+python benchmark.py --quick
+
+# Standard benchmark (50K entries, ~2 minutes)
+python benchmark.py
+
+# Full benchmark (100K entries, production-like, ~5 minutes)
+python benchmark.py --full --memory
+
+# Compare specific versions
+python benchmark.py --v2 --v2opt  # Compare v0.3.0 vs v0.4.0
+python benchmark.py --all         # Compare all versions (v1, v0.3.0, v0.4.0)
+```
+
+The benchmark will output a comparison table showing:
+- Lookup times for domains, URLs, IPs, and CIDR ranges
+- Memory usage for each version
+- Hot source hit rates (v0.4.0 optimization metrics)
+- Overall speedup compared to v1
+
+Example output:
+```
+BENCHMARK RESULTS COMPARISON
+================================================================================
+Operation                 v1 (DB)         v0.3.0 (Hybrid)      v0.4.0 (Optimized)   Speedup
+----------------------------------------------------------------------------------------------------
+domain_lookup             9.8234ms        0.0098ms             0.0059ms             1,664x
+url_lookup                4.5632ms        0.0009ms             0.0007ms             6,519x
+ip_lookup                 198.2341ms      0.0103ms             0.0071ms             27,920x
+```
+
 #### Rollback
 
 To revert to v1 (database-only) storage:
