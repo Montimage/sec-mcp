@@ -298,7 +298,7 @@ class StorageBenchmark:
             )
 
         for cidr_entry in data['cidrs']:
-            self.storage.add_cidr(
+            self.storage.add_ip(
                 cidr_entry['value'],
                 cidr_entry['date_added'],
                 cidr_entry['confidence'],
