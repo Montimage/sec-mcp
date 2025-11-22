@@ -1,8 +1,10 @@
 """Backward compatibility tests between v1 and v2 storage."""
 
-import pytest
 import os
 import tempfile
+
+import pytest
+
 from sec_mcp.storage import Storage, create_storage
 from sec_mcp.storage_v2 import HybridStorage
 
@@ -12,30 +14,30 @@ class TestStorageFactory:
 
     def test_factory_creates_v1_by_default(self):
         """Test that factory creates v1 storage by default."""
-        os.environ.pop('MCP_USE_V2_STORAGE', None)  # Ensure not set
+        os.environ.pop("MCP_USE_V2_STORAGE", None)  # Ensure not set
 
         storage = create_storage(":memory:")
         assert type(storage).__name__ == "Storage"
 
     def test_factory_creates_v2_when_enabled(self):
         """Test that factory creates v2 storage when enabled."""
-        os.environ['MCP_USE_V2_STORAGE'] = 'true'
+        os.environ["MCP_USE_V2_STORAGE"] = "true"
 
         storage = create_storage(":memory:")
         assert type(storage).__name__ == "HybridStorage"
 
         # Clean up
-        os.environ.pop('MCP_USE_V2_STORAGE', None)
+        os.environ.pop("MCP_USE_V2_STORAGE", None)
 
     def test_factory_handles_false_value(self):
         """Test that factory creates v1 storage when explicitly false."""
-        os.environ['MCP_USE_V2_STORAGE'] = 'false'
+        os.environ["MCP_USE_V2_STORAGE"] = "false"
 
         storage = create_storage(":memory:")
         assert type(storage).__name__ == "Storage"
 
         # Clean up
-        os.environ.pop('MCP_USE_V2_STORAGE', None)
+        os.environ.pop("MCP_USE_V2_STORAGE", None)
 
 
 class TestDataMigration:
@@ -91,37 +93,37 @@ class TestAPICompatibility:
 
     def test_same_methods_available(self):
         """Test that v2 has all methods that v1 has."""
-        v1 = Storage(":memory:")
+        Storage(":memory:")
         v2 = HybridStorage(":memory:")
 
         # Core lookup methods
-        assert hasattr(v2, 'is_domain_blacklisted')
-        assert hasattr(v2, 'is_url_blacklisted')
-        assert hasattr(v2, 'is_ip_blacklisted')
+        assert hasattr(v2, "is_domain_blacklisted")
+        assert hasattr(v2, "is_url_blacklisted")
+        assert hasattr(v2, "is_ip_blacklisted")
 
         # Write methods
-        assert hasattr(v2, 'add_domain')
-        assert hasattr(v2, 'add_url')
-        assert hasattr(v2, 'add_ip')
-        assert hasattr(v2, 'add_domains')
-        assert hasattr(v2, 'add_urls')
-        assert hasattr(v2, 'add_ips')
-        assert hasattr(v2, 'add_entries')
+        assert hasattr(v2, "add_domain")
+        assert hasattr(v2, "add_url")
+        assert hasattr(v2, "add_ip")
+        assert hasattr(v2, "add_domains")
+        assert hasattr(v2, "add_urls")
+        assert hasattr(v2, "add_ips")
+        assert hasattr(v2, "add_entries")
 
         # Statistics methods
-        assert hasattr(v2, 'count_entries')
-        assert hasattr(v2, 'get_source_counts')
-        assert hasattr(v2, 'get_active_sources')
-        assert hasattr(v2, 'sample_entries')
+        assert hasattr(v2, "count_entries")
+        assert hasattr(v2, "get_source_counts")
+        assert hasattr(v2, "get_active_sources")
+        assert hasattr(v2, "sample_entries")
 
         # Utility methods
-        assert hasattr(v2, 'flush_cache')
-        assert hasattr(v2, 'remove_entry')
-        assert hasattr(v2, 'log_update')
-        assert hasattr(v2, 'get_last_update')
-        assert hasattr(v2, 'get_last_update_per_source')
-        assert hasattr(v2, 'get_update_history')
-        assert hasattr(v2, 'get_source_type_counts')
+        assert hasattr(v2, "flush_cache")
+        assert hasattr(v2, "remove_entry")
+        assert hasattr(v2, "log_update")
+        assert hasattr(v2, "get_last_update")
+        assert hasattr(v2, "get_last_update_per_source")
+        assert hasattr(v2, "get_update_history")
+        assert hasattr(v2, "get_source_type_counts")
 
     def test_same_method_signatures(self):
         """Test that methods have compatible signatures."""
@@ -167,7 +169,9 @@ class TestDataConsistency:
             for domain in test_domains:
                 v1_result = v1.is_domain_blacklisted(domain)
                 v2_result = v2.is_domain_blacklisted(domain)
-                assert v1_result == v2_result, f"Mismatch for {domain}: v1={v1_result}, v2={v2_result}"
+                assert (
+                    v1_result == v2_result
+                ), f"Mismatch for {domain}: v1={v1_result}, v2={v2_result}"
 
     def test_url_lookups_consistent(self):
         """Test that URL lookups produce same results."""
@@ -223,25 +227,25 @@ class TestSwitchingBetweenVersions:
             db_path = os.path.join(tmpdir, "test.db")
 
             # Use v1
-            os.environ.pop('MCP_USE_V2_STORAGE', None)
+            os.environ.pop("MCP_USE_V2_STORAGE", None)
             storage1 = create_storage(db_path)
             storage1.add_domain("evil.com", "2025-01-01", 9.0, "test")
             assert type(storage1).__name__ == "Storage"
 
             # Switch to v2
-            os.environ['MCP_USE_V2_STORAGE'] = 'true'
+            os.environ["MCP_USE_V2_STORAGE"] = "true"
             storage2 = create_storage(db_path)
             assert type(storage2).__name__ == "HybridStorage"
             assert storage2.is_domain_blacklisted("evil.com") is True
 
             # Switch back to v1
-            os.environ['MCP_USE_V2_STORAGE'] = 'false'
+            os.environ["MCP_USE_V2_STORAGE"] = "false"
             storage3 = create_storage(db_path)
             assert type(storage3).__name__ == "Storage"
             assert storage3.is_domain_blacklisted("evil.com") is True
 
             # Clean up
-            os.environ.pop('MCP_USE_V2_STORAGE', None)
+            os.environ.pop("MCP_USE_V2_STORAGE", None)
 
 
 class TestV040Optimizations:
@@ -258,7 +262,10 @@ class TestV040Optimizations:
         # Test tracking parameter removal
         assert normalize_url("http://evil.com/?utm_source=spam") == "http://evil.com"
         assert normalize_url("http://evil.com/?fbclid=123") == "http://evil.com"
-        assert normalize_url("http://evil.com/page?utm_medium=email&valid=1") == "http://evil.com/page?valid=1"
+        assert (
+            normalize_url("http://evil.com/page?utm_medium=email&valid=1")
+            == "http://evil.com/page?valid=1"
+        )
 
         # Test trailing slash removal
         assert normalize_url("http://evil.com/path/") == "http://evil.com/path"
@@ -277,7 +284,7 @@ class TestV040Optimizations:
 
     def test_integer_ip_storage(self):
         """Test that IPv4 addresses are stored as integers."""
-        from sec_mcp.storage_v2 import ip_to_int, int_to_ip
+        from sec_mcp.storage_v2 import int_to_ip, ip_to_int
 
         # Test IP to int conversion
         assert ip_to_int("192.168.1.1") == 3232235777
@@ -293,15 +300,15 @@ class TestV040Optimizations:
 
     def test_tiered_lookup_sources(self):
         """Test that hot sources are classified correctly."""
-        from sec_mcp.storage_v2 import HOT_URL_SOURCES, HOT_IP_SOURCES, HOT_DOMAIN_SOURCES
+        from sec_mcp.storage_v2 import HOT_DOMAIN_SOURCES, HOT_IP_SOURCES, HOT_URL_SOURCES
 
         # Verify hot source definitions match production data analysis
-        assert 'PhishTank' in HOT_URL_SOURCES
-        assert 'URLhaus' in HOT_URL_SOURCES
-        assert 'BlocklistDE' in HOT_IP_SOURCES
-        assert 'CINSSCORE' in HOT_IP_SOURCES
-        assert 'PhishTank' in HOT_DOMAIN_SOURCES
-        assert 'PhishStats' in HOT_DOMAIN_SOURCES
+        assert "PhishTank" in HOT_URL_SOURCES
+        assert "URLhaus" in HOT_URL_SOURCES
+        assert "BlocklistDE" in HOT_IP_SOURCES
+        assert "CINSSCORE" in HOT_IP_SOURCES
+        assert "PhishTank" in HOT_DOMAIN_SOURCES
+        assert "PhishStats" in HOT_DOMAIN_SOURCES
 
     def test_hot_source_metrics(self):
         """Test that hot source hits are tracked in metrics."""
@@ -319,9 +326,9 @@ class TestV040Optimizations:
 
         # Check metrics
         metrics = storage.get_metrics()
-        assert metrics['hot_source_hits'] > 0
-        assert metrics['cold_source_hits'] > 0
-        assert metrics['optimization_version'] == "0.4.0"
+        assert metrics["hot_source_hits"] > 0
+        assert metrics["cold_source_hits"] > 0
+        assert metrics["optimization_version"] == "0.4.0"
 
     def test_optimization_metrics_in_get_metrics(self):
         """Test that get_metrics returns v0.4.0 optimization metrics."""
@@ -337,13 +344,13 @@ class TestV040Optimizations:
         metrics = storage.get_metrics()
 
         # Verify v0.4.0 metrics are present
-        assert 'hot_source_hits' in metrics
-        assert 'cold_source_hits' in metrics
-        assert 'hot_hit_rate_pct' in metrics
-        assert 'urls_normalized' in metrics
-        assert 'ips_as_integers' in metrics
-        assert 'optimization_version' in metrics
-        assert metrics['optimization_version'] == "0.4.0"
+        assert "hot_source_hits" in metrics
+        assert "cold_source_hits" in metrics
+        assert "hot_hit_rate_pct" in metrics
+        assert "urls_normalized" in metrics
+        assert "ips_as_integers" in metrics
+        assert "optimization_version" in metrics
+        assert metrics["optimization_version"] == "0.4.0"
 
     def test_backward_compatibility_with_optimizations(self):
         """Test that optimizations don't break backward compatibility."""
@@ -373,8 +380,8 @@ class TestV040Optimizations:
 
             # Verify metrics show optimizations are active
             metrics = v2.get_metrics()
-            assert metrics['ips_as_integers'] > 0  # At least 1 IP stored as integer
-            assert metrics['hot_source_hits'] > 0  # Hot sources were hit
+            assert metrics["ips_as_integers"] > 0  # At least 1 IP stored as integer
+            assert metrics["hot_source_hits"] > 0  # Hot sources were hit
 
 
 if __name__ == "__main__":

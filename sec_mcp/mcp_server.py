@@ -1,10 +1,11 @@
-from mcp.server.fastmcp import FastMCP
+from datetime import datetime
+
 import anyio
+from mcp.server.fastmcp import FastMCP
+
 # import SecMCP for server logic
 from .sec_mcp import SecMCP
 from .utility import validate_input
-from datetime import datetime
-from typing import List, Optional
 
 # Initialize FastMCP server
 mcp = FastMCP("mcp-blacklist")
@@ -16,20 +17,31 @@ core = SecMCP()
 # CORE TOOLS - Primary functionality
 # ============================================================================
 
-@mcp.tool(name="check_batch", description="Check multiple domains/URLs/IPs in one call. Returns list of {value, is_safe, explanation}.")
-async def check_batch(values: List[str]):
+
+@mcp.tool(
+    name="check_batch",
+    description="Check multiple domains/URLs/IPs in one call. Returns list of {value, is_safe, explanation}.",
+)
+async def check_batch(values: list[str]):
     """Check multiple values against the blacklist in a single call."""
     results = []
     for value in values:
         if not validate_input(value):
-            results.append({"value": value, "is_safe": False, "explanation": "Invalid input format."})
+            results.append(
+                {"value": value, "is_safe": False, "explanation": "Invalid input format."}
+            )
         else:
             res = core.check(value)
-            results.append({"value": value, "is_safe": not res.blacklisted, "explanation": res.explanation})
+            results.append(
+                {"value": value, "is_safe": not res.blacklisted, "explanation": res.explanation}
+            )
     return results
 
 
-@mcp.tool(name="get_status", description="Get blacklist status including entry counts and sources. Returns JSON: {entry_count, last_update, sources, server_status, source_counts}.")
+@mcp.tool(
+    name="get_status",
+    description="Get blacklist status including entry counts and sources. Returns JSON: {entry_count, last_update, sources, server_status, source_counts}.",
+)
 async def get_status():
     """Return current blacklist status, including per-source entry counts."""
     status = core.get_status()
@@ -39,7 +51,7 @@ async def get_status():
         "last_update": status.last_update,
         "sources": status.sources,
         "server_status": status.server_status,
-        "source_counts": source_counts
+        "source_counts": source_counts,
     }
 
 
@@ -55,7 +67,11 @@ async def update_blacklists():
 # DIAGNOSTICS - Consolidated monitoring and debugging
 # ============================================================================
 
-@mcp.tool(name="get_diagnostics", description="Get diagnostic information. Mode options: 'summary' (default), 'full', 'health', 'performance', 'sample'.")
+
+@mcp.tool(
+    name="get_diagnostics",
+    description="Get diagnostic information. Mode options: 'summary' (default), 'full', 'health', 'performance', 'sample'.",
+)
 async def get_diagnostics(mode: str = "summary", sample_count: int = 10):
     """
     Get diagnostic information about the blacklist system.
@@ -81,32 +97,25 @@ async def get_diagnostics(mode: str = "summary", sample_count: int = 10):
             "mode": "health",
             "db_ok": db_ok,
             "scheduler_alive": scheduler_alive,
-            "last_update": last_update
+            "last_update": last_update,
         }
 
     elif mode == "performance":
         # Performance metrics (v2 only)
-        if hasattr(core.storage, 'get_metrics'):
+        if hasattr(core.storage, "get_metrics"):
             metrics = core.storage.get_metrics()
-            return {
-                "mode": "performance",
-                **metrics
-            }
+            return {"mode": "performance", **metrics}
         else:
             return {
                 "mode": "performance",
                 "error": "Metrics not available",
-                "message": "Performance metrics are only available with HybridStorage (v2). Set MCP_USE_V2_STORAGE=true to enable."
+                "message": "Performance metrics are only available with HybridStorage (v2). Set MCP_USE_V2_STORAGE=true to enable.",
             }
 
     elif mode == "sample":
         # Random sample
         entries = core.sample(sample_count)
-        return {
-            "mode": "sample",
-            "count": len(entries),
-            "entries": entries
-        }
+        return {"mode": "sample", "count": len(entries), "entries": entries}
 
     elif mode == "full":
         # Full diagnostics - everything
@@ -124,7 +133,7 @@ async def get_diagnostics(mode: str = "summary", sample_count: int = 10):
 
         # Performance (if available)
         metrics = {}
-        if hasattr(core.storage, 'get_metrics'):
+        if hasattr(core.storage, "get_metrics"):
             metrics = core.storage.get_metrics()
 
         return {
@@ -133,11 +142,8 @@ async def get_diagnostics(mode: str = "summary", sample_count: int = 10):
             "per_source": per_source,
             "last_updates": last_updates,
             "per_source_detail": per_source_detail,
-            "health": {
-                "db_ok": db_ok,
-                "scheduler_alive": True
-            },
-            "performance": metrics if metrics else {"available": False}
+            "health": {"db_ok": db_ok, "scheduler_alive": True},
+            "performance": metrics if metrics else {"available": False},
         }
 
     else:  # mode == "summary" or default
@@ -150,7 +156,7 @@ async def get_diagnostics(mode: str = "summary", sample_count: int = 10):
             "mode": "summary",
             "total_entries": total,
             "per_source": per_source,
-            "last_updates": last_updates
+            "last_updates": last_updates,
         }
 
 
@@ -158,10 +164,17 @@ async def get_diagnostics(mode: str = "summary", sample_count: int = 10):
 # ADMINISTRATIVE - Manual entry management
 # ============================================================================
 
+
 @mcp.tool(name="add_entry", description="Add a manual blacklist entry.")
-async def add_entry(url: str, ip: Optional[str] = None, date: Optional[str] = None, score: float = 8.0, source: str = "manual"):
+async def add_entry(
+    url: str,
+    ip: str | None = None,
+    date: str | None = None,
+    score: float = 8.0,
+    source: str = "manual",
+):
     """Add a manual blacklist entry."""
-    ts = date or datetime.now().isoformat(sep=' ', timespec='seconds')
+    ts = date or datetime.now().isoformat(sep=" ", timespec="seconds")
     core.storage.add_entries([(url, ip, ts, score, source)])
     return {"success": True}
 

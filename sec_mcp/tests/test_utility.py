@@ -1,7 +1,8 @@
 """Test the utility functions."""
-import pytest
-from sec_mcp.utility import validate_input, load_config, setup_logging
 import logging
+
+from sec_mcp.utility import load_config, setup_logging, validate_input
+
 
 def test_validate_url():
     """Test URL validation."""
@@ -9,11 +10,13 @@ def test_validate_url():
     assert validate_input("http://sub.domain.com/path")
     assert not validate_input("not-a-url")
 
+
 def test_validate_ip():
     """Test IP address validation."""
     assert validate_input("192.168.1.1")
     assert not validate_input("256.256.256.256")
     assert not validate_input("192.168.1")
+
 
 def test_validate_domain():
     """Test domain validation."""
@@ -22,6 +25,7 @@ def test_validate_domain():
     assert validate_input("xn--bcher-kva.com")  # IDN domain
     assert not validate_input("invalid..com")
 
+
 def test_load_config():
     """Test configuration loading."""
     config = load_config()
@@ -29,6 +33,7 @@ def test_load_config():
     assert "blacklist_sources" in config
     assert "update_time" in config
     assert "cache_size" in config
+
 
 def test_setup_logging():
     """Test logging configuration."""

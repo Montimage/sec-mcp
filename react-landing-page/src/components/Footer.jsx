@@ -112,11 +112,11 @@ const Footer = () => {
                         sec-mcp uses blacklist data from multiple sources including OpenPhish, PhishStats, and URLhaus.
                     </p>
                     <p className="mt-4 flex items-center justify-center">
-                        Developed by 
+                        Developed by
                         <a href="https://www.montimage.eu" target="_blank" rel="noopener noreferrer" className="flex items-center mx-2">
                             <img src={montimageIconSvg} alt="Montimage" className="h-8 mr-2" />
                             <span className="text-blue-400 hover:text-blue-300">Montimage</span>
-                        </a>, 
+                        </a>,
                         a company specializing in cybersecurity and network monitoring solutions.
                     </p>
                 </div>

@@ -1,11 +1,12 @@
 """Unit tests for HybridStorage (v2)."""
 
-import pytest
+import os
 import sqlite3
 import tempfile
-import os
-from datetime import datetime
-from sec_mcp.storage_v2 import HybridStorage, EntryMetadata
+
+import pytest
+
+from sec_mcp.storage_v2 import HybridStorage
 
 
 class TestHybridStorageInitialization:
@@ -31,9 +32,7 @@ class TestHybridStorageInitialization:
         """Test that all required tables are created."""
         storage = HybridStorage(":memory:")
         conn = sqlite3.connect(storage.db_path)
-        cursor = conn.execute(
-            "SELECT name FROM sqlite_master WHERE type='table'"
-        )
+        cursor = conn.execute("SELECT name FROM sqlite_master WHERE type='table'")
         tables = {row[0] for row in cursor.fetchall()}
 
         assert "blacklist_domain" in tables
@@ -337,7 +336,7 @@ class TestReload:
             conn = sqlite3.connect(db_path)
             conn.execute(
                 "INSERT INTO blacklist_domain (domain, date, score, source) VALUES (?, ?, ?, ?)",
-                ("evil.com", "2025-01-01", 9.0, "test")
+                ("evil.com", "2025-01-01", 9.0, "test"),
             )
             conn.commit()
             conn.close()

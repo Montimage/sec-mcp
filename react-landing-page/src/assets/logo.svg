@@ -8,13 +8,13 @@
   </defs>
   <!-- Shield background -->
   <path d="M24 44s16-8 16-20V10l-16-6-16 6v14c0 12 16 20 16 20z" fill="url(#gradient)" stroke="#1E40AF" stroke-width="1.5" />
-  
+
   <!-- Network/globe grid lines representing security scanning -->
   <path d="M24 8 L24 36" stroke="white" stroke-width="1" opacity="0.7" />
   <path d="M12 16 L36 16" stroke="white" stroke-width="1" opacity="0.7" />
   <path d="M12 24 L36 24" stroke="white" stroke-width="1" opacity="0.7" />
   <path d="M12 32 L36 32" stroke="white" stroke-width="1" opacity="0.7" />
-  
+
   <!-- Checkmark for security verification -->
   <path d="M16 24L22 30L32 18" stroke="white" stroke-width="2.5" fill="none" stroke-linecap="round" stroke-linejoin="round" />
 </svg>

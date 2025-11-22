@@ -17,47 +17,44 @@ Optimizations:
 - Integer-based IP storage for memory efficiency
 """
 
-import sqlite3
-import threading
-import logging
 import ipaddress
-import random
-import time
+import logging
 import os
+import random
+import sqlite3
 import sys
-import struct
+import threading
+import time
+from dataclasses import dataclass
 from datetime import datetime
-from typing import List, Optional, Set, Dict, Tuple
-from dataclasses import dataclass, field
 from pathlib import Path
-from urllib.parse import urlparse, urlunparse, parse_qs, urlencode
-
+from urllib.parse import parse_qs, urlencode, urlparse, urlunparse
 
 # ========== Source Classification ==========
 # Based on production data analysis (449K entries)
 
 # Hot URL sources (74% of URLs - PhishTank + URLhaus = 153K/207K)
-HOT_URL_SOURCES = frozenset(['PhishTank', 'URLhaus'])
+HOT_URL_SOURCES = frozenset(["PhishTank", "URLhaus"])
 
 # Hot IP sources (90% of IPs - BlocklistDE + CINSSCORE = 126K/141K)
-HOT_IP_SOURCES = frozenset(['BlocklistDE', 'CINSSCORE'])
+HOT_IP_SOURCES = frozenset(["BlocklistDE", "CINSSCORE"])
 
 # Hot domain sources (major phishing databases)
-HOT_DOMAIN_SOURCES = frozenset(['PhishTank', 'PhishStats'])
+HOT_DOMAIN_SOURCES = frozenset(["PhishTank", "PhishStats"])
 
 # IP-only sources (92% of IPs from these sources)
-IP_ONLY_SOURCES = frozenset([
-    'BlocklistDE', 'CINSSCORE', 'Dshield',
-    'EmergingThreats', 'SpamhausDROP'
-])
+IP_ONLY_SOURCES = frozenset(
+    ["BlocklistDE", "CINSSCORE", "Dshield", "EmergingThreats", "SpamhausDROP"]
+)
 
 # Domain/URL-only sources (55% of domains from these sources)
-DOMAIN_URL_ONLY_SOURCES = frozenset(['PhishTank', 'OpenPhish'])
+DOMAIN_URL_ONLY_SOURCES = frozenset(["PhishTank", "OpenPhish"])
 
 
 @dataclass
 class EntryMetadata:
     """Metadata for a blacklist entry."""
+
     source: str
     date: str
     score: float
@@ -66,6 +63,7 @@ class EntryMetadata:
 @dataclass
 class StorageMetrics:
     """Performance metrics for storage operations."""
+
     total_lookups: int = 0
     domain_lookups: int = 0
     url_lookups: int = 0
@@ -74,7 +72,7 @@ class StorageMetrics:
     cache_misses: int = 0
     avg_lookup_time_ms: float = 0.0
     memory_usage_mb: float = 0.0
-    last_reload: Optional[datetime] = None
+    last_reload: datetime | None = None
 
     # v0.4.0 optimization metrics
     hot_source_hits: int = 0
@@ -114,26 +112,36 @@ def normalize_url(url: str) -> str:
             query_params = parse_qs(parsed.query)
             # Remove common tracking parameters
             tracking_params = {
-                'utm_source', 'utm_medium', 'utm_campaign', 'utm_term', 'utm_content',
-                'fbclid', 'gclid', 'mc_eid', '_ga', 'ref', 'referrer'
+                "utm_source",
+                "utm_medium",
+                "utm_campaign",
+                "utm_term",
+                "utm_content",
+                "fbclid",
+                "gclid",
+                "mc_eid",
+                "_ga",
+                "ref",
+                "referrer",
             }
             filtered_params = {
-                k: v for k, v in query_params.items()
-                if k.lower() not in tracking_params
+                k: v for k, v in query_params.items() if k.lower() not in tracking_params
             }
             query_string = urlencode(filtered_params, doseq=True)
         else:
-            query_string = ''
+            query_string = ""
 
         # Rebuild URL
-        normalized = urlunparse((
-            parsed.scheme or 'http',  # Default scheme
-            parsed.netloc,
-            parsed.path.rstrip('/') or '/',  # Remove trailing slash
-            '',  # params (deprecated)
-            query_string,
-            ''  # fragment (ignore)
-        ))
+        normalized = urlunparse(
+            (
+                parsed.scheme or "http",  # Default scheme
+                parsed.netloc,
+                parsed.path.rstrip("/") or "/",  # Remove trailing slash
+                "",  # params (deprecated)
+                query_string,
+                "",  # fragment (ignore)
+            )
+        )
 
         return normalized
     except Exception:
@@ -141,7 +149,7 @@ def normalize_url(url: str) -> str:
         return url.lower()
 
 
-def ip_to_int(ip: str) -> Optional[int]:
+def ip_to_int(ip: str) -> int | None:
     """
     Convert IP address string to integer for compact storage.
 
@@ -161,21 +169,16 @@ def ip_to_int(ip: str) -> Optional[int]:
         167772161
     """
     try:
-        if ':' in ip:
+        if ":" in ip:
             # IPv6 - too large for int, keep as string
             return None
 
         # IPv4 - convert to 32-bit integer
-        parts = ip.split('.')
+        parts = ip.split(".")
         if len(parts) != 4:
             return None
 
-        return (
-            (int(parts[0]) << 24) +
-            (int(parts[1]) << 16) +
-            (int(parts[2]) << 8) +
-            int(parts[3])
-        )
+        return (int(parts[0]) << 24) + (int(parts[1]) << 16) + (int(parts[2]) << 8) + int(parts[3])
     except (ValueError, IndexError):
         return None
 
@@ -190,12 +193,14 @@ def int_to_ip(ip_int: int) -> str:
     Returns:
         IPv4 address string
     """
-    return '.'.join([
-        str((ip_int >> 24) & 0xFF),
-        str((ip_int >> 16) & 0xFF),
-        str((ip_int >> 8) & 0xFF),
-        str(ip_int & 0xFF)
-    ])
+    return ".".join(
+        [
+            str((ip_int >> 24) & 0xFF),
+            str((ip_int >> 16) & 0xFF),
+            str((ip_int >> 8) & 0xFF),
+            str(ip_int & 0xFF),
+        ]
+    )
 
 
 class HybridStorage:
@@ -245,38 +250,38 @@ class HybridStorage:
         # ========== In-memory data structures ==========
 
         # Legacy unified storage (kept for backward compatibility)
-        self._domains: Set[str] = set()
-        self._urls: Set[str] = set()
-        self._ips: Set[str] = set()
+        self._domains: set[str] = set()
+        self._urls: set[str] = set()
+        self._ips: set[str] = set()
 
         # v0.4.0: Tiered storage for optimized lookup
-        self._hot_domains: Set[str] = set()
-        self._cold_domains: Set[str] = set()
-        self._hot_urls: Set[str] = set()
-        self._cold_urls: Set[str] = set()
+        self._hot_domains: set[str] = set()
+        self._cold_domains: set[str] = set()
+        self._hot_urls: set[str] = set()
+        self._cold_urls: set[str] = set()
 
         # v0.4.0: Integer-based IP storage for IPv4
-        self._ips_int: Set[int] = set()  # IPv4 as integers
-        self._ips_str: Set[str] = set()  # IPv6 as strings
-        self._hot_ips_int: Set[int] = set()
-        self._cold_ips_int: Set[int] = set()
-        self._hot_ips_str: Set[str] = set()
-        self._cold_ips_str: Set[str] = set()
+        self._ips_int: set[int] = set()  # IPv4 as integers
+        self._ips_str: set[str] = set()  # IPv6 as strings
+        self._hot_ips_int: set[int] = set()
+        self._cold_ips_int: set[int] = set()
+        self._hot_ips_str: set[str] = set()
+        self._cold_ips_str: set[str] = set()
 
         # Metadata storage (value -> entry info)
-        self._domain_meta: Dict[str, EntryMetadata] = {}
-        self._url_meta: Dict[str, EntryMetadata] = {}
-        self._ip_meta: Dict[str, EntryMetadata] = {}
-        self._ip_int_meta: Dict[int, EntryMetadata] = {}  # Integer IP metadata
+        self._domain_meta: dict[str, EntryMetadata] = {}
+        self._url_meta: dict[str, EntryMetadata] = {}
+        self._ip_meta: dict[str, EntryMetadata] = {}
+        self._ip_int_meta: dict[int, EntryMetadata] = {}  # Integer IP metadata
 
         # CIDR handling (will be initialized later if pytricia available)
         self._ipv4_cidr_tree = None
         self._ipv6_cidr_tree = None
-        self._cidr_metadata: Dict[str, EntryMetadata] = {}
+        self._cidr_metadata: dict[str, EntryMetadata] = {}
         self._use_pytricia = False
 
         # Fallback CIDR list (if pytricia not available)
-        self._cidr_ranges: List[Tuple] = []
+        self._cidr_ranges: list[tuple] = []
 
         # Thread safety
         self._lock = threading.RLock()
@@ -300,12 +305,12 @@ class HybridStorage:
         """Get platform-specific default database path."""
         try:
             from platformdirs import user_data_dir
+
             db_dir = user_data_dir("sec-mcp", "montimage")
         except ImportError:
             if os.name == "nt":
                 db_dir = os.path.join(
-                    os.environ.get("APPDATA", str(Path.home() / "AppData" / "Roaming")),
-                    "sec-mcp"
+                    os.environ.get("APPDATA", str(Path.home() / "AppData" / "Roaming")), "sec-mcp"
                 )
             elif os.name == "posix":
                 if sys.platform == "darwin":
@@ -327,66 +332,90 @@ class HybridStorage:
             conn.execute("PRAGMA cache_size=10000;")
 
             # Create tables
-            conn.execute("""
+            conn.execute(
+                """
                 CREATE TABLE IF NOT EXISTS blacklist_domain (
                     domain TEXT PRIMARY KEY,
                     date TEXT,
                     score REAL,
                     source TEXT
                 )
-            """)
-            conn.execute("""
+            """
+            )
+            conn.execute(
+                """
                 CREATE INDEX IF NOT EXISTS idx_blacklist_domain ON blacklist_domain(domain);
-            """)
-            conn.execute("""
+            """
+            )
+            conn.execute(
+                """
                 CREATE INDEX IF NOT EXISTS idx_domain_source ON blacklist_domain(source);
-            """)
+            """
+            )
 
-            conn.execute("""
+            conn.execute(
+                """
                 CREATE TABLE IF NOT EXISTS blacklist_url (
                     url TEXT PRIMARY KEY,
                     date TEXT,
                     score REAL,
                     source TEXT
                 )
-            """)
-            conn.execute("""
+            """
+            )
+            conn.execute(
+                """
                 CREATE INDEX IF NOT EXISTS idx_blacklist_url ON blacklist_url(url);
-            """)
-            conn.execute("""
+            """
+            )
+            conn.execute(
+                """
                 CREATE INDEX IF NOT EXISTS idx_url_source ON blacklist_url(source);
-            """)
+            """
+            )
 
-            conn.execute("""
+            conn.execute(
+                """
                 CREATE TABLE IF NOT EXISTS blacklist_ip (
                     ip TEXT PRIMARY KEY,
                     date TEXT,
                     score REAL,
                     source TEXT
                 )
-            """)
-            conn.execute("""
+            """
+            )
+            conn.execute(
+                """
                 CREATE INDEX IF NOT EXISTS idx_blacklist_ip ON blacklist_ip(ip);
-            """)
-            conn.execute("""
+            """
+            )
+            conn.execute(
+                """
                 CREATE INDEX IF NOT EXISTS idx_ip_source ON blacklist_ip(source);
-            """)
+            """
+            )
 
             # Create updates table
-            conn.execute("""
+            conn.execute(
+                """
                 CREATE TABLE IF NOT EXISTS updates (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                     source TEXT NOT NULL,
                     entry_count INTEGER NOT NULL
                 )
-            """)
-            conn.execute("""
+            """
+            )
+            conn.execute(
+                """
                 CREATE INDEX IF NOT EXISTS idx_updates_source ON updates(source);
-            """)
-            conn.execute("""
+            """
+            )
+            conn.execute(
+                """
                 CREATE INDEX IF NOT EXISTS idx_updates_timestamp ON updates(timestamp);
-            """)
+            """
+            )
 
             conn.commit()
 
@@ -396,6 +425,7 @@ class HybridStorage:
         """Initialize CIDR radix trees if pytricia is available."""
         try:
             import pytricia
+
             self._ipv4_cidr_tree = pytricia.PyTricia(32)
             self._ipv6_cidr_tree = pytricia.PyTricia(128)
             self._use_pytricia = True
@@ -448,7 +478,14 @@ class HybridStorage:
             self._load_ips_from_db()
 
         elapsed = time.perf_counter() - start_time
-        total_entries = len(self._domains) + len(self._urls) + len(self._ips) + len(self._ips_int) + len(self._ips_str) + len(self._cidr_metadata)
+        total_entries = (
+            len(self._domains)
+            + len(self._urls)
+            + len(self._ips)
+            + len(self._ips_int)
+            + len(self._ips_str)
+            + len(self._cidr_metadata)
+        )
 
         self.logger.info(
             f"Loaded {total_entries} entries in {elapsed:.2f}s "
@@ -465,9 +502,7 @@ class HybridStorage:
         """Load all domains from database into memory with tiered classification."""
         conn = self._get_connection()
         try:
-            cursor = conn.execute(
-                "SELECT domain, source, date, score FROM blacklist_domain"
-            )
+            cursor = conn.execute("SELECT domain, source, date, score FROM blacklist_domain")
 
             loaded = 0
             errors = 0
@@ -508,9 +543,7 @@ class HybridStorage:
         """Load all URLs from database into memory with normalization and tiering."""
         conn = self._get_connection()
         try:
-            cursor = conn.execute(
-                "SELECT url, source, date, score FROM blacklist_url"
-            )
+            cursor = conn.execute("SELECT url, source, date, score FROM blacklist_url")
 
             loaded = 0
             errors = 0
@@ -547,7 +580,9 @@ class HybridStorage:
             self.metrics.urls_normalized = normalized_count
 
             if errors > 0:
-                self.logger.info(f"Loaded {loaded} URLs ({normalized_count} normalized, {errors} errors)")
+                self.logger.info(
+                    f"Loaded {loaded} URLs ({normalized_count} normalized, {errors} errors)"
+                )
             else:
                 self.logger.debug(f"Loaded {loaded} URLs ({normalized_count} normalized)")
 
@@ -558,9 +593,7 @@ class HybridStorage:
         """Load all IPs and CIDR ranges with integer storage and tiering."""
         conn = self._get_connection()
         try:
-            cursor = conn.execute(
-                "SELECT ip, source, date, score FROM blacklist_ip"
-            )
+            cursor = conn.execute("SELECT ip, source, date, score FROM blacklist_ip")
 
             loaded_ips = 0
             loaded_cidrs = 0
@@ -574,11 +607,11 @@ class HybridStorage:
 
                     metadata = EntryMetadata(source, date, score)
 
-                    if '/' in ip:
+                    if "/" in ip:
                         # CIDR range
                         if self._use_pytricia:
                             # Add to radix tree
-                            if ':' in ip:  # IPv6
+                            if ":" in ip:  # IPv6
                                 self._ipv6_cidr_tree[ip] = source
                             else:  # IPv4
                                 self._ipv4_cidr_tree[ip] = source
@@ -638,7 +671,9 @@ class HybridStorage:
                     f"Loaded {loaded_ips} IPs ({ips_as_int} as integers), {loaded_cidrs} CIDRs ({errors} errors)"
                 )
             else:
-                self.logger.debug(f"Loaded {loaded_ips} IPs ({ips_as_int} as integers), {loaded_cidrs} CIDRs")
+                self.logger.debug(
+                    f"Loaded {loaded_ips} IPs ({ips_as_int} as integers), {loaded_cidrs} CIDRs"
+                )
 
         finally:
             conn.close()
@@ -675,33 +710,33 @@ class HybridStorage:
         # v0.4.0: Check hot sources first (PhishTank, PhishStats = ~91K domains)
         if domain in self._hot_domains:
             self.metrics.hot_source_hits += 1
-            self._update_metrics('domain', start, True)
+            self._update_metrics("domain", start, True)
             return True
 
         # Check parent domains in hot sources
-        parts = domain.split('.')
+        parts = domain.split(".")
         for i in range(1, len(parts)):
-            parent = '.'.join(parts[i:])
+            parent = ".".join(parts[i:])
             if parent in self._hot_domains:
                 self.metrics.hot_source_hits += 1
-                self._update_metrics('domain', start, True)
+                self._update_metrics("domain", start, True)
                 return True
 
         # Check cold sources only if not found in hot
         if domain in self._cold_domains:
             self.metrics.cold_source_hits += 1
-            self._update_metrics('domain', start, True)
+            self._update_metrics("domain", start, True)
             return True
 
         # Check parent domains in cold sources
         for i in range(1, len(parts)):
-            parent = '.'.join(parts[i:])
+            parent = ".".join(parts[i:])
             if parent in self._cold_domains:
                 self.metrics.cold_source_hits += 1
-                self._update_metrics('domain', start, True)
+                self._update_metrics("domain", start, True)
                 return True
 
-        self._update_metrics('domain', start, False)
+        self._update_metrics("domain", start, False)
         return False
 
     def is_url_blacklisted(self, url: str) -> bool:
@@ -729,16 +764,16 @@ class HybridStorage:
         # v0.4.0: Check hot sources first (PhishTank + URLhaus = 153K/207K URLs)
         if url_normalized in self._hot_urls:
             self.metrics.hot_source_hits += 1
-            self._update_metrics('url', start, True)
+            self._update_metrics("url", start, True)
             return True
 
         # Check cold sources only if not found in hot
         if url_normalized in self._cold_urls:
             self.metrics.cold_source_hits += 1
-            self._update_metrics('url', start, True)
+            self._update_metrics("url", start, True)
             return True
 
-        self._update_metrics('url', start, False)
+        self._update_metrics("url", start, False)
         return False
 
     def is_ip_blacklisted(self, ip: str) -> bool:
@@ -769,37 +804,37 @@ class HybridStorage:
             # IPv4 - check as integer (hot sources first)
             if ip_int in self._hot_ips_int:
                 self.metrics.hot_source_hits += 1
-                self._update_metrics('ip', start, True)
+                self._update_metrics("ip", start, True)
                 return True
 
             if ip_int in self._cold_ips_int:
                 self.metrics.cold_source_hits += 1
-                self._update_metrics('ip', start, True)
+                self._update_metrics("ip", start, True)
                 return True
         else:
             # IPv6 - check as string (hot sources first)
             if ip in self._hot_ips_str:
                 self.metrics.hot_source_hits += 1
-                self._update_metrics('ip', start, True)
+                self._update_metrics("ip", start, True)
                 return True
 
             if ip in self._cold_ips_str:
                 self.metrics.cold_source_hits += 1
-                self._update_metrics('ip', start, True)
+                self._update_metrics("ip", start, True)
                 return True
 
         # Check CIDR ranges (if not exact match)
         if self._use_pytricia:
             # Fast radix tree lookup
             try:
-                if ':' in ip:  # IPv6
+                if ":" in ip:  # IPv6
                     result = ip in self._ipv6_cidr_tree
                 else:  # IPv4
                     result = ip in self._ipv4_cidr_tree
-                self._update_metrics('ip', start, result)
+                self._update_metrics("ip", start, result)
                 return result
             except (KeyError, ValueError):
-                self._update_metrics('ip', start, False)
+                self._update_metrics("ip", start, False)
                 return False
         else:
             # Fallback: linear scan through CIDR ranges
@@ -807,12 +842,12 @@ class HybridStorage:
                 addr = ipaddress.ip_address(ip)
                 for network, _ in self._cidr_ranges:
                     if addr in network:
-                        self._update_metrics('ip', start, True)
+                        self._update_metrics("ip", start, True)
                         return True
             except ValueError:
                 pass
 
-        self._update_metrics('ip', start, False)
+        self._update_metrics("ip", start, False)
         return False
 
     def _update_metrics(self, lookup_type: str, start_time: float, found: bool):
@@ -821,11 +856,11 @@ class HybridStorage:
 
         self.metrics.total_lookups += 1
 
-        if lookup_type == 'domain':
+        if lookup_type == "domain":
             self.metrics.domain_lookups += 1
-        elif lookup_type == 'url':
+        elif lookup_type == "url":
             self.metrics.url_lookups += 1
-        elif lookup_type == 'ip':
+        elif lookup_type == "ip":
             self.metrics.ip_lookups += 1
 
         if found:
@@ -838,13 +873,12 @@ class HybridStorage:
             self.metrics.avg_lookup_time_ms = elapsed_ms
         else:
             self.metrics.avg_lookup_time_ms = (
-                (self.metrics.avg_lookup_time_ms * (self.metrics.total_lookups - 1) + elapsed_ms)
-                / self.metrics.total_lookups
-            )
+                self.metrics.avg_lookup_time_ms * (self.metrics.total_lookups - 1) + elapsed_ms
+            ) / self.metrics.total_lookups
 
     # ========== Metadata Retrieval Methods ==========
 
-    def get_domain_blacklist_source(self, domain: str) -> Optional[str]:
+    def get_domain_blacklist_source(self, domain: str) -> str | None:
         """
         Get the source that blacklisted a domain (including parent domains).
 
@@ -861,15 +895,15 @@ class HybridStorage:
             return self._domain_meta[domain].source
 
         # Check parent domains
-        parts = domain.split('.')
+        parts = domain.split(".")
         for i in range(1, len(parts)):
-            parent = '.'.join(parts[i:])
+            parent = ".".join(parts[i:])
             if parent in self._domain_meta:
                 return self._domain_meta[parent].source
 
         return None
 
-    def get_url_blacklist_source(self, url: str) -> Optional[str]:
+    def get_url_blacklist_source(self, url: str) -> str | None:
         """
         Get the source that blacklisted a URL (with normalization).
 
@@ -883,7 +917,7 @@ class HybridStorage:
         metadata = self._url_meta.get(url_normalized)
         return metadata.source if metadata else None
 
-    def get_ip_blacklist_source(self, ip: str) -> Optional[str]:
+    def get_ip_blacklist_source(self, ip: str) -> str | None:
         """
         Get the source that blacklisted an IP (exact match or CIDR).
 
@@ -908,7 +942,7 @@ class HybridStorage:
         # Check CIDR ranges
         if self._use_pytricia:
             try:
-                if ':' in ip:  # IPv6
+                if ":" in ip:  # IPv6
                     return self._ipv6_cidr_tree.get(ip)
                 else:  # IPv4
                     return self._ipv4_cidr_tree.get(ip)
@@ -958,7 +992,7 @@ class HybridStorage:
                 try:
                     conn.execute(
                         "INSERT OR REPLACE INTO blacklist_domain (domain, date, score, source) VALUES (?, ?, ?, ?)",
-                        (domain, date, score, source)
+                        (domain, date, score, source),
                     )
                     conn.commit()
                 finally:
@@ -995,7 +1029,7 @@ class HybridStorage:
                 try:
                     conn.execute(
                         "INSERT OR REPLACE INTO blacklist_url (url, date, score, source) VALUES (?, ?, ?, ?)",
-                        (url, date, score, source)
+                        (url, date, score, source),
                     )
                     conn.commit()
                 finally:
@@ -1015,12 +1049,12 @@ class HybridStorage:
             metadata = EntryMetadata(source, date, score)
 
             # Determine if CIDR or single IP
-            is_cidr = '/' in ip
+            is_cidr = "/" in ip
 
             # Update memory first
             if is_cidr:
                 if self._use_pytricia:
-                    if ':' in ip:  # IPv6
+                    if ":" in ip:  # IPv6
                         self._ipv6_cidr_tree[ip] = source
                     else:  # IPv4
                         self._ipv4_cidr_tree[ip] = source
@@ -1065,7 +1099,7 @@ class HybridStorage:
                 try:
                     conn.execute(
                         "INSERT OR REPLACE INTO blacklist_ip (ip, date, score, source) VALUES (?, ?, ?, ?)",
-                        (ip, date, score, source)
+                        (ip, date, score, source),
                     )
                     conn.commit()
                 finally:
@@ -1089,7 +1123,7 @@ class HybridStorage:
                 self.logger.error(f"Failed to add IP to database: {e}")
                 raise
 
-    def add_domains(self, domains: List[Tuple[str, str, float, str]]):
+    def add_domains(self, domains: list[tuple[str, str, float, str]]):
         """Add multiple domains efficiently (batch operation)."""
         with self._lock:
             # Update memory
@@ -1110,7 +1144,7 @@ class HybridStorage:
             try:
                 conn.executemany(
                     "INSERT OR REPLACE INTO blacklist_domain (domain, date, score, source) VALUES (?, ?, ?, ?)",
-                    domains
+                    domains,
                 )
                 conn.commit()
             except Exception as e:
@@ -1121,7 +1155,7 @@ class HybridStorage:
             finally:
                 conn.close()
 
-    def add_urls(self, urls: List[Tuple[str, str, float, str]]):
+    def add_urls(self, urls: list[tuple[str, str, float, str]]):
         """Add multiple URLs efficiently (batch operation with normalization)."""
         with self._lock:
             # Update memory
@@ -1142,7 +1176,7 @@ class HybridStorage:
             try:
                 conn.executemany(
                     "INSERT OR REPLACE INTO blacklist_url (url, date, score, source) VALUES (?, ?, ?, ?)",
-                    urls
+                    urls,
                 )
                 conn.commit()
             except Exception as e:
@@ -1152,16 +1186,16 @@ class HybridStorage:
             finally:
                 conn.close()
 
-    def add_ips(self, ips: List[Tuple[str, str, float, str]]):
+    def add_ips(self, ips: list[tuple[str, str, float, str]]):
         """Add multiple IPs efficiently (batch operation with integer storage)."""
         with self._lock:
             # Update memory
             for ip, date, score, source in ips:
                 metadata = EntryMetadata(source, date, score)
 
-                if '/' in ip:  # CIDR
+                if "/" in ip:  # CIDR
                     if self._use_pytricia:
-                        if ':' in ip:
+                        if ":" in ip:
                             self._ipv6_cidr_tree[ip] = source
                         else:
                             self._ipv4_cidr_tree[ip] = source
@@ -1201,7 +1235,7 @@ class HybridStorage:
             try:
                 conn.executemany(
                     "INSERT OR REPLACE INTO blacklist_ip (ip, date, score, source) VALUES (?, ?, ?, ?)",
-                    ips
+                    ips,
                 )
                 conn.commit()
             except Exception as e:
@@ -1211,7 +1245,7 @@ class HybridStorage:
             finally:
                 conn.close()
 
-    def add_entries(self, entries: List[Tuple[str, Optional[str], str, float, str]]):
+    def add_entries(self, entries: list[tuple[str, str | None, str, float, str]]):
         """
         Add entries from blacklist updater (legacy compatibility).
 
@@ -1228,12 +1262,13 @@ class HybridStorage:
 
             if url_val:
                 # Determine if it's a domain-only URL or a full URL
-                if url_val.startswith(('http://', 'https://')):
+                if url_val.startswith(("http://", "https://")):
                     from urllib.parse import urlparse
+
                     try:
                         parsed = urlparse(url_val)
                         domain = parsed.netloc
-                        is_domain_entry = not parsed.path or parsed.path == '/'
+                        is_domain_entry = not parsed.path or parsed.path == "/"
 
                         if is_domain_entry and domain:
                             domains_to_add.append((domain, date_val, score_val, source))
@@ -1253,11 +1288,18 @@ class HybridStorage:
 
     def count_entries(self) -> int:
         """Get total count of all entries (instant from memory)."""
-        return len(self._domains) + len(self._urls) + len(self._ips) + len(self._ips_int) + len(self._ips_str) + len(self._cidr_metadata)
+        return (
+            len(self._domains)
+            + len(self._urls)
+            + len(self._ips)
+            + len(self._ips_int)
+            + len(self._ips_str)
+            + len(self._cidr_metadata)
+        )
 
-    def get_source_counts(self) -> Dict[str, int]:
+    def get_source_counts(self) -> dict[str, int]:
         """Count entries per source from memory."""
-        counts: Dict[str, int] = {}
+        counts: dict[str, int] = {}
 
         # Count domains
         for meta in self._domain_meta.values():
@@ -1281,9 +1323,9 @@ class HybridStorage:
 
         return counts
 
-    def get_source_type_counts(self) -> Dict[str, dict]:
+    def get_source_type_counts(self) -> dict[str, dict]:
         """Get breakdown of domain/url/ip entries per source."""
-        stats: Dict[str, dict] = {}
+        stats: dict[str, dict] = {}
 
         # Domains
         for meta in self._domain_meta.values():
@@ -1315,7 +1357,7 @@ class HybridStorage:
 
         return stats
 
-    def get_active_sources(self) -> List[str]:
+    def get_active_sources(self) -> list[str]:
         """Get list of active sources."""
         sources = set()
         sources.update(meta.source for meta in self._domain_meta.values())
@@ -1325,15 +1367,15 @@ class HybridStorage:
         sources.update(meta.source for meta in self._cidr_metadata.values())
         return list(sources)
 
-    def sample_entries(self, count: int = 10) -> List[str]:
+    def sample_entries(self, count: int = 10) -> list[str]:
         """Return a random sample of entries."""
         all_entries = (
-            list(self._domains) +
-            list(self._urls) +
-            list(self._ips) +
-            [int_to_ip(ip_int) for ip_int in self._ips_int] +
-            list(self._ips_str) +
-            list(self._cidr_metadata.keys())
+            list(self._domains)
+            + list(self._urls)
+            + list(self._ips)
+            + [int_to_ip(ip_int) for ip_int in self._ips_int]
+            + list(self._ips_str)
+            + list(self._cidr_metadata.keys())
         )
 
         if not all_entries:
@@ -1352,13 +1394,11 @@ class HybridStorage:
         finally:
             conn.close()
 
-    def get_last_update_per_source(self) -> Dict[str, str]:
+    def get_last_update_per_source(self) -> dict[str, str]:
         """Get last update timestamp for each source."""
         conn = self._get_connection()
         try:
-            cursor = conn.execute(
-                "SELECT source, MAX(timestamp) FROM updates GROUP BY source"
-            )
+            cursor = conn.execute("SELECT source, MAX(timestamp) FROM updates GROUP BY source")
             return {row[0]: row[1] for row in cursor.fetchall()}
         finally:
             conn.close()
@@ -1398,8 +1438,7 @@ class HybridStorage:
         conn = self._get_connection()
         try:
             conn.execute(
-                "INSERT INTO updates (source, entry_count) VALUES (?, ?)",
-                (source, entry_count)
+                "INSERT INTO updates (source, entry_count) VALUES (?, ?)", (source, entry_count)
             )
             conn.commit()
         finally:
@@ -1483,13 +1522,16 @@ class HybridStorage:
         """Get current storage performance metrics (v0.4.0 enhanced)."""
         try:
             import psutil
+
             process = psutil.Process()
             self.metrics.memory_usage_mb = process.memory_info().rss / 1024 / 1024
         except (ImportError, Exception):
             self.metrics.memory_usage_mb = 0.0
 
         total_lookups = self.metrics.total_lookups
-        hot_hit_rate = (self.metrics.hot_source_hits / total_lookups * 100) if total_lookups > 0 else 0
+        hot_hit_rate = (
+            (self.metrics.hot_source_hits / total_lookups * 100) if total_lookups > 0 else 0
+        )
 
         return {
             "total_lookups": total_lookups,
@@ -1501,7 +1543,9 @@ class HybridStorage:
             "hit_rate": self.metrics.cache_hits / total_lookups if total_lookups > 0 else 0,
             "avg_lookup_time_ms": f"{self.metrics.avg_lookup_time_ms:.4f}",
             "memory_usage_mb": f"{self.metrics.memory_usage_mb:.1f}",
-            "last_reload": self.metrics.last_reload.isoformat() if self.metrics.last_reload else None,
+            "last_reload": self.metrics.last_reload.isoformat()
+            if self.metrics.last_reload
+            else None,
             "entry_count": self.count_entries(),
             "using_pytricia": self._use_pytricia,
             # v0.4.0 optimization metrics
@@ -1510,5 +1554,5 @@ class HybridStorage:
             "hot_hit_rate_pct": f"{hot_hit_rate:.1f}",
             "urls_normalized": self.metrics.urls_normalized,
             "ips_as_integers": self.metrics.ips_as_integers,
-            "optimization_version": "0.4.0"
+            "optimization_version": "0.4.0",
         }

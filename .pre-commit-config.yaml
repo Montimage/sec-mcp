@@ -1,0 +1,101 @@
+# Pre-commit hooks for code quality and testing
+# See https://pre-commit.com for more information
+
+default_language_version:
+  python: python3.11
+
+repos:
+  # Basic file checks
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.5.0
+    hooks:
+      - id: trailing-whitespace
+        exclude: ^.*\.md$
+      - id: end-of-file-fixer
+      - id: check-yaml
+      - id: check-toml
+      - id: check-json
+      - id: check-added-large-files
+        args: ['--maxkb=1000']
+      - id: check-merge-conflict
+      - id: check-case-conflict
+      - id: detect-private-key
+      - id: mixed-line-ending
+
+  # Black - Code formatter
+  - repo: https://github.com/psf/black
+    rev: 23.11.0
+    hooks:
+      - id: black
+        language_version: python3.11
+        args: ['--line-length=100']
+
+  # Isort - Import sorting
+  - repo: https://github.com/PyCQA/isort
+    rev: 5.12.0
+    hooks:
+      - id: isort
+        args: ['--profile=black', '--line-length=100']
+
+  # Ruff - Fast Python linter
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.1.6
+    hooks:
+      - id: ruff
+        args: ['--fix', '--exit-non-zero-on-fix']
+
+  # Mypy - Static type checking
+  # Note: Disabled for now. Enable once type annotations are improved.
+  - repo: https://github.com/pre-commit/mirrors-mypy
+    rev: v1.7.1
+    hooks:
+      - id: mypy
+        additional_dependencies:
+          - types-requests
+          - types-tqdm
+        args: ['--ignore-missing-imports', '--no-strict-optional']
+        exclude: ^(sec_mcp/tests/|benchmark\.py)
+        stages: [manual]
+
+  # Bandit - Security linting
+  - repo: https://github.com/PyCQA/bandit
+    rev: 1.7.5
+    hooks:
+      - id: bandit
+        args: ['-c', 'pyproject.toml']
+        additional_dependencies: ['bandit[toml]', 'pbr']
+        exclude: ^sec_mcp/tests/
+
+  # Safety - Dependency vulnerability checking
+  # Note: This check can be slow, consider running it only on CI
+  # or periodically, not on every commit
+  - repo: https://github.com/Lucas-C/pre-commit-hooks-safety
+    rev: v1.3.3
+    hooks:
+      - id: python-safety-dependencies-check
+        files: pyproject.toml
+        # Only run when dependencies change
+        stages: [manual]
+
+  # Pytest - Run tests on changed files
+  # Note: Currently set to manual stage. Enable for pre-commit once module import is fixed.
+  - repo: local
+    hooks:
+      - id: pytest-quick
+        name: pytest-quick
+        entry: bash -c 'pytest sec_mcp/tests/ -v --tb=short --maxfail=1'
+        language: system
+        types: [python]
+        pass_filenames: false
+        # Run only when Python files change
+        files: ^sec_mcp/.*\.py$
+        stages: [manual]
+
+      - id: pytest-cov
+        name: pytest-coverage
+        entry: bash -c 'pytest sec_mcp/tests/ --cov=sec_mcp --cov-report=term-missing --cov-fail-under=75'
+        language: system
+        types: [python]
+        pass_filenames: false
+        # Run manually or in CI
+        stages: [manual]

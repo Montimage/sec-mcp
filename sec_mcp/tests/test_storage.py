@@ -1,7 +1,10 @@
 """Test the storage functionality."""
-import pytest
 import os
+
+import pytest
+
 from sec_mcp.storage import Storage
+
 
 @pytest.fixture
 def storage():
@@ -18,11 +21,12 @@ def storage():
     if os.path.exists(db_path):
         try:
             # Close connection if possible before removing, to avoid issues on some OS
-            if hasattr(storage_instance, 'conn') and storage_instance.conn:
+            if hasattr(storage_instance, "conn") and storage_instance.conn:
                 storage_instance.conn.close()
         except Exception:
-            pass # Ignore errors during cleanup
+            pass  # Ignore errors during cleanup
         os.remove(db_path)
+
 
 def test_add_and_check_entries(storage):
     """Test adding entries and checking if they're blacklisted."""
@@ -39,14 +43,16 @@ def test_add_and_check_entries(storage):
     assert not storage.is_domain_blacklisted("safe.com")
     assert not storage.is_ip_blacklisted("3.3.3.3")
 
+
 def test_entry_count(storage):
     """Test counting total entries."""
     storage.add_url("https://testcount1.com/path", "2025-04-18T00:00:00", 5.0, "TestSource")
     storage.add_domain("testcount2.com", "2025-04-18T00:00:00", 7.5, "TestSource")
     storage.add_ip("3.3.3.3", "2025-04-18T00:00:00", 2.5, "TestSource")
-    
+
     # count_entries() sums counts from all three tables (urls, domains, ips)
     assert storage.count_entries() == 3
+
 
 def test_cache_functionality(storage):
     """Test that the in-memory cache works correctly."""

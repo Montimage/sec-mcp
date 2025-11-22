@@ -1,8 +1,9 @@
 from dataclasses import dataclass
 from datetime import datetime
-from typing import List, Optional
+
 from .storage import create_storage
 from .update_blacklist import BlacklistUpdater
+
 
 @dataclass
 class CheckResult:
@@ -10,16 +11,14 @@ class CheckResult:
     explanation: str
 
     def to_json(self):
-        return {
-            "is_safe": not self.blacklisted,
-            "explain": self.explanation
-        }
+        return {"is_safe": not self.blacklisted, "explain": self.explanation}
+
 
 @dataclass
 class StatusInfo:
     entry_count: int
     last_update: datetime
-    sources: List[str]
+    sources: list[str]
     server_status: str
 
     def to_json(self):
@@ -27,17 +26,19 @@ class StatusInfo:
             "entry_count": self.entry_count,
             "last_update": self.last_update.isoformat(),
             "sources": self.sources,
-            "server_status": self.server_status
+            "server_status": self.server_status,
         }
 
-import os
+
 import json
+import os
+
 
 class SecMCP:
     def __init__(self, db_path=None):
         config_path = os.path.join(os.path.dirname(__file__), "config.json")
         with open(config_path) as f:
-            config = json.load(f)
+            json.load(f)
         self.storage = create_storage(db_path=db_path)
         self.updater = BlacklistUpdater(self.storage)
 
@@ -107,18 +108,20 @@ class SecMCP:
             return CheckResult(True, f"Blacklisted IP by {src}")
         return CheckResult(False, "Not blacklisted")
 
-    def check_batch(self, values: List[str]) -> List[CheckResult]:
+    def check_batch(self, values: list[str]) -> list[CheckResult]:
         """Check multiple values against the blacklist."""
         return [self.check(value) for value in values]
 
     @staticmethod
     def is_url(value: str) -> bool:
         import re
-        return bool(re.match(r'^https?://', value, re.IGNORECASE))
+
+        return bool(re.match(r"^https?://", value, re.IGNORECASE))
 
     @staticmethod
     def is_ip(value: str) -> bool:
         import ipaddress
+
         try:
             ipaddress.ip_address(value)
             return True
@@ -131,18 +134,19 @@ class SecMCP:
         if SecMCP.is_url(value) or SecMCP.is_ip(value):
             return False
         value = value.strip()
-        return '.' in value and not value.endswith('.')
+        return "." in value and not value.endswith(".")
 
     @staticmethod
-    def extract_domain(url: str) -> Optional[str]:
+    def extract_domain(url: str) -> str | None:
         import re
-        # Remove scheme
-        url = re.sub(r'^https?://', '', url, flags=re.IGNORECASE)
-        # Remove path/query/fragment
-        url = url.split('/', 1)[0].split(':')[0]
-        return url if '.' in url else None
 
-    def check_batch(self, values: List[str]) -> List[CheckResult]:
+        # Remove scheme
+        url = re.sub(r"^https?://", "", url, flags=re.IGNORECASE)
+        # Remove path/query/fragment
+        url = url.split("/", 1)[0].split(":")[0]
+        return url if "." in url else None
+
+    def check_batch(self, values: list[str]) -> list[CheckResult]:
         """Check multiple values against the blacklist."""
         return [self.check(value) for value in values]
 
@@ -152,13 +156,13 @@ class SecMCP:
             entry_count=self.storage.count_entries(),
             last_update=self.storage.get_last_update(),
             sources=self.storage.get_active_sources(),
-            server_status="Running (STDIO)"
+            server_status="Running (STDIO)",
         )
 
     def update(self) -> None:
         """Force an immediate update of all blacklists."""
         self.updater.force_update()
 
-    def sample(self, count: int = 10) -> List[str]:
+    def sample(self, count: int = 10) -> list[str]:
         """Return a random sample of blacklist entries for testing."""
         return self.storage.sample_entries(count)
