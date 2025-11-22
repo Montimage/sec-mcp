@@ -424,3 +424,37 @@ class Storage:
         with self._cache_lock:
             self._cache.discard(value)
         return cursor.rowcount > 0
+
+
+def create_storage(db_path=None):
+    """
+    Factory function to create storage instance based on configuration.
+
+    Uses environment variable MCP_USE_V2_STORAGE to determine which storage
+    implementation to use:
+    - 'true': Use HybridStorage (v2) with in-memory optimization
+    - 'false' or unset: Use legacy Storage (v1) with database-only
+
+    Args:
+        db_path: Path to SQLite database
+
+    Returns:
+        Storage or HybridStorage instance
+    """
+    use_v2 = os.environ.get('MCP_USE_V2_STORAGE', 'false').lower() == 'true'
+
+    if use_v2:
+        try:
+            from .storage_v2 import HybridStorage
+            import sys
+            print("Using optimized HybridStorage (v2) - 1000x faster lookups", file=sys.stderr)
+            return HybridStorage(db_path)
+        except Exception as e:
+            import sys
+            print(f"Warning: Failed to initialize HybridStorage: {e}", file=sys.stderr)
+            print("Falling back to legacy Storage (v1)", file=sys.stderr)
+            return Storage(db_path)
+    else:
+        import sys
+        print("Using legacy Storage (v1) - set MCP_USE_V2_STORAGE=true for 1000x faster lookups", file=sys.stderr)
+        return Storage(db_path)

@@ -99,3 +99,14 @@ async def add_entry(url: str, ip: Optional[str] = None, date: Optional[str] = No
 async def remove_entry(value: str):
     success = core.storage.remove_entry(value)
     return {"success": success}
+
+@mcp.tool(name="get_storage_metrics", description="Get storage performance metrics including lookup counts, average time, and memory usage.")
+async def get_storage_metrics():
+    """Get storage performance metrics (only available with v2 storage)."""
+    if hasattr(core.storage, 'get_metrics'):
+        return core.storage.get_metrics()
+    else:
+        return {
+            "error": "Metrics not available",
+            "message": "Storage metrics are only available with HybridStorage (v2). Set MCP_USE_V2_STORAGE=true to enable."
+        }
