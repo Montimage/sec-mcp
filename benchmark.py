@@ -24,6 +24,7 @@ import sys
 import os
 import time
 import tempfile
+import shutil
 import argparse
 from pathlib import Path
 from typing import Dict, List, Tuple, Any
@@ -445,8 +446,9 @@ def run_benchmark(args):
             print("\n" + "-"*80)
             print("BENCHMARKING v1 (Database Storage)")
             print("-"*80)
-            with tempfile.NamedTemporaryFile(suffix='.db', delete=False) as tmp:
-                tmp_path = tmp.name
+            # Create a temporary directory for the database
+            tmp_dir = tempfile.mkdtemp(prefix='sec_mcp_bench_v1_')
+            tmp_path = os.path.join(tmp_dir, 'benchmark.db')
             try:
                 storage_v1 = StorageV1(tmp_path)
                 bench_v1 = StorageBenchmark(storage_v1, 'v1')
@@ -460,9 +462,7 @@ def run_benchmark(args):
                     all_results.results[version] = results
             finally:
                 try:
-                    os.unlink(tmp_path)
-                    os.unlink(tmp_path + '-shm')
-                    os.unlink(tmp_path + '-wal')
+                    shutil.rmtree(tmp_dir, ignore_errors=True)
                 except:
                     pass
 
@@ -476,8 +476,9 @@ def run_benchmark(args):
             print("\n" + "-"*80)
             print("BENCHMARKING v0.3.0 (Hybrid Storage)")
             print("-"*80)
-            with tempfile.NamedTemporaryFile(suffix='.db', delete=False) as tmp:
-                tmp_path = tmp.name
+            # Create a temporary directory for the database
+            tmp_dir = tempfile.mkdtemp(prefix='sec_mcp_bench_v2_')
+            tmp_path = os.path.join(tmp_dir, 'benchmark.db')
             try:
                 storage_v2 = StorageV2(tmp_path)
                 bench_v2 = StorageBenchmark(storage_v2, 'v0.3.0')
@@ -491,9 +492,7 @@ def run_benchmark(args):
                     all_results.results[version] = results
             finally:
                 try:
-                    os.unlink(tmp_path)
-                    os.unlink(tmp_path + '-shm')
-                    os.unlink(tmp_path + '-wal')
+                    shutil.rmtree(tmp_dir, ignore_errors=True)
                 except:
                     pass
 
@@ -507,8 +506,9 @@ def run_benchmark(args):
             print("\n" + "-"*80)
             print("BENCHMARKING v0.4.0 (Optimized Hybrid Storage)")
             print("-"*80)
-            with tempfile.NamedTemporaryFile(suffix='.db', delete=False) as tmp:
-                tmp_path = tmp.name
+            # Create a temporary directory for the database
+            tmp_dir = tempfile.mkdtemp(prefix='sec_mcp_bench_v2opt_')
+            tmp_path = os.path.join(tmp_dir, 'benchmark.db')
             try:
                 storage_v2opt = StorageV2(tmp_path)
                 bench_v2opt = StorageBenchmark(storage_v2opt, 'v0.4.0')
@@ -522,9 +522,7 @@ def run_benchmark(args):
                     all_results.results[version] = results
             finally:
                 try:
-                    os.unlink(tmp_path)
-                    os.unlink(tmp_path + '-shm')
-                    os.unlink(tmp_path + '-wal')
+                    shutil.rmtree(tmp_dir, ignore_errors=True)
                 except:
                     pass
 
