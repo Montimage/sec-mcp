@@ -446,9 +446,10 @@ def run_benchmark(args):
             print("\n" + "-"*80)
             print("BENCHMARKING v1 (Database Storage)")
             print("-"*80)
-            # Create a temporary directory for the database
-            tmp_dir = tempfile.mkdtemp(prefix='sec_mcp_bench_v1_')
-            tmp_path = os.path.join(tmp_dir, 'benchmark.db')
+            # Use current directory with unique filename to avoid permission issues
+            import uuid
+            db_name = f'benchmark_v1_{uuid.uuid4().hex[:8]}.db'
+            tmp_path = os.path.join(os.getcwd(), db_name)
             try:
                 storage_v1 = StorageV1(tmp_path)
                 bench_v1 = StorageBenchmark(storage_v1, 'v1')
@@ -462,7 +463,12 @@ def run_benchmark(args):
                     all_results.results[version] = results
             finally:
                 try:
-                    shutil.rmtree(tmp_dir, ignore_errors=True)
+                    # Clean up database files
+                    for ext in ['', '-shm', '-wal']:
+                        try:
+                            os.unlink(tmp_path + ext)
+                        except:
+                            pass
                 except:
                     pass
 
@@ -476,9 +482,10 @@ def run_benchmark(args):
             print("\n" + "-"*80)
             print("BENCHMARKING v0.3.0 (Hybrid Storage)")
             print("-"*80)
-            # Create a temporary directory for the database
-            tmp_dir = tempfile.mkdtemp(prefix='sec_mcp_bench_v2_')
-            tmp_path = os.path.join(tmp_dir, 'benchmark.db')
+            # Use current directory with unique filename to avoid permission issues
+            import uuid
+            db_name = f'benchmark_v2_{uuid.uuid4().hex[:8]}.db'
+            tmp_path = os.path.join(os.getcwd(), db_name)
             try:
                 storage_v2 = StorageV2(tmp_path)
                 bench_v2 = StorageBenchmark(storage_v2, 'v0.3.0')
@@ -492,7 +499,12 @@ def run_benchmark(args):
                     all_results.results[version] = results
             finally:
                 try:
-                    shutil.rmtree(tmp_dir, ignore_errors=True)
+                    # Clean up database files
+                    for ext in ['', '-shm', '-wal']:
+                        try:
+                            os.unlink(tmp_path + ext)
+                        except:
+                            pass
                 except:
                     pass
 
@@ -506,9 +518,10 @@ def run_benchmark(args):
             print("\n" + "-"*80)
             print("BENCHMARKING v0.4.0 (Optimized Hybrid Storage)")
             print("-"*80)
-            # Create a temporary directory for the database
-            tmp_dir = tempfile.mkdtemp(prefix='sec_mcp_bench_v2opt_')
-            tmp_path = os.path.join(tmp_dir, 'benchmark.db')
+            # Use current directory with unique filename to avoid permission issues
+            import uuid
+            db_name = f'benchmark_v2opt_{uuid.uuid4().hex[:8]}.db'
+            tmp_path = os.path.join(os.getcwd(), db_name)
             try:
                 storage_v2opt = StorageV2(tmp_path)
                 bench_v2opt = StorageBenchmark(storage_v2opt, 'v0.4.0')
@@ -522,7 +535,12 @@ def run_benchmark(args):
                     all_results.results[version] = results
             finally:
                 try:
-                    shutil.rmtree(tmp_dir, ignore_errors=True)
+                    # Clean up database files
+                    for ext in ['', '-shm', '-wal']:
+                        try:
+                            os.unlink(tmp_path + ext)
+                        except:
+                            pass
                 except:
                     pass
 
