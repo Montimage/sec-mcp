@@ -244,5 +244,138 @@ class TestSwitchingBetweenVersions:
             os.environ.pop('MCP_USE_V2_STORAGE', None)
 
 
+class TestV040Optimizations:
+    """Test v0.4.0 optimizations (Phase 1 & 2)."""
+
+    def test_url_normalization(self):
+        """Test that URLs are normalized to reduce duplicates."""
+        from sec_mcp.storage_v2 import normalize_url
+
+        # Test case normalization
+        assert normalize_url("HTTP://EVIL.COM/") == "http://evil.com"
+        assert normalize_url("http://evil.com/") == "http://evil.com"
+
+        # Test tracking parameter removal
+        assert normalize_url("http://evil.com/?utm_source=spam") == "http://evil.com"
+        assert normalize_url("http://evil.com/?fbclid=123") == "http://evil.com"
+        assert normalize_url("http://evil.com/page?utm_medium=email&valid=1") == "http://evil.com/page?valid=1"
+
+        # Test trailing slash removal
+        assert normalize_url("http://evil.com/path/") == "http://evil.com/path"
+
+    def test_url_normalization_in_storage(self):
+        """Test that storage uses normalized URLs."""
+        storage = HybridStorage(":memory:")
+
+        # Add URL with tracking parameters
+        storage.add_url("http://evil.com/?utm_source=spam", "2025-01-01", 9.0, "test")
+
+        # Should match with or without tracking params
+        assert storage.is_url_blacklisted("http://evil.com/?utm_source=spam") is True
+        assert storage.is_url_blacklisted("http://evil.com") is True
+        assert storage.is_url_blacklisted("HTTP://EVIL.COM/") is True
+
+    def test_integer_ip_storage(self):
+        """Test that IPv4 addresses are stored as integers."""
+        from sec_mcp.storage_v2 import ip_to_int, int_to_ip
+
+        # Test IP to int conversion
+        assert ip_to_int("192.168.1.1") == 3232235777
+        assert ip_to_int("10.0.0.1") == 167772161
+        assert ip_to_int("255.255.255.255") == 4294967295
+
+        # Test int to IP conversion
+        assert int_to_ip(3232235777) == "192.168.1.1"
+        assert int_to_ip(167772161) == "10.0.0.1"
+
+        # Test IPv6 returns None (not converted to int)
+        assert ip_to_int("2001:db8::1") is None
+
+    def test_tiered_lookup_sources(self):
+        """Test that hot sources are classified correctly."""
+        from sec_mcp.storage_v2 import HOT_URL_SOURCES, HOT_IP_SOURCES, HOT_DOMAIN_SOURCES
+
+        # Verify hot source definitions match production data analysis
+        assert 'PhishTank' in HOT_URL_SOURCES
+        assert 'URLhaus' in HOT_URL_SOURCES
+        assert 'BlocklistDE' in HOT_IP_SOURCES
+        assert 'CINSSCORE' in HOT_IP_SOURCES
+        assert 'PhishTank' in HOT_DOMAIN_SOURCES
+        assert 'PhishStats' in HOT_DOMAIN_SOURCES
+
+    def test_hot_source_metrics(self):
+        """Test that hot source hits are tracked in metrics."""
+        storage = HybridStorage(":memory:")
+
+        # Add entries from hot sources
+        storage.add_url("http://phish1.com", "2025-01-01", 9.0, "PhishTank")  # Hot source
+        storage.add_url("http://phish2.com", "2025-01-01", 9.0, "OpenPhish")  # Cold source
+
+        # Lookup from hot source (should increment hot_source_hits)
+        storage.is_url_blacklisted("http://phish1.com")
+
+        # Lookup from cold source (should increment cold_source_hits)
+        storage.is_url_blacklisted("http://phish2.com")
+
+        # Check metrics
+        metrics = storage.get_metrics()
+        assert metrics['hot_source_hits'] > 0
+        assert metrics['cold_source_hits'] > 0
+        assert metrics['optimization_version'] == "0.4.0"
+
+    def test_optimization_metrics_in_get_metrics(self):
+        """Test that get_metrics returns v0.4.0 optimization metrics."""
+        storage = HybridStorage(":memory:")
+
+        storage.add_url("http://evil.com/?utm_source=test", "2025-01-01", 9.0, "PhishTank")
+        storage.add_ip("192.168.1.1", "2025-01-01", 8.0, "BlocklistDE")
+
+        # Perform some lookups
+        storage.is_url_blacklisted("http://evil.com")
+        storage.is_ip_blacklisted("192.168.1.1")
+
+        metrics = storage.get_metrics()
+
+        # Verify v0.4.0 metrics are present
+        assert 'hot_source_hits' in metrics
+        assert 'cold_source_hits' in metrics
+        assert 'hot_hit_rate_pct' in metrics
+        assert 'urls_normalized' in metrics
+        assert 'ips_as_integers' in metrics
+        assert 'optimization_version' in metrics
+        assert metrics['optimization_version'] == "0.4.0"
+
+    def test_backward_compatibility_with_optimizations(self):
+        """Test that optimizations don't break backward compatibility."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            db_path = os.path.join(tmpdir, "test.db")
+
+            # Create data with v1 (no optimizations)
+            v1 = Storage(db_path)
+            v1.add_domain("evil.com", "2025-01-01", 9.0, "PhishTank")
+            v1.add_url("http://phishing.com/?utm_source=spam", "2025-01-01", 8.5, "URLhaus")
+            v1.add_ip("192.168.1.100", "2025-01-01", 7.0, "BlocklistDE")
+
+            # Read with v2 (with optimizations)
+            v2 = HybridStorage(db_path)
+
+            # Verify all lookups work correctly
+            assert v2.is_domain_blacklisted("evil.com") is True
+            assert v2.is_domain_blacklisted("sub.evil.com") is True
+
+            # URL normalization should catch variations
+            assert v2.is_url_blacklisted("http://phishing.com/?utm_source=spam") is True
+            assert v2.is_url_blacklisted("http://phishing.com") is True
+            assert v2.is_url_blacklisted("HTTP://PHISHING.COM/") is True
+
+            # IP lookup (now as integer internally)
+            assert v2.is_ip_blacklisted("192.168.1.100") is True
+
+            # Verify metrics show optimizations are active
+            metrics = v2.get_metrics()
+            assert metrics['ips_as_integers'] > 0  # At least 1 IP stored as integer
+            assert metrics['hot_source_hits'] > 0  # Hot sources were hit
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])
