@@ -102,3 +102,9 @@ Thumbs.db
 
 *.db-shm
 *.db-wal
+
+# Development documentation (archived in dev-docs/)
+dev-docs/
+
+# Benchmark results
+benchmark_results*.txt

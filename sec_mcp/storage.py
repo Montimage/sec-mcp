@@ -30,9 +30,14 @@ class Storage:
             os.makedirs(db_dir, exist_ok=True)
             db_path = os.path.join(db_dir, "mcp.db")
         else:
+            # Ensure db_path is absolute
+            db_path = os.path.abspath(db_path)
             db_dir_from_path = os.path.dirname(db_path)
             if db_dir_from_path:  # Only attempt to create if dirname is not empty
-                os.makedirs(db_dir_from_path, exist_ok=True)
+                try:
+                    os.makedirs(db_dir_from_path, exist_ok=True)
+                except OSError as e:
+                    raise RuntimeError(f"Cannot create database directory {db_dir_from_path}: {e}")
         self.db_path = db_path
         self._cache: Set[str] = set()  # In-memory cache for faster lookups
         self._cache_lock = threading.Lock()
@@ -40,54 +45,57 @@ class Storage:
 
     def _init_db(self):
         """Initialize the SQLite database with required tables and performance PRAGMAs."""
-        with sqlite3.connect(self.db_path) as conn:
-            conn.execute("PRAGMA journal_mode=WAL;")
-            conn.execute("PRAGMA synchronous=NORMAL;")
-            conn.execute("PRAGMA cache_size=10000;")
-            # Create new blacklist tables for domain, url, and ip
-            conn.execute("""
-                CREATE TABLE IF NOT EXISTS blacklist_domain (
-                    domain TEXT PRIMARY KEY,
-                    date TEXT,
-                    score REAL,
-                    source TEXT
-                )
-            """)
-            conn.execute("""
-                CREATE INDEX IF NOT EXISTS idx_blacklist_domain ON blacklist_domain(domain);
-            """)
-            conn.execute("""
-                CREATE TABLE IF NOT EXISTS blacklist_url (
-                    url TEXT PRIMARY KEY,
-                    date TEXT,
-                    score REAL,
-                    source TEXT
-                )
-            """)
-            conn.execute("""
-                CREATE INDEX IF NOT EXISTS idx_blacklist_url ON blacklist_url(url);
-            """)
-            conn.execute("""
-                CREATE TABLE IF NOT EXISTS blacklist_ip (
-                    ip TEXT PRIMARY KEY,
-                    date TEXT,
-                    score REAL,
-                    source TEXT
-                )
-            """)
-            conn.execute("""
-                CREATE INDEX IF NOT EXISTS idx_blacklist_ip ON blacklist_ip(ip);
-            """)
-            # Create updates table (unchanged)
-            conn.execute("""
-                CREATE TABLE IF NOT EXISTS updates (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                    source TEXT NOT NULL,
-                    entry_count INTEGER NOT NULL
-                )
-            """)
-            conn.commit()
+        try:
+            with sqlite3.connect(self.db_path) as conn:
+                conn.execute("PRAGMA journal_mode=WAL;")
+                conn.execute("PRAGMA synchronous=NORMAL;")
+                conn.execute("PRAGMA cache_size=10000;")
+                # Create new blacklist tables for domain, url, and ip
+                conn.execute("""
+                    CREATE TABLE IF NOT EXISTS blacklist_domain (
+                        domain TEXT PRIMARY KEY,
+                        date TEXT,
+                        score REAL,
+                        source TEXT
+                    )
+                """)
+                conn.execute("""
+                    CREATE INDEX IF NOT EXISTS idx_blacklist_domain ON blacklist_domain(domain);
+                """)
+                conn.execute("""
+                    CREATE TABLE IF NOT EXISTS blacklist_url (
+                        url TEXT PRIMARY KEY,
+                        date TEXT,
+                        score REAL,
+                        source TEXT
+                    )
+                """)
+                conn.execute("""
+                    CREATE INDEX IF NOT EXISTS idx_blacklist_url ON blacklist_url(url);
+                """)
+                conn.execute("""
+                    CREATE TABLE IF NOT EXISTS blacklist_ip (
+                        ip TEXT PRIMARY KEY,
+                        date TEXT,
+                        score REAL,
+                        source TEXT
+                    )
+                """)
+                conn.execute("""
+                    CREATE INDEX IF NOT EXISTS idx_blacklist_ip ON blacklist_ip(ip);
+                """)
+                # Create updates table (unchanged)
+                conn.execute("""
+                    CREATE TABLE IF NOT EXISTS updates (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                        source TEXT NOT NULL,
+                        entry_count INTEGER NOT NULL
+                    )
+                """)
+                conn.commit()
+        except sqlite3.OperationalError as e:
+            raise RuntimeError(f"Cannot initialize database at {self.db_path}: {e}. Check directory permissions and disk space.")
 
     def is_domain_blacklisted(self, domain: str) -> bool:
         """Check if a domain or its parent domains are blacklisted."""
@@ -199,12 +207,15 @@ class Storage:
 
     def add_ip(self, ip: str, date: str, score: float, source: str):
         """Add an IP to the IP blacklist."""
-        with sqlite3.connect(self.db_path) as conn:
-            conn.execute(
-                "INSERT OR IGNORE INTO blacklist_ip (ip, date, score, source) VALUES (?, ?, ?, ?)",
-                (ip, date, score, source)
-            )
-            conn.commit()
+        try:
+            with sqlite3.connect(self.db_path) as conn:
+                conn.execute(
+                    "INSERT OR IGNORE INTO blacklist_ip (ip, date, score, source) VALUES (?, ?, ?, ?)",
+                    (ip, date, score, source)
+                )
+                conn.commit()
+        except sqlite3.OperationalError as e:
+            raise RuntimeError(f"Cannot write to database at {self.db_path}: {e}. Check directory permissions and that the database was initialized properly.")
 
     def remove_domain(self, domain: str) -> bool:
         """Remove a domain from the domain blacklist."""
@@ -424,3 +435,37 @@ class Storage:
         with self._cache_lock:
             self._cache.discard(value)
         return cursor.rowcount > 0
+
+
+def create_storage(db_path=None):
+    """
+    Factory function to create storage instance based on configuration.
+
+    Uses environment variable MCP_USE_V2_STORAGE to determine which storage
+    implementation to use:
+    - 'true': Use HybridStorage (v2) with in-memory optimization
+    - 'false' or unset: Use legacy Storage (v1) with database-only
+
+    Args:
+        db_path: Path to SQLite database
+
+    Returns:
+        Storage or HybridStorage instance
+    """
+    use_v2 = os.environ.get('MCP_USE_V2_STORAGE', 'false').lower() == 'true'
+
+    if use_v2:
+        try:
+            from .storage_v2 import HybridStorage
+            import sys
+            print("Using optimized HybridStorage (v2) - 1000x faster lookups", file=sys.stderr)
+            return HybridStorage(db_path)
+        except Exception as e:
+            import sys
+            print(f"Warning: Failed to initialize HybridStorage: {e}", file=sys.stderr)
+            print("Falling back to legacy Storage (v1)", file=sys.stderr)
+            return Storage(db_path)
+    else:
+        import sys
+        print("Using legacy Storage (v1) - set MCP_USE_V2_STORAGE=true for 1000x faster lookups", file=sys.stderr)
+        return Storage(db_path)

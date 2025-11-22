@@ -1,7 +1,7 @@
 from dataclasses import dataclass
 from datetime import datetime
 from typing import List, Optional
-from .storage import Storage
+from .storage import create_storage
 from .update_blacklist import BlacklistUpdater
 
 @dataclass
@@ -38,7 +38,7 @@ class SecMCP:
         config_path = os.path.join(os.path.dirname(__file__), "config.json")
         with open(config_path) as f:
             config = json.load(f)
-        self.storage = Storage(db_path=db_path)
+        self.storage = create_storage(db_path=db_path)
         self.updater = BlacklistUpdater(self.storage)
 
     def check(self, value: str) -> CheckResult:
