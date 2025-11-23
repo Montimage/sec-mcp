@@ -14,16 +14,20 @@ mcp = FastMCP("mcp-blacklist")
 core = SecMCP()
 
 # ============================================================================
-# CORE TOOLS - Primary functionality
+# CORE TOOLS - Essential functionality only
 # ============================================================================
 
 
 @mcp.tool(
-    name="check_batch",
-    description="Check multiple domains/URLs/IPs in one call. Returns list of {value, is_safe, explanation}.",
+    name="check",
+    description="Check domains/URLs/IPs against the blacklist. Accepts single value or list. Returns {value, is_safe, explanation} or list of results.",
 )
-async def check_batch(values: list[str]):
-    """Check multiple values against the blacklist in a single call."""
+async def check(values: list[str] | str):
+    """Check one or more values against the blacklist."""
+    # Handle single value
+    if isinstance(values, str):
+        values = [values]
+
     results = []
     for value in values:
         if not validate_input(value):
@@ -35,7 +39,9 @@ async def check_batch(values: list[str]):
             results.append(
                 {"value": value, "is_safe": not res.blacklisted, "explanation": res.explanation}
             )
-    return results
+
+    # Return single result if single value was provided
+    return results[0] if len(results) == 1 and isinstance(values, str) else results
 
 
 @mcp.tool(
@@ -61,126 +67,3 @@ async def update_blacklists():
     # Offload to thread to avoid nested event loops
     await anyio.to_thread.run_sync(core.update)
     return {"updated": True}
-
-
-# ============================================================================
-# DIAGNOSTICS - Consolidated monitoring and debugging
-# ============================================================================
-
-
-@mcp.tool(
-    name="get_diagnostics",
-    description="Get diagnostic information. Mode options: 'summary' (default), 'full', 'health', 'performance', 'sample'.",
-)
-async def get_diagnostics(mode: str = "summary", sample_count: int = 10):
-    """
-    Get diagnostic information about the blacklist system.
-
-    Modes:
-    - summary: Entry counts, sources, last update (default)
-    - full: All available diagnostic data
-    - health: Database and scheduler health status
-    - performance: Performance metrics and hit rates (v2 only)
-    - sample: Random sample of blacklist entries
-    """
-
-    if mode == "health":
-        # Health check
-        db_ok = True
-        try:
-            core.storage.count_entries()
-        except Exception:
-            db_ok = False
-        scheduler_alive = True
-        last_update = core.get_status().last_update
-        return {
-            "mode": "health",
-            "db_ok": db_ok,
-            "scheduler_alive": scheduler_alive,
-            "last_update": last_update,
-        }
-
-    elif mode == "performance":
-        # Performance metrics (v2 only)
-        if hasattr(core.storage, "get_metrics"):
-            metrics = core.storage.get_metrics()
-            return {"mode": "performance", **metrics}
-        else:
-            return {
-                "mode": "performance",
-                "error": "Metrics not available",
-                "message": "Performance metrics are only available with HybridStorage (v2). Set MCP_USE_V2_STORAGE=true to enable.",
-            }
-
-    elif mode == "sample":
-        # Random sample
-        entries = core.sample(sample_count)
-        return {"mode": "sample", "count": len(entries), "entries": entries}
-
-    elif mode == "full":
-        # Full diagnostics - everything
-        total = core.storage.count_entries()
-        per_source = core.storage.get_source_counts()
-        last_updates = core.storage.get_last_update_per_source()
-        per_source_detail = core.storage.get_source_type_counts()
-
-        # Health
-        db_ok = True
-        try:
-            core.storage.count_entries()
-        except Exception:
-            db_ok = False
-
-        # Performance (if available)
-        metrics = {}
-        if hasattr(core.storage, "get_metrics"):
-            metrics = core.storage.get_metrics()
-
-        return {
-            "mode": "full",
-            "total_entries": total,
-            "per_source": per_source,
-            "last_updates": last_updates,
-            "per_source_detail": per_source_detail,
-            "health": {"db_ok": db_ok, "scheduler_alive": True},
-            "performance": metrics if metrics else {"available": False},
-        }
-
-    else:  # mode == "summary" or default
-        # Summary - basic stats
-        total = core.storage.count_entries()
-        per_source = core.storage.get_source_counts()
-        last_updates = core.storage.get_last_update_per_source()
-
-        return {
-            "mode": "summary",
-            "total_entries": total,
-            "per_source": per_source,
-            "last_updates": last_updates,
-        }
-
-
-# ============================================================================
-# ADMINISTRATIVE - Manual entry management
-# ============================================================================
-
-
-@mcp.tool(name="add_entry", description="Add a manual blacklist entry.")
-async def add_entry(
-    url: str,
-    ip: str | None = None,
-    date: str | None = None,
-    score: float = 8.0,
-    source: str = "manual",
-):
-    """Add a manual blacklist entry."""
-    ts = date or datetime.now().isoformat(sep=" ", timespec="seconds")
-    core.storage.add_entries([(url, ip, ts, score, source)])
-    return {"success": True}
-
-
-@mcp.tool(name="remove_entry", description="Remove a blacklist entry by URL or IP.")
-async def remove_entry(value: str):
-    """Remove a blacklist entry by URL or IP."""
-    success = core.storage.remove_entry(value)
-    return {"success": success}

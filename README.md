@@ -262,38 +262,46 @@ Options:
 
 | Tool Name              | Description                                                                           |
 |-----------------------|---------------------------------------------------------------------------------------|
-| `check_batch`         | Check multiple domains/URLs/IPs in one call                                           |
+| `check`               | Check domain/URL/IP or list of values against the blacklist. Returns safety status.   |
 | `get_status`          | Get blacklist status including entry counts and per-source breakdown                  |
 | `update_blacklists`   | Force immediate update of all blacklists                                              |
-| `get_diagnostics`     | Get diagnostic info with modes: summary, full, health, performance, sample            |
-| `add_entry`           | Manually add a blacklist entry                                                        |
-| `remove_entry`        | Remove a blacklist entry by URL or IP address                                         |
 
-**Note**: The tools have been optimized to reduce token usage while maintaining full functionality. The `get_diagnostics` tool consolidates multiple monitoring functions with different modes.
+**Note**: The tool set has been streamlined to the essentials for maximum efficiency.
 
-#### Diagnostics Tool Modes
+#### Tool Usage Examples
 
-The `get_diagnostics` tool provides flexible monitoring with the following modes:
-
-- **`summary`** (default): Entry counts, sources, and last update times
-- **`full`**: Complete diagnostic data including health, stats, and performance
-- **`health`**: Database and scheduler health status only
-- **`performance`**: Performance metrics and hit rates (v2 storage only)
-- **`sample`**: Random sample of blacklist entries (use `sample_count` parameter)
-
-Example usage:
+**Check single value:**
 ```python
-# Get basic summary
-await get_diagnostics()
+result = await check("https://example.com")
+# Returns: {"value": "https://example.com", "is_safe": true, "explanation": "Not found in blacklist"}
+```
 
-# Check system health
-await get_diagnostics(mode="health")
+**Check multiple values:**
+```python
+results = await check(["https://example.com", "malicious-site.com", "192.168.1.1"])
+# Returns: [
+#   {"value": "https://example.com", "is_safe": true, "explanation": "Not found in blacklist"},
+#   {"value": "malicious-site.com", "is_safe": false, "explanation": "Found in PhishTank blacklist"},
+#   {"value": "192.168.1.1", "is_safe": true, "explanation": "Not found in blacklist"}
+# ]
+```
 
-# Get performance metrics
-await get_diagnostics(mode="performance")
+**Get status:**
+```python
+status = await get_status()
+# Returns: {
+#   "entry_count": 580252,
+#   "last_update": "2025-01-23 10:30:00",
+#   "sources": ["PhishTank", "URLhaus", "BlocklistDE", ...],
+#   "server_status": "running",
+#   "source_counts": {"PhishTank": 133000, "URLhaus": 74000, ...}
+# }
+```
 
-# Sample 20 entries
-await get_diagnostics(mode="sample", sample_count=20)
+**Force update:**
+```python
+result = await update_blacklists()
+# Returns: {"updated": true}
 ```
 
 ---
