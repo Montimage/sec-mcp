@@ -20,7 +20,7 @@ The MCP Client aims to achieve the following measurable outcomes:
 
 1. **Enable Security Integration**: Provide a Python library and CLI that cybersecurity developers can integrate into network security tools or apps to validate domains, URLs, or IPs against a blacklist.
 2. **Ensure Threat Coverage**: Support phishing and malware detection using open-source feeds (OpenPhish, PhishStats, URLhaus), covering ~80k unique URLs after deduplication.
-3. **Support MCP Protocol**: Implement an always-running MCP server exposing a `check_blacklist` tool for AI-driven clients (e.g., LLMs), ensuring compatibility with the MCP ecosystem.
+3. **Support MCP Protocol**: Implement an always-running MCP server exposing 3 essential tools (`check`, `get_status`, `update_blacklists`) for AI-driven clients (e.g., LLMs), ensuring compatibility with the MCP ecosystem.
 4. **Achieve High Throughput**: Deliver near real-time responses (<5s) for thousands of checks per second, suitable for high-volume security monitoring.
 5. **Automate Updates**: Automatically update blacklists daily from open-source feeds, minimizing manual maintenance.
 6. **Maintain Modularity**: Structure the library into independent modules (`core`, `update_blacklist`, `storage`, `interface`, `utility`) for testability and extensibility.
@@ -44,7 +44,7 @@ The MCP Client aims to achieve the following measurable outcomes:
 - **MCP Client Developers**:
   - **Characteristics**: Developers using the MCP protocol to build AI-driven workflows, leveraging LLMs for security tasks.
   - **Needs**:
-    - An always-running MCP server with a `check_blacklist` tool.
+    - An always-running MCP server with 3 essential tools (`check`, `get_status`, `update_blacklists`).
     - Standardized JSON output for LLM processing.
   - **Use Case**: Querying the MCP server from an LLM client to validate URLs in a chatbot or automated threat analysis pipeline.
 
@@ -55,12 +55,11 @@ The MCP Client aims to achieve the following measurable outcomes:
 ### User Stories
 | **User Story** | **Priority** | **Description** |
 | --- | --- | --- |
-| As a cybersecurity developer, I want to check a single domain, URL, or IP against a blacklist so I can determine if it’s safe. | High | Call `check(value)` or `mcp check <value>` to get JSON: `{"is_safe": true/false, "explain": "Reason"}`. |
-| As a cybersecurity developer, I want to check multiple inputs in batch so I can process large datasets efficiently. | High | Call `check_batch(values)` or `mcp batch <file>` for a list of JSON results. |
-| As a cybersecurity developer, I want automated daily blacklist updates so I don’t need to manually manage data. | High | Blacklists update daily from OpenPhish, PhishStats, URLhaus, stored in SQLite. |
-| As a cybersecurity developer, I want to check specifically a domain, URL, or IP so I can optimize checks and get more precise results. | High | Use `mcp check_domain <domain>`, `mcp check_url <url>`, or `mcp check_ip <ip>` for targeted lookups. |
-| As a cybersecurity developer, I want to view blacklist status so I can monitor update frequency and data volume. | Medium | Call `status()` or `mcp status` for stats (entry count, last update, sources). |
-| As an MCP client developer, I want to query the MCP server so I can integrate blacklist checks into AI workflows. | High | Query `check_blacklist` tool via MCP server (STDIO or HTTP transport) for JSON output. |
+| As a cybersecurity developer, I want to check a single domain, URL, or IP against a blacklist so I can determine if it's safe. | High | Call MCP `check(value)` to get JSON: `{"value": "...", "is_safe": true/false, "explanation": "Reason"}`. |
+| As a cybersecurity developer, I want to check multiple inputs in batch so I can process large datasets efficiently. | High | Call MCP `check([values])` with a list for batch processing, or use CLI `sec-mcp batch <file>`. |
+| As a cybersecurity developer, I want automated daily blacklist updates so I don't need to manually manage data. | High | Blacklists update daily from OpenPhish, PhishStats, URLhaus, stored in SQLite. Use MCP `update_blacklists()` to force update. |
+| As a cybersecurity developer, I want to view blacklist status so I can monitor update frequency and data volume. | Medium | Call MCP `get_status()` or CLI `sec-mcp status` for stats (entry count, last update, sources). |
+| As an MCP client developer, I want to query the MCP server so I can integrate blacklist checks into AI workflows. | High | Use 3 MCP tools: `check`, `get_status`, `update_blacklists` via STDIO or HTTP/SSE transport. |
 
 ### Features
 1. **Blacklist Checking**:
@@ -70,7 +69,7 @@ The MCP Client aims to achieve the following measurable outcomes:
    - Validation: Ensure inputs are valid domains (IDNA), URLs (HTTP/HTTPS), or IPs (IPv4/IPv6).
 
 2. **Batch Processing**:
-   - Process multiple inputs via `check_batch` or `mcp batch <file>`.
+   - Process multiple inputs via MCP `check([values])` or CLI `sec-mcp batch <file>`.
    - Optimize with SQLite `IN` clause and chunking (1000 inputs per query).
    - Progress bar via `tqdm` for CLI usability.
 
@@ -84,15 +83,16 @@ The MCP Client aims to achieve the following measurable outcomes:
    - Always-running `FastMCP` server with configurable transport (STDIO or HTTP).
    - STDIO transport (default): Best for local desktop applications and CLI tools.
    - HTTP transport: Best for web applications and remote access via Server-Sent Events (SSE).
-   - Exposes `check_blacklist` tool with input schema (`value: str`) and JSON output.
-   - Reuses `storage.query_blacklist` for consistency.
+   - Exposes 3 essential tools: `check`, `get_status`, `update_blacklists`.
+   - `check` accepts single value or list, returns JSON with `is_safe` and `explanation`.
    - Configurable via CLI arguments (`--transport`, `--host`, `--port`) or environment variables.
 
 5. **Status Reporting**:
-   - `mcp status` or `status()` returns:
+   - `get_status` tool or CLI `sec-mcp status` returns:
      - Blacklist entry count.
      - Last update timestamp.
      - Active sources.
+     - Per-source entry counts.
      - Server status ("Running (STDIO)" or "Running (HTTP on host:port)").
 
 6. **Modular Architecture**:
@@ -182,7 +182,7 @@ mcp_client/
 - **Timeline**: 1-month deadline (by May 15, 2025) limits scope to core features and OpenPhish/PhishStats/URLhaus.
 - **Blacklist Scope**: Limited to phishing/malware URLs due to feed constraints; IPs and domains are secondary.
 - **PhishTank Unavailability**: Disabled due to registration restrictions, requiring alternative feeds.
-- **MCP Server Scope**: Limited to `check_blacklist` tool, no additional tools or resources for MVP.
+- **MCP Server Scope**: Streamlined to 3 essential tools (`check`, `get_status`, `update_blacklists`) for maximum efficiency and minimal token usage.
 
 ---
 
@@ -198,7 +198,7 @@ mcp_client/
 - **PhishTank Re-enablement**: Monitor PhishTank registration status or explore community mirrors for CSV feeds.
 - **Additional Feeds**: Integrate feeds like AlienVault OTX or Spamhaus for broader threat coverage (e.g., IPs, domains).
 - **Google Safe Browsing**: Add async `httpx` integration with caching in SQLite’s `cache` table.
-- **MCP Enhancements**: Add tools (e.g., `update_blacklist`, `get_status`) or resources (e.g., blacklist metadata) for richer LLM workflows.
+- **MCP Enhancements**: Add resources (e.g., blacklist metadata) for richer LLM workflows, while keeping core tools minimal.
 - **Performance Optimization**: Explore async downloads (`aiohttp`) or cloud storage for >1M entries.
 - **Documentation**: Create a README and API reference for production use.
 

@@ -10,7 +10,7 @@ The MVP delivers the core value proposition of the MCP Client: a lightweight Pyt
 
 - **Blacklist Checking**: Single and batch checks against OpenPhish, PhishStats, and URLhaus feeds, with JSON output (`is_safe`, `explain`).
 - **Automated Updates**: Daily blacklist updates from open-source feeds, stored in SQLite.
-- **MCP Server**: Always-running `check_blacklist` tool via `FastMCP` with STDIO transport.
+- **MCP Server**: Always-running server with 3 essential tools (`check`, `get_status`, `update_blacklists`) via `FastMCP` with STDIO or HTTP/SSE transport.
 - **Modular Architecture**: Independent modules (`core`, `update_blacklist`, `storage`, `interface`, `utility`) for testability.
 - **Performance**: Near real-time responses (<5s), thousands of checks per second.
 - **Security**: Input validation and logging.
@@ -71,7 +71,8 @@ Focus: Core functionality for blacklist checking, automated updates, MCP server,
 - **Description**: Build the `core` module to orchestrate modules and manage the update scheduler, per PRD Section 4 (Modular Architecture) and Section 6 (Design Principles).
 - **Acceptance Criteria**:
   - `MCPClient` initializes `storage`, `update_blacklist`, `interface`, and `utility`.
-  - Methods (`check`, `check_batch`, `update`, `status`) delegate to respective modules.
+  - Methods (`check`, `update`, `status`) delegate to respective modules.
+  - `check` method handles both single values and batch processing internally.
   - Daily update scheduler runs at 00:00 via `schedule` in a background thread.
   - Unit tests pass (mock module interactions).
 - **Dependencies**: Task 2, Task 3, Task 4.
@@ -79,11 +80,12 @@ Focus: Core functionality for blacklist checking, automated updates, MCP server,
 #### Task 6: Implement Interface Module (CLI and MCP Server)
 - **Description**: Develop the `interface` module for CLI commands and an always-running MCP server, per PRD Section 4 (Blacklist Checking, Batch Processing, MCP Server, Status Reporting).
 - **Acceptance Criteria**:
-  - CLI commands: `mcp check <value>`, `mcp batch <file>`, `mcp update`, `mcp status` using `click`.
+  - CLI commands: `sec-mcp check <value>`, `sec-mcp batch <file>`, `sec-mcp update`, `sec-mcp status` using `click`.
   - Options: `--json` for machine-readable output, `--verbose` for human-readable.
   - `tqdm` progress bars for batch checks and updates.
-  - API functions: `check(value)`, `check_batch(values)` for library integration.
-  - MCP server runs `check_blacklist` tool via `FastMCP` (STDIO) in a background thread, started automatically.
+  - API functions: `check(value)` for library integration (handles both single and batch).
+  - MCP server exposes 3 tools (`check`, `get_status`, `update_blacklists`) via `FastMCP`.
+  - Supports STDIO (default) and HTTP/SSE transport modes.
   - Unit tests pass (mock `core` calls, test CLI output, mock MCP server responses).
 - **Dependencies**: Task 2, Task 3, Task 4, Task 5.
 
