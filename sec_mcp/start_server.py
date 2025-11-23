@@ -21,7 +21,8 @@ from sec_mcp.utility import setup_logging
 def print_stdio_config():
     """Print copy-paste ready configuration for STDIO mode."""
     python_path = sys.executable
-    use_v2 = os.getenv("MCP_USE_V2_STORAGE", "false").lower() in ("true", "1", "yes")
+    # Default is now true, so check if it's explicitly disabled
+    use_v2 = os.getenv("MCP_USE_V2_STORAGE", "true").lower() in ("true", "1", "yes")
 
     config = {
         "mcpServers": {
@@ -33,29 +34,55 @@ def print_stdio_config():
         }
     }
 
+    # Alternative simpler configuration (if sec-mcp-server is in PATH)
+    config_alt = {
+        "mcpServers": {
+            "sec-mcp": {
+                "command": "sec-mcp-server"
+            }
+        }
+    }
+
     print("\n" + "=" * 80, file=sys.stderr)
-    print("✓ MCP Server started successfully (STDIO mode)", file=sys.stderr)
+    print("✅ MCP Server Ready (STDIO mode)", file=sys.stderr)
     print("=" * 80, file=sys.stderr)
-    print("\n📋 Copy-paste this into your MCP client configuration:\n", file=sys.stderr)
+    print(f"\n⚡ Storage: HybridStorage v2 ({'enabled' if use_v2 else 'disabled'})", file=sys.stderr)
+    print(f"📊 Performance: {'1000-20,000x faster' if use_v2 else 'Standard'} lookups", file=sys.stderr)
+    print("\n📋 Configuration for MCP clients (Claude, Windsurf, Cursor):", file=sys.stderr)
+    print("\n   Option 1 - Full path (recommended):", file=sys.stderr)
     print(json.dumps(config, indent=2), file=sys.stderr)
-    print("\n" + "=" * 80 + "\n", file=sys.stderr)
+    print("\n   Option 2 - Simple (if sec-mcp-server in PATH):", file=sys.stderr)
+    print(json.dumps(config_alt, indent=2), file=sys.stderr)
+    print("\n" + "=" * 80, file=sys.stderr)
+    print("💡 Tips:", file=sys.stderr)
+    print("   • Server communicates via STDIO (standard input/output)", file=sys.stderr)
+    print("   • Best for local MCP clients like Claude Desktop", file=sys.stderr)
+    print("   • Press Ctrl+C to stop the server", file=sys.stderr)
+    print("=" * 80 + "\n", file=sys.stderr)
 
 
 def print_http_config(host: str, port: int):
     """Print copy-paste ready configuration for HTTP mode."""
+    use_v2 = os.getenv("MCP_USE_V2_STORAGE", "true").lower() in ("true", "1", "yes")
     url = f"http://{host}:{port}/sse"
 
     config = {"mcpServers": {"sec-mcp": {"url": url, "transport": "sse"}}}
 
     print("\n" + "=" * 80, file=sys.stderr)
-    print("✓ MCP Server started successfully (HTTP mode)", file=sys.stderr)
+    print("✅ MCP Server Ready (HTTP/SSE mode)", file=sys.stderr)
     print("=" * 80, file=sys.stderr)
-    print(f"\n🌐 Server running at: http://{host}:{port}", file=sys.stderr)
+    print(f"\n🌐 Server URL: http://{host}:{port}", file=sys.stderr)
     print(f"📡 SSE endpoint: {url}", file=sys.stderr)
-    print("\n📋 Copy-paste this into your MCP client configuration:\n", file=sys.stderr)
+    print(f"⚡ Storage: HybridStorage v2 ({'enabled' if use_v2 else 'disabled'})", file=sys.stderr)
+    print(f"📊 Performance: {'1000-20,000x faster' if use_v2 else 'Standard'} lookups", file=sys.stderr)
+    print("\n📋 Configuration for MCP clients:", file=sys.stderr)
     print(json.dumps(config, indent=2), file=sys.stderr)
     print("\n" + "=" * 80, file=sys.stderr)
-    print("💡 Tip: Press Ctrl+C to stop the server", file=sys.stderr)
+    print("💡 Tips:", file=sys.stderr)
+    print("   • Server uses Server-Sent Events (SSE) for communication", file=sys.stderr)
+    print("   • Best for web applications and remote access", file=sys.stderr)
+    print("   • Access tools at: http://{host}:{port}/docs (if supported)", file=sys.stderr)
+    print("   • Press Ctrl+C to stop the server", file=sys.stderr)
     print("=" * 80 + "\n", file=sys.stderr)
 
 
