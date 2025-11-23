@@ -16,6 +16,7 @@ setup(
     entry_points={
         "console_scripts": [
             "sec-mcp=sec_mcp.interface:cli",
+            "sec-mcp-server=sec_mcp.start_server:main",
         ],
     },
     python_requires=">=3.11",
