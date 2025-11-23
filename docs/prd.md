@@ -60,7 +60,7 @@ The MCP Client aims to achieve the following measurable outcomes:
 | As a cybersecurity developer, I want automated daily blacklist updates so I don’t need to manually manage data. | High | Blacklists update daily from OpenPhish, PhishStats, URLhaus, stored in SQLite. |
 | As a cybersecurity developer, I want to check specifically a domain, URL, or IP so I can optimize checks and get more precise results. | High | Use `mcp check_domain <domain>`, `mcp check_url <url>`, or `mcp check_ip <ip>` for targeted lookups. |
 | As a cybersecurity developer, I want to view blacklist status so I can monitor update frequency and data volume. | Medium | Call `status()` or `mcp status` for stats (entry count, last update, sources). |
-| As an MCP client developer, I want to query the MCP server so I can integrate blacklist checks into AI workflows. | High | Query `check_blacklist` tool via MCP server (STDIO transport) for JSON output. |
+| As an MCP client developer, I want to query the MCP server so I can integrate blacklist checks into AI workflows. | High | Query `check_blacklist` tool via MCP server (STDIO or HTTP transport) for JSON output. |
 
 ### Features
 1. **Blacklist Checking**:
@@ -81,16 +81,19 @@ The MCP Client aims to achieve the following measurable outcomes:
    - Fallback to last valid blacklist on download failure.
 
 4. **MCP Server**:
-   - Always-running `FastMCP` server with STDIO transport, started in a background thread.
+   - Always-running `FastMCP` server with configurable transport (STDIO or HTTP).
+   - STDIO transport (default): Best for local desktop applications and CLI tools.
+   - HTTP transport: Best for web applications and remote access via Server-Sent Events (SSE).
    - Exposes `check_blacklist` tool with input schema (`value: str`) and JSON output.
    - Reuses `storage.query_blacklist` for consistency.
+   - Configurable via CLI arguments (`--transport`, `--host`, `--port`) or environment variables.
 
 5. **Status Reporting**:
    - `mcp status` or `status()` returns:
      - Blacklist entry count.
      - Last update timestamp.
      - Active sources.
-     - Server status (“Running (STDIO)”).
+     - Server status ("Running (STDIO)" or "Running (HTTP on host:port)").
 
 6. **Modular Architecture**:
    - Modules: `core` (orchestration), `update_blacklist` (feed management), `storage` (SQLite), `interface` (CLI/MCP server), `utility` (validation/logging).

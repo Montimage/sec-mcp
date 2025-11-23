@@ -149,9 +149,12 @@ print(f"Last update: {status.last_update}")
 
 ### MCP Server
 
-sec-mcp can run as an MCP server for AI/LLM integration (e.g., Claude, Windsurf, Cursor).
+sec-mcp can run as an MCP server for AI/LLM integration (e.g., Claude, Windsurf, Cursor). The server supports two transport modes:
 
-#### Setup
+- **STDIO mode** (default): Best for local desktop applications and CLI tools
+- **HTTP mode**: Best for web applications and remote access
+
+#### Quick Setup
 
 1. **Install sec-mcp** in a virtual environment (see Quick Start)
 
@@ -160,24 +163,100 @@ sec-mcp can run as an MCP server for AI/LLM integration (e.g., Claude, Windsurf,
    sec-mcp update
    ```
 
-3. **Configure your MCP client** (e.g., `claude_desktop_config.json`):
-   ```json
-   {
-     "mcpServers": {
-       "sec-mcp": {
-         "command": "/absolute/path/to/.venv/bin/python",
-         "args": ["-m", "sec_mcp.start_server"],
-         "env": {
-           "MCP_USE_V2_STORAGE": "true"
-         }
-       }
-     }
-   }
+3. **Start the server**:
+
+   **Option A: STDIO mode (default)**
+   ```bash
+   sec-mcp-server
    ```
 
-   > **Important**: Use the absolute path to your virtual environment's Python executable.
-   > - macOS/Linux: `/path/to/.venv/bin/python`
-   > - Windows: `C:\path\to\.venv\Scripts\python.exe`
+   **Option B: HTTP mode**
+   ```bash
+   sec-mcp-server --transport http
+   ```
+
+   The server will display a copy-paste ready configuration for your MCP client!
+
+#### Transport Modes
+
+##### STDIO Mode (Default)
+
+**Start server:**
+```bash
+sec-mcp-server
+# Or explicitly:
+sec-mcp-server --transport stdio
+```
+
+**Configure your MCP client** (e.g., `claude_desktop_config.json`):
+```json
+{
+  "mcpServers": {
+    "sec-mcp": {
+      "command": "/absolute/path/to/.venv/bin/python",
+      "args": ["-m", "sec_mcp.start_server"],
+      "env": {
+        "MCP_USE_V2_STORAGE": "true"
+      }
+    }
+  }
+}
+```
+
+> **Tip**: The server displays the exact configuration with your Python path when it starts!
+
+> **Important**: Use the absolute path to your virtual environment's Python executable.
+> - macOS/Linux: `/path/to/.venv/bin/python`
+> - Windows: `C:\path\to\.venv\Scripts\python.exe`
+
+##### HTTP Mode
+
+**Start server:**
+```bash
+# Default: localhost:8000
+sec-mcp-server --transport http
+
+# Custom host and port:
+sec-mcp-server -t http -h 0.0.0.0 -p 3000
+
+# Using environment variables:
+MCP_TRANSPORT=http MCP_PORT=3000 sec-mcp-server
+```
+
+**Configure your MCP client**:
+```json
+{
+  "mcpServers": {
+    "sec-mcp": {
+      "url": "http://localhost:8000/sse",
+      "transport": "sse"
+    }
+  }
+}
+```
+
+**Server options:**
+```bash
+sec-mcp-server --help
+
+Options:
+  -t, --transport [stdio|http]  Transport mode (default: stdio)
+  -h, --host TEXT               HTTP server host (default: localhost)
+  -p, --port INTEGER            HTTP server port (default: 8000)
+  --help                        Show help message
+```
+
+**Environment variables:**
+- `MCP_TRANSPORT`: stdio or http (default: stdio)
+- `MCP_HOST`: Host address for HTTP mode (default: localhost)
+- `MCP_PORT`: Port for HTTP mode (default: 8000)
+- `MCP_USE_V2_STORAGE`: Use high-performance v2 storage (default: false)
+
+**Security considerations for HTTP mode:**
+- By default, the server binds to `localhost` (only accessible from the same machine)
+- For remote access, use `-h 0.0.0.0` but ensure proper firewall configuration
+- Consider using HTTPS reverse proxy (nginx, Caddy) for production
+- No authentication is built-in; use network-level security
 
 #### Available MCP Tools
 
