@@ -13,8 +13,8 @@ if _project_root not in sys.path:
     sys.path.insert(0, _project_root)
 
 import click
+from mcp.server.fastmcp import FastMCP
 
-from sec_mcp.mcp_server import mcp
 from sec_mcp.utility import setup_logging
 
 
@@ -119,11 +119,22 @@ def main(transport: str, host: str, port: int):
 
     if transport == "stdio":
         print_stdio_config()
+        # Import and run with default settings
+        from sec_mcp.mcp_server import mcp
         mcp.run(transport="stdio")
     elif transport == "http":
         print_http_config(host, port)
-        # FastMCP expects host and port as part of run() for HTTP
-        mcp.run(transport="http", host=host, port=port)
+        # Create FastMCP with custom host/port settings
+        from sec_mcp import mcp_server
+
+        # Reinitialize the global mcp instance with custom settings
+        mcp_server.mcp = FastMCP("mcp-blacklist", host=host, port=port)
+
+        # Re-register all tools (decorators will register on the new instance)
+        import importlib
+        importlib.reload(mcp_server)
+
+        mcp_server.mcp.run(transport="sse")
     else:
         click.echo(f"Error: Invalid transport '{transport}'. Use 'stdio' or 'http'.", err=True)
         sys.exit(1)

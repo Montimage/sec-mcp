@@ -448,7 +448,7 @@ def create_storage(db_path=None):
     Returns:
         Storage or HybridStorage instance
     """
-    use_v2 = os.environ.get("MCP_USE_V2_STORAGE", "false").lower() == "true"
+    use_v2 = os.environ.get("MCP_USE_V2_STORAGE", "true").lower() == "true"
 
     if use_v2:
         try:
