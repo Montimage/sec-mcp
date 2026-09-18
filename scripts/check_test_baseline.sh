@@ -12,8 +12,17 @@ set -u
 BASELINE_NUM=32
 BASELINE_DEN=64
 
-output="$(uv run pytest -q -p no:cacheprovider --tb=short 2>&1 || true)"
+output="$(uv run pytest -q -p no:cacheprovider --tb=short 2>&1)"
+pytest_status=$?
 printf '%s\n' "$output" | tail -n 5
+
+# pytest exit codes: 0 = all passed, 1 = test failures (the expected
+# baseline state). Anything above 1 is an internal error, usage error or
+# interrupt — the summary may be partial, so fail closed.
+if [ "$pytest_status" -gt 1 ]; then
+  echo "FAIL: pytest exited with status $pytest_status" >&2
+  exit 1
+fi
 
 # Extract a summary counter: take the LAST match (the summary is the final
 # place counters appear) and keep only digits, so the result is always a
