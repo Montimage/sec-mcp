@@ -3,12 +3,13 @@ import json as _json
 import click
 
 from .sec_mcp import SecMCP
+from .utility import package_version
 
 # Global SecMCP instance for CLI
 core = SecMCP()
 
 @click.group()
-@click.version_option(version="0.4.0", message="%(version)s (MCP Client)")
+@click.version_option(version=package_version(), message="%(version)s (MCP Client)")
 def cli():
     """MCP Client CLI for checking domains, URLs, and IPs against blacklists.
 

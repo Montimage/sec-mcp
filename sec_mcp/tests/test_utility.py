@@ -1,7 +1,11 @@
 """Test the utility functions."""
+import importlib.metadata
 import logging
 import threading
+import tomllib
+from pathlib import Path
 
+import sec_mcp
 from sec_mcp import utility
 from sec_mcp.utility import load_config, setup_logging, validate_input
 
@@ -108,3 +112,29 @@ def test_setup_logging_survives_unwritable_log_file(tmp_path, monkeypatch):
         assert utility._file_handler is None
     finally:
         _remove_owned_handlers()
+
+
+def _missing_dist(name):
+    raise importlib.metadata.PackageNotFoundError(name)
+
+
+def test_package_version_uses_installed_metadata():
+    assert utility.package_version() == importlib.metadata.version("sec-mcp")
+    assert utility.package_version() == sec_mcp.__version__
+
+
+def test_package_version_falls_back_to_pyproject(monkeypatch):
+    monkeypatch.setattr(importlib.metadata, "version", _missing_dist)
+    pyproject = Path(utility.__file__).resolve().parent.parent / "pyproject.toml"
+    expected = tomllib.loads(pyproject.read_text(encoding="utf-8"))["project"]["version"]
+    assert utility.package_version() == expected
+
+
+def test_package_version_reports_unknown_without_metadata_or_pyproject(monkeypatch):
+    monkeypatch.setattr(importlib.metadata, "version", _missing_dist)
+
+    def unreadable(*args, **kwargs):
+        raise OSError("no source tree")
+
+    monkeypatch.setattr(Path, "read_text", unreadable)
+    assert utility.package_version() == "0.0.0+unknown"

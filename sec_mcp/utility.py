@@ -1,11 +1,13 @@
 """Utility functions for validation, logging, and configuration management."""
 
+import importlib.metadata
 import ipaddress
 import json
 import logging
 import os
 import re
 import threading
+import tomllib
 from pathlib import Path
 from typing import Any, Dict
 
@@ -14,6 +16,19 @@ from platformdirs import user_log_dir
 
 _logging_lock = threading.Lock()
 _file_handler = None
+
+
+def package_version() -> str:
+    """Resolve the package version: installed metadata first, pyproject.toml in a source tree."""
+    try:
+        return importlib.metadata.version("sec-mcp")
+    except importlib.metadata.PackageNotFoundError:
+        pass
+    try:
+        pyproject = Path(__file__).resolve().parent.parent / "pyproject.toml"
+        return tomllib.loads(pyproject.read_text(encoding="utf-8"))["project"]["version"]
+    except (OSError, KeyError, ValueError, tomllib.TOMLDecodeError):
+        return "0.0.0+unknown"
 
 
 def setup_logging(log_level: str = "INFO") -> None:
