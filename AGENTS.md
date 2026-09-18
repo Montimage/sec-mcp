@@ -3,8 +3,9 @@
 ## Project
 sec-mcp — Python library + CLI (and MCP server) that checks domains, URLs and
 IPs against security blacklists backed by SQLite. `react-landing-page/` is a
-standalone Vite site, not part of the package. Invariant: `import sec_mcp` is
-never side-effect free — it creates a database (see `docs/agent-env.md`).
+standalone Vite site, not part of the package. `import sec_mcp` is side-effect
+free — constructing `SecMCP()` is what creates the database, log file and
+scheduler thread (see `docs/agent-env.md`).
 
 ## Commands
 - Build/test/env commands → `docs/agent-env.md` (single source; also named in
@@ -27,8 +28,8 @@ never side-effect free — it creates a database (see `docs/agent-env.md`).
 ## Constraints
 - Don't commit or push to `main` unless asked
 - Never commit secrets, `.env`, credentials, SQLite DBs or `*.db-shm`/`*.db-wal` sidecars
-- Always export `MCP_DB_PATH` to a temp path before importing `sec_mcp` in
-  probes — import writes a DB, log file and scheduler thread
+- Export `MCP_DB_PATH` to a temp path before constructing `SecMCP()` in
+  probes — construction writes a DB, log file and scheduler thread
   (see `docs/agent-env.md`)
 
 ## Done when
