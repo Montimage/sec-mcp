@@ -16,6 +16,7 @@
     "max_feed_bytes": 67108864,
     "min_feed_entries": 1,
     "max_feed_entries": 500000,
+    "max_range_addresses": 65536,
     "log_level": "INFO",
     "db_path": "mcp.db"
 }
