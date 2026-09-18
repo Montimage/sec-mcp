@@ -1,8 +1,10 @@
 """Backward compatibility tests between v1 and v2 storage."""
 
-import pytest
 import os
 import tempfile
+
+import pytest
+
 from sec_mcp.storage import Storage, create_storage
 from sec_mcp.storage_v2 import HybridStorage
 
@@ -277,7 +279,7 @@ class TestV040Optimizations:
 
     def test_integer_ip_storage(self):
         """Test that IPv4 addresses are stored as integers."""
-        from sec_mcp.storage_v2 import ip_to_int, int_to_ip
+        from sec_mcp.storage_v2 import int_to_ip, ip_to_int
 
         # Test IP to int conversion
         assert ip_to_int("192.168.1.1") == 3232235777
@@ -293,7 +295,11 @@ class TestV040Optimizations:
 
     def test_tiered_lookup_sources(self):
         """Test that hot sources are classified correctly."""
-        from sec_mcp.storage_v2 import HOT_URL_SOURCES, HOT_IP_SOURCES, HOT_DOMAIN_SOURCES
+        from sec_mcp.storage_v2 import (
+            HOT_DOMAIN_SOURCES,
+            HOT_IP_SOURCES,
+            HOT_URL_SOURCES,
+        )
 
         # Verify hot source definitions match production data analysis
         assert 'PhishTank' in HOT_URL_SOURCES

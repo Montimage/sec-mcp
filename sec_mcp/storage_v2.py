@@ -17,21 +17,19 @@ Optimizations:
 - Integer-based IP storage for memory efficiency
 """
 
-import sqlite3
-import threading
-import logging
 import ipaddress
-import random
-import time
+import logging
 import os
+import random
+import sqlite3
 import sys
-import struct
+import threading
+import time
+from dataclasses import dataclass
 from datetime import datetime
-from typing import List, Optional, Set, Dict, Tuple
-from dataclasses import dataclass, field
 from pathlib import Path
-from urllib.parse import urlparse, urlunparse, parse_qs, urlencode
-
+from typing import Dict, List, Optional, Set, Tuple
+from urllib.parse import parse_qs, urlencode, urlparse, urlunparse
 
 # ========== Source Classification ==========
 # Based on production data analysis (449K entries)

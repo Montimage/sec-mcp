@@ -1,7 +1,10 @@
 """Test the storage functionality."""
-import pytest
 import os
+
+import pytest
+
 from sec_mcp.storage import Storage
+
 
 @pytest.fixture
 def storage():

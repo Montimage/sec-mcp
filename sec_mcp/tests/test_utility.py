@@ -1,7 +1,8 @@
 """Test the utility functions."""
-import pytest
-from sec_mcp.utility import validate_input, load_config, setup_logging
 import logging
+
+from sec_mcp.utility import load_config, setup_logging, validate_input
+
 
 def test_validate_url():
     """Test URL validation."""
