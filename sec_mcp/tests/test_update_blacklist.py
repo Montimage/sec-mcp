@@ -235,6 +235,7 @@ async def test_dshield_unaligned_range_covers_exact_bounds(tmp_path, monkeypatch
     storage, updater = _dshield_updater(tmp_path, monkeypatch, (
         "10.0.0.4\t10.0.0.7\t255.255.255.252\t1\tbad\tXX\tx@y\n"
         "10.1.0.5\t10.1.0.5\t255.255.255.255\t1\tbad\tXX\tx@y\n"
+        "255.255.255.254\t255.255.255.255\t31\t1\tbad\tXX\tx@y\n"
     ))
     await updater._update_source(None, "Dshield", "https://www.dshield.org/block.txt")
     assert storage.is_ip_blacklisted("10.0.0.7")
@@ -243,6 +244,8 @@ async def test_dshield_unaligned_range_covers_exact_bounds(tmp_path, monkeypatch
     assert not storage.is_ip_blacklisted("10.0.0.8")
     assert storage.is_ip_blacklisted("10.1.0.5")
     assert not storage.is_ip_blacklisted("10.1.0.6")
+    assert storage.is_ip_blacklisted("255.255.255.255")
+    assert storage.is_ip_blacklisted("255.255.255.254")
 
 
 @pytest.mark.asyncio
@@ -250,6 +253,7 @@ async def test_dshield_rejects_malformed_rows(tmp_path, monkeypatch):
     storage, updater = _dshield_updater(tmp_path, monkeypatch, (
         "999.1.1.1\t999.2.2.2\tx\t1\tbad\tXX\tx@y\n"
         "10.1.0.9\t10.1.0.1\tx\t1\tbad\tXX\tx@y\n"
+        "10.1.0.9\t::1\tx\t1\tbad\tXX\tx@y\n"
         "10.2.0.0\t10.2.0.1\n"
         "10.3.0.0\t10.3.0.3\tx\t1\tbad\tXX\tx@y\n"
     ))
@@ -257,3 +261,16 @@ async def test_dshield_rejects_malformed_rows(tmp_path, monkeypatch):
     assert not storage.is_ip_blacklisted("10.1.0.5")
     assert not storage.is_ip_blacklisted("10.2.0.0")
     assert storage.is_ip_blacklisted("10.3.0.3")
+
+
+@pytest.mark.asyncio
+async def test_dshield_rejects_oversized_ranges(tmp_path, monkeypatch):
+    storage, updater = _dshield_updater(tmp_path, monkeypatch, (
+        "1.0.0.0\t2.0.0.0\tx\t1\tbad\tXX\tx@y\n"
+        "10.4.0.0\t10.4.255.255\tx\t1\tbad\tXX\tx@y\n"
+    ))
+    await updater._update_source(None, "Dshield", "https://www.dshield.org/block.txt")
+    assert not storage.is_ip_blacklisted("1.0.0.1")
+    assert not storage.is_ip_blacklisted("1.255.255.255")
+    assert storage.is_ip_blacklisted("10.4.255.255")
+    assert storage.is_ip_blacklisted("10.4.0.0")

@@ -44,6 +44,7 @@ class BlacklistUpdater:
         self.max_feed_bytes = max(1, _limit("max_feed_bytes", 64 * 1024 * 1024))
         self.min_feed_entries = max(0, _limit("min_feed_entries", 1))
         self.max_feed_entries = max(self.min_feed_entries, _limit("max_feed_entries", 500000))
+        self.max_range_addresses = max(1, _limit("max_range_addresses", 1 << 16))
         if os.environ.get("MCP_DISABLE_SCHEDULER") != "1":
             self._ensure_scheduler()
 
@@ -281,6 +282,11 @@ class BlacklistUpdater:
                             end_ip = ip_address(fields[1].strip())
                             networks = list(summarize_address_range(start_ip, end_ip))
                         except (ValueError, TypeError):
+                            continue
+
+                        # Reject implausibly broad ranges (e.g. a corrupt
+                        # 0.0.0.0-255.255.255.255 row would blacklist everything).
+                        if int(end_ip) - int(start_ip) + 1 > self.max_range_addresses:
                             continue
 
                         for network in networks:
