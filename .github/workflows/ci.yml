@@ -10,8 +10,18 @@ permissions:
 
 jobs:
   python:
-    name: Build, lint and test (baseline >= 32/64)
+    name: Build, lint and test (baseline >= 32/64) — py${{ matrix.python-version }}
     runs-on: ubuntu-latest
+    env:
+      # UV_PYTHON pins uv's interpreter to the matrix version: .python-version
+      # (3.11) would otherwise override it for every `uv run` — including the
+      # pytest invocation inside check_test_baseline.sh — collapsing all legs
+      # onto 3.11. UV_PYTHON beats .python-version in uv's request precedence.
+      UV_PYTHON: ${{ matrix.python-version }}
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ['3.11', '3.12', '3.13', '3.14']
     steps:
       - name: Checkout repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
@@ -19,13 +29,15 @@ jobs:
       - name: Setup Python
         uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97  # v7.0.0
         with:
-          python-version: '3.11'
+          python-version: ${{ matrix.python-version }}
 
       - name: Install uv
         run: pip install "uv==0.12.13"
 
       - name: Install dependencies
-        run: uv sync --frozen
+        # --python is required: .python-version would otherwise pin uv to
+        # 3.11 on every matrix leg, silently defeating the version matrix.
+        run: uv sync --frozen --python ${{ matrix.python-version }}
 
       - name: Build package
         run: uv run --with build python -m build
