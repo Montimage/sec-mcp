@@ -100,6 +100,7 @@ Thumbs.db
 *.cert
 *.key
 
+*.db-journal
 *.db-shm
 *.db-wal
 
