@@ -28,23 +28,29 @@ probes, which are not side-effect free here (see *Probe isolation*).
 
 ## Probe isolation — important
 
-`import sec_mcp` is **not** side-effect free. `sec_mcp/__init__.py` executes
-`from .cli import cli`, and `sec_mcp/cli.py` instantiates `core = SecMCP()` at
-module level. That constructor creates the SQLite database (plus WAL/SHM
+`import sec_mcp`, `import sec_mcp.cli` and `import sec_mcp.mcp_server` are
+side-effect free: they create no database, open no log file and start no
+scheduler thread. The shared `core` instance behind each entry-point module is
+built lazily by `get_core()` on first use — when a CLI command runs, when an
+MCP tool is invoked, or eagerly in `start_server.main()`.
+
+Constructing `SecMCP()`, `Storage`/`HybridStorage`, or `BlacklistUpdater` is
+**not** side-effect free: it creates the SQLite database (plus WAL/SHM
 sidecar files) at `MCP_DB_PATH` or the platformdirs default, opens a
 `mcp-server.log` file handler under `MCP_LOG_PATH` or the platformdirs
-log dir, and starts a background scheduler thread.
+log dir, and starts a background scheduler thread (unless
+`MCP_DISABLE_SCHEDULER=1`).
 
-Any probe, script, or agent that only wants to inspect the package must first
-point the database at a disposable path:
+Any probe, script, or agent that constructs these objects must first point the
+database at a disposable path:
 
 ```bash
 export MCP_DB_PATH="$(mktemp -d)/probe.db"
-python -c "import sec_mcp"
+python -c "import sec_mcp; sec_mcp.SecMCP()"
 ```
 
-Without this, read-only probes write state into the working tree or the user's
-default data directory.
+Without this, probes that touch storage write state into the working tree or
+the user's default data directory.
 
 ## Baseline status
 

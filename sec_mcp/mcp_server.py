@@ -1,5 +1,6 @@
 import ipaddress
 import math
+import threading
 from datetime import datetime
 from typing import List, Optional
 from urllib.parse import urlparse
@@ -14,8 +15,31 @@ from .utility import validate_input
 # Initialize FastMCP server
 mcp = FastMCP("mcp-blacklist")
 
-# Global SecMCP instance for MCP server
-core = SecMCP()
+# Shared SecMCP instance for the MCP server, created lazily on first use:
+# importing this module must stay side-effect free — constructing SecMCP
+# creates the SQLite database, opens the log file and starts the scheduler
+# thread.
+_core = None
+_core_lock = threading.Lock()
+
+
+def get_core() -> SecMCP:
+    """Return the shared SecMCP instance, creating it on first call."""
+    global _core
+    if _core is None:
+        with _core_lock:
+            if _core is None:
+                _core = SecMCP()
+    return _core
+
+
+def __getattr__(name: str):
+    # PEP 562: keep `from sec_mcp.mcp_server import core` working — the name
+    # resolves to the lazily-created shared instance instead of a module-level
+    # object.
+    if name == "core":
+        return get_core()
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
 
 # ============================================================================
 # CORE TOOLS - Primary functionality
@@ -24,6 +48,7 @@ core = SecMCP()
 @mcp.tool(name="check_batch", description="Check multiple domains/URLs/IPs in one call. Returns list of {value, is_safe, explanation}.")
 async def check_batch(values: List[str]):
     """Check multiple values against the blacklist in a single call."""
+    core = get_core()
     results = []
     for value in values:
         if not validate_input(value):
@@ -37,6 +62,7 @@ async def check_batch(values: List[str]):
 @mcp.tool(name="get_status", description="Get blacklist status including entry counts and sources. Returns JSON: {entry_count, last_update, sources, server_status, source_counts}.")
 async def get_status():
     """Return current blacklist status, including per-source entry counts."""
+    core = get_core()
     status = core.get_status()
     source_counts = core.storage.get_source_counts()
     return {
@@ -51,6 +77,7 @@ async def get_status():
 @mcp.tool(description="Force immediate update of all blacklists. Returns JSON: {updated: bool}.")
 async def update_blacklists():
     """Trigger an immediate blacklist refresh."""
+    core = get_core()
     # Offload to thread to avoid nested event loops
     await anyio.to_thread.run_sync(core.update)
     return {"updated": True}
@@ -72,6 +99,7 @@ async def get_diagnostics(mode: str = "summary", sample_count: int = 10):
     - performance: Performance metrics and hit rates (v2 only)
     - sample: Random sample of blacklist entries
     """
+    core = get_core()
 
     if mode == "health":
         # Health check
@@ -188,12 +216,12 @@ async def add_entry(url: Optional[str] = None, ip: Optional[str] = None, date: O
             or not math.isfinite(score) or not 0 <= score <= 10:
         raise ValueError("score must be a finite number between 0 and 10.")
     ts = date or datetime.now().isoformat(sep=' ', timespec='seconds')
-    core.storage.add_entries([(url, ip, ts, score, _MANUAL_SOURCE)])
+    get_core().storage.add_entries([(url, ip, ts, score, _MANUAL_SOURCE)])
     return {"success": True}
 
 
 @mcp.tool(name="remove_entry", description="Remove a blacklist entry by URL or IP.")
 async def remove_entry(value: str):
     """Remove a blacklist entry by URL or IP."""
-    success = core.storage.remove_entry(value)
+    success = get_core().storage.remove_entry(value)
     return {"success": success}
