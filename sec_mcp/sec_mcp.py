@@ -1,8 +1,10 @@
 from dataclasses import dataclass
 from datetime import datetime
 from typing import List, Optional
+
 from .storage import create_storage
 from .update_blacklist import BlacklistUpdater
+
 
 @dataclass
 class CheckResult:
@@ -30,8 +32,9 @@ class StatusInfo:
             "server_status": self.server_status
         }
 
-import os
 import json
+import os
+
 
 class SecMCP:
     def __init__(self, db_path=None):

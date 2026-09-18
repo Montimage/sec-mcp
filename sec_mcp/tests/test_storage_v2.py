@@ -1,11 +1,12 @@
 """Unit tests for HybridStorage (v2)."""
 
-import pytest
+import os
 import sqlite3
 import tempfile
-import os
-from datetime import datetime
-from sec_mcp.storage_v2 import HybridStorage, EntryMetadata
+
+import pytest
+
+from sec_mcp.storage_v2 import HybridStorage
 
 
 class TestHybridStorageInitialization:

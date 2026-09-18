@@ -1,4 +1,5 @@
 import click
+
 from .sec_mcp import SecMCP
 
 # Global SecMCP instance for CLI
@@ -25,9 +26,9 @@ def check(value: str, json: bool):
         click.echo(result.to_json())
     else:
         if result.blacklisted:
-            click.secho(f"Status: Blacklisted", fg="red")
+            click.secho("Status: Blacklisted", fg="red")
         else:
-            click.secho(f"Status: Safe", fg="green")
+            click.secho("Status: Safe", fg="green")
         click.echo(f"Explanation: {result.explanation}")
 
 @cli.command(help="Check a domain (and its parent domains) against the blacklist.")
@@ -39,9 +40,9 @@ def check_domain(domain: str, json: bool):
         click.echo(result.to_json())
     else:
         if result.blacklisted:
-            click.secho(f"Status: Blacklisted", fg="red")
+            click.secho("Status: Blacklisted", fg="red")
         else:
-            click.secho(f"Status: Safe", fg="green")
+            click.secho("Status: Safe", fg="green")
         click.echo(f"Explanation: {result.explanation}")
 
 @cli.command(help="Check a URL against the blacklist (exact match and its domain).")
@@ -53,9 +54,9 @@ def check_url(url: str, json: bool):
         click.echo(result.to_json())
     else:
         if result.blacklisted:
-            click.secho(f"Status: Blacklisted", fg="red")
+            click.secho("Status: Blacklisted", fg="red")
         else:
-            click.secho(f"Status: Safe", fg="green")
+            click.secho("Status: Safe", fg="green")
         click.echo(f"Explanation: {result.explanation}")
 
 @cli.command(help="Check an IP address against the blacklist.")
@@ -67,9 +68,9 @@ def check_ip(ip: str, json: bool):
         click.echo(result.to_json())
     else:
         if result.blacklisted:
-            click.secho(f"Status: Blacklisted", fg="red")
+            click.secho("Status: Blacklisted", fg="red")
         else:
-            click.secho(f"Status: Safe", fg="green")
+            click.secho("Status: Safe", fg="green")
         click.echo(f"Explanation: {result.explanation}")
 
 @cli.command(help="Check multiple inputs from a file against the blacklist.\n\nExample: mcp batch urls.txt --json")
@@ -86,9 +87,9 @@ def batch(file: str, json: bool):
         for value, result in zip(values, results):
             click.secho(f"{value}:", bold=True)
             if result.blacklisted:
-                click.secho(f"  Status: Blacklisted", fg="red")
+                click.secho("  Status: Blacklisted", fg="red")
             else:
-                click.secho(f"  Status: Safe", fg="green")
+                click.secho("  Status: Safe", fg="green")
             click.echo(f"  Explanation: {result.explanation}")
 
 @cli.command(help="Show blacklist status (entry count, last update, sources).\n\nExample: mcp status --json")

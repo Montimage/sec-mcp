@@ -1,9 +1,9 @@
+import os
 import subprocess
 import sys
 import tempfile
-import os
-import shutil
 from pathlib import Path
+
 
 def test_cli_check():
     sec_mcp_executable = os.path.join(os.path.dirname(sys.executable), 'sec-mcp')

@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """Start the MCP server in persistent mode."""
 
-import sys
 import os
+import sys
 
 # Adjust sys.path to allow direct execution of this script
 # This script is in /Users/montimage/workspace/montimage/sec-mcp/sec_mcp/
@@ -13,6 +13,7 @@ if _project_root not in sys.path:
 
 from sec_mcp.mcp_server import mcp
 from sec_mcp.utility import setup_logging
+
 
 def main():
     """Entrypoint for MCP server via console script."""

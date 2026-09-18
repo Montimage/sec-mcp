@@ -1,15 +1,16 @@
 import asyncio
 import csv
-import httpx
 import json
-import os
-from datetime import datetime
-import schedule
-import threading
-from typing import List, Dict
-from .storage import Storage
-from .utility import validate_input, setup_logging
 import logging
+import os
+import threading
+
+import httpx
+import schedule
+
+from .storage import Storage
+from .utility import setup_logging, validate_input
+
 
 class BlacklistUpdater:
     """Handles downloading and updating blacklists from various sources."""
@@ -64,7 +65,6 @@ class BlacklistUpdater:
     async def _update_source(self, client: httpx.AsyncClient, source: str, url: str):
         """Update blacklist from a single source."""
         import os
-        import time
         from datetime import datetime, timedelta
         from urllib.parse import urlparse
         try:

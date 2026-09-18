@@ -1,11 +1,12 @@
-import sqlite3
-from datetime import datetime
-from typing import List, Optional, Set, Tuple, Dict
-import threading
-import random
 import os
+import random
+import sqlite3
 import sys
+import threading
+from datetime import datetime
 from pathlib import Path
+from typing import Dict, List, Optional, Set, Tuple
+
 
 class Storage:
     """SQLite-based storage with in-memory caching for high-throughput blacklist checks."""
@@ -456,8 +457,9 @@ def create_storage(db_path=None):
 
     if use_v2:
         try:
-            from .storage_v2 import HybridStorage
             import sys
+
+            from .storage_v2 import HybridStorage
             print("Using optimized HybridStorage (v2) - 1000x faster lookups", file=sys.stderr)
             return HybridStorage(db_path)
         except Exception as e:

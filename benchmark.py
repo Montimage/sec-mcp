@@ -20,16 +20,15 @@ Options:
     --all       Run all benchmarks
 """
 
-import sys
-import os
-import time
-import tempfile
-import shutil
 import argparse
-from pathlib import Path
-from typing import Dict, List, Tuple, Any
+import os
 import random
 import string
+import sys
+import time
+from pathlib import Path
+from typing import Any, Dict, List
+
 
 # Check for required dependencies
 def check_dependencies():
@@ -37,12 +36,12 @@ def check_dependencies():
     missing = []
 
     try:
-        import pytricia
+        import pytricia  # noqa: F401
     except ImportError:
         missing.append('pytricia')
 
     try:
-        import psutil
+        import psutil  # noqa: F401
     except ImportError:
         missing.append('psutil')
 
@@ -61,6 +60,7 @@ sys.path.insert(0, str(Path(__file__).parent))
 
 # Import storage modules directly to avoid dependency issues
 import importlib.util
+
 
 def import_storage_v1():
     """Import StorageV1 directly from file."""
@@ -394,8 +394,9 @@ class StorageBenchmark:
     def benchmark_memory(self):
         """Estimate memory usage."""
         try:
-            import psutil
             import os
+
+            import psutil
 
             process = psutil.Process(os.getpid())
             mem_info = process.memory_info()
@@ -403,7 +404,7 @@ class StorageBenchmark:
             self.results.add_memory(self.version, mem_mb)
             print(f"    Memory usage: {mem_mb:.1f}MB")
         except ImportError:
-            print(f"    Memory profiling skipped (psutil not installed)")
+            print("    Memory profiling skipped (psutil not installed)")
 
 
 def run_benchmark(args):
@@ -416,15 +417,15 @@ def run_benchmark(args):
     if args.quick:
         data_size = 10000
         iterations = 500
-        print(f"Mode: QUICK (10K entries, 500 iterations)")
+        print("Mode: QUICK (10K entries, 500 iterations)")
     elif args.full:
         data_size = 100000
         iterations = 1000
-        print(f"Mode: FULL (100K entries, 1000 iterations)")
+        print("Mode: FULL (100K entries, 1000 iterations)")
     else:
         data_size = 50000
         iterations = 1000
-        print(f"Mode: STANDARD (50K entries, 1000 iterations)")
+        print("Mode: STANDARD (50K entries, 1000 iterations)")
 
     # Generate test data
     print(f"\nGenerating {data_size} test entries with production-like distribution...")

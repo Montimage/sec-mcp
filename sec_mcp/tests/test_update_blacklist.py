@@ -1,8 +1,10 @@
+from unittest.mock import ANY, AsyncMock, MagicMock  # Added ANY
+
 import pytest
-import pytest
-from unittest.mock import AsyncMock, patch, MagicMock, ANY # Added ANY
-from sec_mcp.update_blacklist import BlacklistUpdater
+
 from sec_mcp.storage import Storage
+from sec_mcp.update_blacklist import BlacklistUpdater
+
 
 @pytest.mark.asyncio
 async def test_update_source_success():

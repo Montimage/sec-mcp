@@ -1,6 +1,9 @@
-import pytest
 from unittest.mock import MagicMock, patch
-from sec_mcp.sec_mcp import SecMCP, CheckResult, StatusInfo
+
+import pytest
+
+from sec_mcp.sec_mcp import CheckResult, SecMCP, StatusInfo
+
 
 @pytest.fixture
 def secmcp():
