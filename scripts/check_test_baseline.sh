@@ -2,28 +2,42 @@
 # Baseline gate for the test suite.
 #
 # The suite has a known-RED baseline recorded in CLAUDE.md: R = 32/64 passed.
-# This gate fails only when the suite regresses below that baseline:
+# Fail when the run regresses below that baseline:
+#   - pytest crashes or produces no parseable summary,
 #   - any collection/execution error, or
-#   - fewer than 32 passing tests.
+#   - passed/total drops below 32/64.
 # It succeeds (exit 0) at or above baseline, even while failures remain.
 set -u
 
-BASELINE_PASSED=32
+BASELINE_NUM=32
+BASELINE_DEN=64
 
 output="$(uv run pytest -q -p no:cacheprovider --tb=short 2>&1 || true)"
-echo "$output" | tail -n 5
+printf '%s\n' "$output" | tail -n 5
 
-passed="$(echo "$output" | grep -oE '[0-9]+ passed' | grep -oE '[0-9]+' || true)"
-errors="$(echo "$output" | grep -oE '[0-9]+ errors?' | grep -oE '[0-9]+' || true)"
-passed="${passed:-0}"
-errors="${errors:-0}"
+# Extract a summary counter: take the LAST match (the summary is the final
+# place counters appear) and keep only digits, so the result is always a
+# single integer (or empty -> defaulted to 0 below).
+count() {
+  printf '%s\n' "$output" | grep -oE "[0-9]+ $1" | tail -n 1 | grep -oE '^[0-9]+' || true
+}
+passed="$(count passed)";     passed="${passed:-0}"
+failed="$(count failed)";     failed="${failed:-0}"
+errors="$(count 'errors?')";  errors="${errors:-0}"
+skipped="$(count skipped)";   skipped="${skipped:-0}"
 
+total=$((passed + failed + errors + skipped))
+
+if [ "$total" -eq 0 ]; then
+  echo "FAIL: no pytest summary parsed (crash, interrupt, or empty run)" >&2
+  exit 1
+fi
 if [ "$errors" -ne 0 ]; then
-  echo "FAIL: suite produced $errors error(s); baseline requires 0" >&2
+  echo "FAIL: $errors error(s); baseline requires 0" >&2
   exit 1
 fi
-if [ "$passed" -lt "$BASELINE_PASSED" ]; then
-  echo "FAIL: $passed passed < baseline R (${BASELINE_PASSED}/64)" >&2
+if [ $((passed * BASELINE_DEN)) -lt $((BASELINE_NUM * total)) ]; then
+  echo "FAIL: $passed/$total below baseline R (${BASELINE_NUM}/${BASELINE_DEN})" >&2
   exit 1
 fi
-echo "OK: $passed passed >= baseline R (${BASELINE_PASSED}/64)"
+echo "OK: $passed/$total passed >= baseline R (${BASELINE_NUM}/${BASELINE_DEN})"
