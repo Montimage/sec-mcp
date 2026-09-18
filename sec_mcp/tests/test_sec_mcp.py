@@ -4,7 +4,7 @@ from sec_mcp.sec_mcp import SecMCP, CheckResult, StatusInfo
 
 @pytest.fixture
 def secmcp():
-    with patch('sec_mcp.sec_mcp.Storage') as MockStorage:
+    with patch('sec_mcp.sec_mcp.create_storage'):
         with patch('sec_mcp.sec_mcp.BlacklistUpdater'):
             yield SecMCP()
 
