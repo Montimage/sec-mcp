@@ -15,7 +15,7 @@ dependencies = [
   "httpx>=0.25.0",
   "click>=8.1.7",
   "idna>=3.4",
-  "mcp[cli]>=0.1.0",
+  "mcp[cli]>=1.28.1,<2",
   "schedule>=1.2.0",
   "tqdm>=4.66.0",
   "pytricia>=1.0.0",
@@ -27,6 +27,14 @@ classifiers = [
   "Topic :: Security",
 ]
 keywords = ["security", "blacklist", "mcp", "phishing", "malware"]
+
+[dependency-groups]
+dev = [
+  "pytest>=7.4.0",
+  "pytest-asyncio>=0.21.1",
+  "pytest-cov>=4.0.0",
+  "ruff>=0.1.0",
+]
 
 [project.urls]
 Homepage      = "https://github.com/Montimage/sec-mcp"
@@ -40,3 +48,6 @@ sec-mcp-server = "sec_mcp.start_server:main"
 [tool.setuptools.packages.find]
 where = ["."]
 include = ["sec_mcp*"]
+
+[tool.setuptools.package-data]
+sec_mcp = ["config.json"]
