@@ -36,18 +36,72 @@ class BlacklistUpdater:
         self.min_feed_entries = max(0, _limit("min_feed_entries", 1))
         self.max_feed_entries = max(self.min_feed_entries, _limit("max_feed_entries", 500000))
         if os.environ.get("MCP_DISABLE_SCHEDULER") != "1":
-            self._start_scheduler()
+            self._ensure_scheduler()
 
-    def _start_scheduler(self):
-        """Start the daily update scheduler in a background thread."""
-        def run_scheduler():
-            schedule.every().day.at("00:00").do(self.update_all)
-            while True:
-                schedule.run_pending()
-                asyncio.run(asyncio.sleep(60))
+    _scheduler = None
+    _scheduler_thread = None
+    _scheduler_stop = None
+    _scheduler_lock = threading.Lock()
 
-        thread = threading.Thread(target=run_scheduler, daemon=True)
-        thread.start()
+    def _ensure_scheduler(self):
+        """Register the shared daily job and start the loop thread once.
+
+        The first constructed updater owns the job; later constructions reuse
+        it so only one scheduled update exists per process.
+        """
+        cls = type(self)
+        with cls._scheduler_lock:
+            if cls._scheduler is None:
+                cls._scheduler = schedule.Scheduler()
+            if not cls._scheduler.jobs:
+                cls._scheduler.every().day.at("00:00").do(
+                    lambda: asyncio.run(self.update_all())
+                )
+            if cls._scheduler_thread is None or not cls._scheduler_thread.is_alive():
+                cls._scheduler_stop = threading.Event()
+                cls._scheduler_thread = threading.Thread(
+                    target=cls._scheduler_loop, daemon=True
+                )
+                cls._scheduler_thread.start()
+
+    @classmethod
+    def _scheduler_loop(cls):
+        while True:
+            stop = cls._scheduler_stop
+            if stop is None or stop.wait(60):
+                return
+            scheduler = cls._scheduler
+            if scheduler is None:
+                return
+            cls._scheduler_tick(scheduler)
+
+    @classmethod
+    def _scheduler_tick(cls, scheduler):
+        try:
+            scheduler.run_pending()
+        except Exception as e:
+            logging.getLogger("sec_mcp.update_blacklist").error(
+                f"Scheduled update run failed: {e}"
+            )
+
+    @classmethod
+    def stop(cls):
+        """Stop the shared scheduler thread and clear its job; idempotent."""
+        with cls._scheduler_lock:
+            if cls._scheduler_stop is not None:
+                cls._scheduler_stop.set()
+            thread = cls._scheduler_thread
+            if (
+                thread is not None
+                and thread.is_alive()
+                and thread is not threading.current_thread()
+            ):
+                thread.join(timeout=5)
+            if cls._scheduler is not None:
+                cls._scheduler.clear()
+            cls._scheduler = None
+            cls._scheduler_thread = None
+            cls._scheduler_stop = None
 
     async def update_all(self):
         """Update blacklists from all sources."""
@@ -365,6 +419,7 @@ class BlacklistUpdater:
 
             # Single atomic insert: either the whole feed lands or nothing does.
             self.storage.add_entries(deduped_entries)
+            self.storage.log_update(source, len(deduped_entries))
             self.logger.info(f"Updated {source}: {len(deduped_entries)} entries.")
         
         except Exception as e:
