@@ -1,3 +1,5 @@
+import ipaddress
+import math
 from datetime import datetime
 from typing import List, Optional
 
@@ -160,16 +162,36 @@ async def get_diagnostics(mode: str = "summary", sample_count: int = 10):
 # ADMINISTRATIVE - Manual entry management
 # ============================================================================
 
+_MANUAL_SOURCE = "manual"
+
+
 @mcp.tool(name="add_entry", description="Add a manual blacklist entry.")
-async def add_entry(url: str, ip: Optional[str] = None, date: Optional[str] = None, score: float = 8.0, source: str = "manual"):
+async def add_entry(url: Optional[str] = None, ip: Optional[str] = None, date: Optional[str] = None, score: float = 8.0, source: str = _MANUAL_SOURCE):
     """Add a manual blacklist entry."""
+    if not url and not ip:
+        raise ValueError("add_entry requires at least one of 'url' or 'ip'.")
+    if url:
+        if not url.startswith(("http://", "https://")):
+            url = f"http://{url}"
+        if not validate_input(url):
+            raise ValueError(f"Invalid URL: {url}")
+    if ip:
+        try:
+            ipaddress.ip_address(ip)
+        except ValueError:
+            raise ValueError(f"Invalid IP address: {ip}") from None
+    if isinstance(score, bool) or not isinstance(score, (int, float)) \
+            or not math.isfinite(score) or not 0 <= score <= 10:
+        raise ValueError("score must be a finite number between 0 and 10.")
     ts = date or datetime.now().isoformat(sep=' ', timespec='seconds')
-    core.storage.add_entries([(url, ip, ts, score, source)])
+    core.storage.add_entries([(url, ip, ts, score, _MANUAL_SOURCE)])
     return {"success": True}
 
 
 @mcp.tool(name="remove_entry", description="Remove a blacklist entry by URL or IP.")
 async def remove_entry(value: str):
     """Remove a blacklist entry by URL or IP."""
+    if not value or not validate_input(value):
+        raise ValueError(f"Invalid entry value: {value}")
     success = core.storage.remove_entry(value)
     return {"success": success}
