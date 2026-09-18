@@ -12,7 +12,7 @@ This is the landing page for the sec-mcp security checking toolkit. It provides 
 
 ### Prerequisites
 
-- Node.js (v16+)
+- Node.js (v24 LTS or newer; see `.nvmrc`)
 - npm or yarn
 
 ### Setup and Run
