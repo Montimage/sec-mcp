@@ -17,9 +17,9 @@ dependencies = [
   "mcp[cli]>=1.28.1,<2",
   "schedule>=1.2.0",
   "platformdirs>=4.0.0,<4.11.9",
-  "pytricia>=1.0.0",
   "psutil>=5.9.0",
 ]
+
 classifiers = [
   "Programming Language :: Python :: 3",
   "Programming Language :: Python :: 3.11",
@@ -27,12 +27,21 @@ classifiers = [
 ]
 keywords = ["security", "blacklist", "mcp", "phishing", "malware"]
 
+# pytricia ships no wheels (source builds need a C compiler), so it is an
+# opt-in extra: sec_mcp/storage_v2.py falls back to a pure-Python `ipaddress`
+# CIDR matcher when it is absent. See docs/decisions/2026-09-18-pytricia-schedule.md.
+[project.optional-dependencies]
+fast-cidr = ["pytricia>=1.0.0"]
+
 [dependency-groups]
 dev = [
   "pytest>=7.4.0",
   "pytest-asyncio>=0.21.1",
   "pytest-cov>=4.0.0",
   "ruff>=0.1.0",
+  # Keep the fast CIDR path exercised in dev/CI; end users opt in via
+  # `pip install sec-mcp[fast-cidr]` (needs a C compiler for the sdist).
+  "pytricia>=1.0.0",
 ]
 
 [project.urls]
