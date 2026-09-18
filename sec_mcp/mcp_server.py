@@ -2,6 +2,7 @@ import ipaddress
 import math
 from datetime import datetime
 from typing import List, Optional
+from urllib.parse import urlparse
 
 import anyio
 from mcp.server.fastmcp import FastMCP
@@ -175,6 +176,9 @@ async def add_entry(url: Optional[str] = None, ip: Optional[str] = None, date: O
             url = f"http://{url}"
         if not validate_input(url):
             raise ValueError(f"Invalid URL: {url}")
+        hostname = urlparse(url).hostname
+        if not hostname or not validate_input(hostname):
+            raise ValueError(f"Invalid URL host: {url}")
     if ip:
         try:
             ipaddress.ip_address(ip)

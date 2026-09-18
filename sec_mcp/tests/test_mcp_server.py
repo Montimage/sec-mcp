@@ -31,6 +31,15 @@ async def test_add_entry_rejects_invalid_url(storage):
 
 
 @pytest.mark.asyncio
+async def test_add_entry_rejects_unusable_url_host(storage):
+    # "http://localhost" passes the URL pattern but its host can never be
+    # stored as a domain entry — reject instead of reporting false success.
+    with pytest.raises(ValueError):
+        await mcp_server.add_entry(url="http://localhost")
+    assert storage.count_entries() == 0
+
+
+@pytest.mark.asyncio
 async def test_add_entry_rejects_invalid_ip(storage):
     with pytest.raises(ValueError):
         await mcp_server.add_entry(ip="999.999.999.999")
