@@ -27,7 +27,7 @@ def package_version() -> str:
     try:
         pyproject = Path(__file__).resolve().parent.parent / "pyproject.toml"
         return tomllib.loads(pyproject.read_text(encoding="utf-8"))["project"]["version"]
-    except (OSError, KeyError, tomllib.TOMLDecodeError):
+    except (OSError, KeyError, ValueError, tomllib.TOMLDecodeError):
         return "0.0.0+unknown"
 
 
