@@ -53,7 +53,7 @@ pip install sec-mcp
 
 - Python 3.8+
 - SQLite 3
-- Optional: `pytricia` and `psutil` for benchmarking
+- Optional: `pytricia` (via `pip install "sec-mcp[fast-cidr]"`) for fast CIDR matching and benchmarking; `psutil` for memory metrics
 
 ---
 
@@ -297,8 +297,8 @@ export MCP_USE_V2_STORAGE=false
 Compare performance across different storage implementations:
 
 ```bash
-# Install dependencies
-pip install pytricia psutil
+# Install dependencies (psutil ships with sec-mcp; pytricia is the fast-cidr extra)
+pip install "sec-mcp[fast-cidr]"
 
 # Quick benchmark (10K entries, ~30 seconds)
 ./run_benchmark.sh --quick
@@ -401,11 +401,11 @@ cd sec-mcp
 python3 -m venv .venv
 source .venv/bin/activate
 
-# Install in development mode
-pip install -e .
+# Install in development mode (fast-cidr extra installs pytricia)
+pip install -e ".[fast-cidr]"
 
 # Install development dependencies
-pip install pytricia psutil pytest
+pip install pytest
 ```
 
 ### Running Tests

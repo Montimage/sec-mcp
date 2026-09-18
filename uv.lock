@@ -1103,8 +1103,12 @@ dependencies = [
     { name = "mcp", extra = ["cli"] },
     { name = "platformdirs" },
     { name = "psutil" },
-    { name = "pytricia" },
     { name = "schedule" },
+]
+
+[package.optional-dependencies]
+fast-cidr = [
+    { name = "pytricia" },
 ]
 
 [package.dev-dependencies]
@@ -1112,6 +1116,7 @@ dev = [
     { name = "pytest" },
     { name = "pytest-asyncio" },
     { name = "pytest-cov" },
+    { name = "pytricia" },
     { name = "ruff" },
 ]
 
@@ -1123,15 +1128,17 @@ requires-dist = [
     { name = "mcp", extras = ["cli"], specifier = ">=1.28.1,<2" },
     { name = "platformdirs", specifier = ">=4.0.0,<4.11.9" },
     { name = "psutil", specifier = ">=5.9.0" },
-    { name = "pytricia", specifier = ">=1.0.0" },
+    { name = "pytricia", marker = "extra == 'fast-cidr'", specifier = ">=1.0.0" },
     { name = "schedule", specifier = ">=1.2.0" },
 ]
+provides-extras = ["fast-cidr"]
 
 [package.metadata.requires-dev]
 dev = [
     { name = "pytest", specifier = ">=7.4.0" },
     { name = "pytest-asyncio", specifier = ">=0.21.1" },
     { name = "pytest-cov", specifier = ">=4.0.0" },
+    { name = "pytricia", specifier = ">=1.0.0" },
     { name = "ruff", specifier = ">=0.1.0" },
 ]
 
