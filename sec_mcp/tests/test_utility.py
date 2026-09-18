@@ -36,3 +36,45 @@ def test_setup_logging():
     setup_logging("DEBUG")
     logger = logging.getLogger("sec_mcp")
     assert logger.level == logging.DEBUG
+
+
+def _owned_handlers():
+    return [h for h in logging.getLogger().handlers if getattr(h, "_sec_mcp_owned", False)]
+
+
+def _remove_owned_handlers():
+    root = logging.getLogger()
+    for h in root.handlers[:]:
+        if getattr(h, "_sec_mcp_owned", False):
+            root.removeHandler(h)
+            h.close()
+
+
+def test_setup_logging_twice_keeps_one_owned_handler(tmp_path, monkeypatch):
+    monkeypatch.setenv("MCP_LOG_PATH", str(tmp_path / "test.log"))
+    sentinel = logging.FileHandler(tmp_path / "user.log")
+    logging.getLogger().addHandler(sentinel)
+    try:
+        setup_logging()
+        setup_logging()
+        owned = _owned_handlers()
+        assert len(owned) == 1
+        assert owned[0].baseFilename == str(tmp_path / "test.log")
+        assert sentinel in logging.getLogger().handlers
+    finally:
+        logging.getLogger().removeHandler(sentinel)
+        sentinel.close()
+        _remove_owned_handlers()
+
+
+def test_setup_logging_defaults_to_platformdirs(tmp_path, monkeypatch):
+    monkeypatch.delenv("MCP_LOG_PATH", raising=False)
+    monkeypatch.setattr(
+        "sec_mcp.utility.user_log_dir", lambda *a, **kw: str(tmp_path / "logs"))
+    try:
+        setup_logging()
+        owned = _owned_handlers()
+        assert len(owned) == 1
+        assert owned[0].baseFilename == str(tmp_path / "logs" / "mcp-server.log")
+    finally:
+        _remove_owned_handlers()

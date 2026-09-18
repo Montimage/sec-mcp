@@ -17,6 +17,8 @@ probes, which are not side-effect free here (see *Probe isolation*).
 |----------|---------|
 | `MCP_DB_PATH` | SQLite database path used by `sec_mcp/storage.py` (v1) and `sec_mcp/storage_v2.py` (v2) when no explicit path is passed. |
 | `MCP_USE_V2_STORAGE` | Storage backend selector in `create_storage()`: `true` enables `HybridStorage` (v2); any other value (or unset) uses legacy `Storage` (v1). |
+| `MCP_LOG_PATH` | Log file path for `setup_logging()`; default is `platformdirs.user_log_dir("sec-mcp", "montimage")/mcp-server.log`. |
+| `MCP_CACHE_DIR` | Feed cache directory used by the blacklist updater; default is `platformdirs.user_cache_dir("sec-mcp", "montimage")`. |
 
 ## Build and test commands
 
@@ -29,7 +31,8 @@ probes, which are not side-effect free here (see *Probe isolation*).
 `from .cli import cli`, and `sec_mcp/cli.py` instantiates `core = SecMCP()` at
 module level. That constructor creates the SQLite database (plus WAL/SHM
 sidecar files) at `MCP_DB_PATH` or the platformdirs default, opens a
-`mcp-server.log` file handler, and starts a background scheduler thread.
+`mcp-server.log` file handler under `MCP_LOG_PATH` or the platformdirs
+log dir, and starts a background scheduler thread.
 
 Any probe, script, or agent that only wants to inspect the package must first
 point the database at a disposable path:

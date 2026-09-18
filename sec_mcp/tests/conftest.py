@@ -23,8 +23,10 @@ os.environ["MCP_DISABLE_SCHEDULER"] = "1"
 def _isolate_cwd(tmp_path, monkeypatch):
     """Give each test a private working directory.
 
-    CWD-relative writes (`downloads/` feed cache, `test_storage_sec_mcp.db*`,
-    and the literal `:memory:` file produced by Storage's abspath) land in
-    tmp_path instead of the repository root.
+    CWD-relative writes (`test_storage_sec_mcp.db*` and the literal
+    `:memory:` file produced by Storage's abspath) land in tmp_path
+    instead of the repository root; the feed cache is redirected to
+    tmp_path/downloads via MCP_CACHE_DIR.
     """
     monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("MCP_CACHE_DIR", str(tmp_path / "downloads"))

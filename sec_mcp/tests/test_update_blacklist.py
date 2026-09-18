@@ -4,7 +4,7 @@ from unittest.mock import ANY, MagicMock
 import pytest
 
 from sec_mcp.storage import Storage
-from sec_mcp.update_blacklist import BlacklistUpdater
+from sec_mcp.update_blacklist import BlacklistUpdater, _feed_cache_dir
 
 
 class _FakeStreamResponse:
@@ -165,3 +165,28 @@ async def test_feed_success_updates_atomically(tmp_path):
     failing.stream = MagicMock(side_effect=Exception("network down"))
     await updater._update_source(failing, "TestFeed", "https://feed.example/list")
     assert storage.count_entries() == 4
+
+
+def test_feed_cache_dir_env_override(tmp_path, monkeypatch):
+    monkeypatch.setenv("MCP_CACHE_DIR", str(tmp_path / "custom"))
+    assert _feed_cache_dir() == str(tmp_path / "custom")
+
+
+def test_feed_cache_dir_platformdirs_default(tmp_path, monkeypatch):
+    monkeypatch.delenv("MCP_CACHE_DIR", raising=False)
+    monkeypatch.setattr(
+        "sec_mcp.update_blacklist.user_cache_dir", lambda *a, **kw: str(tmp_path / "plat"))
+    assert _feed_cache_dir() == str(tmp_path / "plat")
+
+
+@pytest.mark.asyncio
+async def test_update_source_reads_feed_cache_dir(tmp_path, monkeypatch):
+    cache_dir = tmp_path / "feed_cache"
+    monkeypatch.setenv("MCP_CACHE_DIR", str(cache_dir))
+    cache_dir.mkdir()
+    (cache_dir / "CINSSCORE.txt").write_text("9.9.9.9\n")
+    storage = Storage(str(tmp_path / "feed.db"))
+    updater = BlacklistUpdater(storage)
+    await updater._update_source(None, "CINSSCORE", "https://feed.example/list.txt")
+    assert storage.is_ip_blacklisted("9.9.9.9")
+    assert not (tmp_path / "downloads").exists()

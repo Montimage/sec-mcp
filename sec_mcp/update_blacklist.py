@@ -7,9 +7,17 @@ import threading
 
 import httpx
 import schedule
+from platformdirs import user_cache_dir
 
 from .storage import Storage
 from .utility import setup_logging, validate_input
+
+
+def _feed_cache_dir() -> str:
+    override = os.environ.get("MCP_CACHE_DIR")
+    if override:
+        return override
+    return user_cache_dir("sec-mcp", "montimage")
 
 
 class BlacklistUpdater:
@@ -132,8 +140,9 @@ class BlacklistUpdater:
             self.logger.warning(f"Rejecting non-HTTPS blacklist source {source}: {url}")
             return
         try:
-            os.makedirs("downloads", exist_ok=True)
-            filename = os.path.join("downloads", f"{source}.txt" if not url.endswith('.csv') else f"{source}.csv")
+            cache_dir = _feed_cache_dir()
+            os.makedirs(cache_dir, exist_ok=True)
+            filename = os.path.join(cache_dir, f"{source}.txt" if not url.endswith('.csv') else f"{source}.csv")
             use_cache = False
             content = None
             if os.path.exists(filename):

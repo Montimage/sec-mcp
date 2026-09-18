@@ -2,10 +2,12 @@ import json
 import os
 import subprocess
 import sysconfig
+from pathlib import Path
 
 import pytest
 from click.testing import CliRunner
 
+import sec_mcp
 from sec_mcp.cli import cli, core
 from sec_mcp.storage import Storage
 
@@ -78,3 +80,16 @@ def test_cli_batch(tmp_path):
     data = json.loads(result.stdout)
     assert len(data) == 2
     assert all(isinstance(entry["is_safe"], bool) for entry in data)
+
+
+def test_cli_status_writes_no_cwd_or_package_files(tmp_path):
+    env = os.environ.copy()
+    env.pop("MCP_LOG_PATH", None)
+    package_root = Path(sec_mcp.__file__).resolve().parent.parent
+    before = set(package_root.iterdir())
+    result = subprocess.run(
+        [_sec_mcp_bin(), 'status'], cwd=tmp_path,
+        capture_output=True, text=True, env=env)
+    assert result.returncode == 0, f"CLI status failed: {result.stderr}"
+    assert list(tmp_path.iterdir()) == []
+    assert set(package_root.iterdir()) == before

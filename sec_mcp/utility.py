@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import Any, Dict
 
 import idna
+from platformdirs import user_log_dir
 
 
 def setup_logging(log_level: str = "INFO") -> None:
@@ -19,13 +20,23 @@ def setup_logging(log_level: str = "INFO") -> None:
         level=level,
         format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
     )
-    # Add file handler for persistent logs
-    project_root = Path(__file__).parent.parent
-    log_path = Path(os.environ.get("MCP_LOG_PATH", project_root / 'mcp-server.log'))
+    # Add file handler for persistent logs; repeat calls replace only the
+    # handler we installed, never unrelated user handlers.
+    root_logger = logging.getLogger()
+    for handler in root_logger.handlers[:]:
+        if getattr(handler, "_sec_mcp_owned", False):
+            root_logger.removeHandler(handler)
+            handler.close()
+    log_path = Path(
+        os.environ.get("MCP_LOG_PATH")
+        or Path(user_log_dir("sec-mcp", "montimage")) / "mcp-server.log"
+    )
+    log_path.parent.mkdir(parents=True, exist_ok=True)
     file_handler = logging.FileHandler(log_path)
+    file_handler._sec_mcp_owned = True
     file_handler.setLevel(level)
     file_handler.setFormatter(logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s'))
-    logging.getLogger().addHandler(file_handler)
+    root_logger.addHandler(file_handler)
     # Set sec_mcp logger level
     logging.getLogger("sec_mcp").setLevel(level)
 
