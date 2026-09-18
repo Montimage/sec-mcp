@@ -19,15 +19,12 @@ class TestStorageFactory:
         storage = create_storage(":memory:")
         assert type(storage).__name__ == "Storage"
 
-    def test_factory_creates_v2_when_enabled(self, tmp_path):
+    def test_factory_creates_v2_when_enabled(self, tmp_path, monkeypatch):
         """Test that factory creates v2 storage when enabled."""
-        os.environ['MCP_USE_V2_STORAGE'] = 'true'
+        monkeypatch.setenv('MCP_USE_V2_STORAGE', 'true')
 
         storage = create_storage(str(tmp_path / "factory.db"))
         assert type(storage).__name__ == "HybridStorage"
-
-        # Clean up
-        os.environ.pop('MCP_USE_V2_STORAGE', None)
 
     def test_factory_handles_false_value(self):
         """Test that factory creates v1 storage when explicitly false."""

@@ -236,7 +236,12 @@ class HybridStorage:
         # Create directory if needed
         db_dir = os.path.dirname(db_path)
         if db_dir:
-            os.makedirs(db_dir, exist_ok=True)
+            try:
+                os.makedirs(db_dir, exist_ok=True)
+            except OSError as e:
+                raise RuntimeError(
+                    f"Cannot initialize database at {db_path}: {e}. Check directory permissions and disk space."
+                ) from e
 
         self.db_path = db_path
 

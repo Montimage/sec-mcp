@@ -422,6 +422,11 @@ def test_fail_closed_unreadable_db_path(tmp_path):
     with pytest.raises(RuntimeError):
         HybridStorage(str(tmp_path))
 
+    blocker = tmp_path / "blocker"
+    blocker.write_text("a file, not a directory")
+    with pytest.raises(RuntimeError):
+        HybridStorage(str(blocker / "nested" / "test.db"))
+
 
 def test_fail_closed_schema_init_failure(tmp_path, monkeypatch):
     """A schema/init failure inside HybridStorage propagates, not an empty store."""
