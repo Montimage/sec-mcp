@@ -73,7 +73,16 @@ class BlacklistUpdater:
             scheduler = cls._scheduler
             if scheduler is None:
                 return
+            cls._scheduler_tick(scheduler)
+
+    @classmethod
+    def _scheduler_tick(cls, scheduler):
+        try:
             scheduler.run_pending()
+        except Exception as e:
+            logging.getLogger("sec_mcp.update_blacklist").error(
+                f"Scheduled update run failed: {e}"
+            )
 
     @classmethod
     def stop(cls):
@@ -83,7 +92,11 @@ class BlacklistUpdater:
                 cls._scheduler_stop.set()
             thread = cls._scheduler_thread
             cls._scheduler_thread = None
-        if thread is not None and thread.is_alive():
+        if (
+            thread is not None
+            and thread.is_alive()
+            and thread is not threading.current_thread()
+        ):
             thread.join(timeout=5)
         with cls._scheduler_lock:
             if cls._scheduler is not None:

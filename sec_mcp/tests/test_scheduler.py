@@ -4,6 +4,7 @@ import json
 from datetime import datetime, timedelta
 
 import pytest
+import schedule
 
 from sec_mcp.storage import Storage
 from sec_mcp.update_blacklist import BlacklistUpdater
@@ -67,3 +68,17 @@ def test_scheduler_respects_disable_env(tmp_path, monkeypatch):
     BlacklistUpdater(Storage(str(tmp_path / "d.db")))
     assert BlacklistUpdater._scheduler is None
     assert BlacklistUpdater._scheduler_thread is None
+
+
+def test_scheduler_tick_contains_job_exception():
+    scheduler = schedule.Scheduler()
+    scheduler.every().second.do(lambda: (_ for _ in ()).throw(RuntimeError("boom")))
+    scheduler.jobs[0].next_run = datetime.now() - timedelta(seconds=1)
+    BlacklistUpdater._scheduler_tick(scheduler)
+    scheduler.clear()
+
+    ran = []
+    scheduler.every().second.do(lambda: ran.append(True))
+    scheduler.jobs[-1].next_run = datetime.now() - timedelta(seconds=1)
+    BlacklistUpdater._scheduler_tick(scheduler)
+    assert ran == [True]
