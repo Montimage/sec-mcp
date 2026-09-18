@@ -11,7 +11,7 @@ class CheckResult:
     blacklisted: bool
     explanation: str
 
-    def to_json(self):
+    def to_dict(self):
         return {
             "is_safe": not self.blacklisted,
             "explain": self.explanation
@@ -24,7 +24,7 @@ class StatusInfo:
     sources: List[str]
     server_status: str
 
-    def to_json(self):
+    def to_dict(self):
         return {
             "entry_count": self.entry_count,
             "last_update": self.last_update.isoformat(),

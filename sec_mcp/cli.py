@@ -1,3 +1,5 @@
+import json as _json
+
 import click
 
 from .sec_mcp import SecMCP
@@ -23,7 +25,7 @@ def cli():
 def check(value: str, json: bool):
     result = core.check(value)
     if json:
-        click.echo(result.to_json())
+        click.echo(_json.dumps(result.to_dict(), indent=2))
     else:
         if result.blacklisted:
             click.secho("Status: Blacklisted", fg="red")
@@ -37,7 +39,7 @@ def check(value: str, json: bool):
 def check_domain(domain: str, json: bool):
     result = core.check_domain(domain)
     if json:
-        click.echo(result.to_json())
+        click.echo(_json.dumps(result.to_dict(), indent=2))
     else:
         if result.blacklisted:
             click.secho("Status: Blacklisted", fg="red")
@@ -51,7 +53,7 @@ def check_domain(domain: str, json: bool):
 def check_url(url: str, json: bool):
     result = core.check_url(url)
     if json:
-        click.echo(result.to_json())
+        click.echo(_json.dumps(result.to_dict(), indent=2))
     else:
         if result.blacklisted:
             click.secho("Status: Blacklisted", fg="red")
@@ -65,7 +67,7 @@ def check_url(url: str, json: bool):
 def check_ip(ip: str, json: bool):
     result = core.check_ip(ip)
     if json:
-        click.echo(result.to_json())
+        click.echo(_json.dumps(result.to_dict(), indent=2))
     else:
         if result.blacklisted:
             click.secho("Status: Blacklisted", fg="red")
@@ -81,8 +83,7 @@ def batch(file: str, json: bool):
         values = [line.strip() for line in f if line.strip()]
     results = core.check_batch(values)
     if json:
-        import json as _json
-        click.echo(_json.dumps([r.to_json() for r in results], indent=2))
+        click.echo(_json.dumps([r.to_dict() for r in results], indent=2))
     else:
         for value, result in zip(values, results):
             click.secho(f"{value}:", bold=True)
@@ -99,8 +100,7 @@ def status(json):
     source_counts = core.storage.get_source_counts()
     source_type_counts = core.storage.get_source_type_counts()
     if json:
-        import json as _json
-        data = status.to_json()
+        data = status.to_dict()
         data['source_counts'] = source_counts
         data['source_type_counts'] = source_type_counts
         click.echo(_json.dumps(data, indent=2))
@@ -128,7 +128,6 @@ def update(json):
     """Force an immediate update of all blacklists."""
     core.update()
     if json:
-        import json as _json
         click.echo(_json.dumps({"updated": True}))
     else:
         click.echo("Blacklist update triggered.")
@@ -138,7 +137,6 @@ def update(json):
 def flush_cache(json):
     cleared = core.storage.flush_cache()
     if json:
-        import json as _json
         click.echo(_json.dumps({"cleared": cleared}))
     else:
         if cleared:
