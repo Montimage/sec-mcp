@@ -2,6 +2,7 @@
 
 import json
 import logging
+import os
 import re
 from pathlib import Path
 from typing import Any, Dict
@@ -18,7 +19,7 @@ def setup_logging(log_level: str = "INFO") -> None:
     )
     # Add file handler for persistent logs
     project_root = Path(__file__).parent.parent
-    log_path = project_root / 'mcp-server.log'
+    log_path = Path(os.environ.get("MCP_LOG_PATH", project_root / 'mcp-server.log'))
     file_handler = logging.FileHandler(log_path)
     file_handler.setLevel(level)
     file_handler.setFormatter(logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s'))

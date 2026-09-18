@@ -8,3 +8,4 @@
 
 ## Claude-only
 - Before running Python, check for an existing venv (`.venv/`, `venv/`) and activate it — or use `uv run`; never install into the system Python.
+- Test baseline `R`: **32/64 passed** (`uv run pytest -q -p no:cacheprovider`). The remaining failures are pre-existing bugs tracked by later issues — a change is done when it does not reduce `R`.

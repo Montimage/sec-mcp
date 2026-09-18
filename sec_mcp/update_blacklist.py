@@ -26,7 +26,8 @@ class BlacklistUpdater:
         with open(config_path, "r") as f:
             config = json.load(f)
         self.sources = config.get("blacklist_sources", {})
-        self._start_scheduler()
+        if os.environ.get("MCP_DISABLE_SCHEDULER") != "1":
+            self._start_scheduler()
 
     def _start_scheduler(self):
         """Start the daily update scheduler in a background thread."""
