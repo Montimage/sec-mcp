@@ -37,6 +37,14 @@ jobs:
       - name: Test suite (baseline gate)
         run: ./scripts/check_test_baseline.sh
 
+      - name: Upload tested distributions
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: dist
+          path: dist/
+          retention-days: 1
+          if-no-files-found: error
+
   publish:
     name: Verify tag and publish to PyPI
     needs: test
@@ -63,11 +71,11 @@ jobs:
             exit 1
           fi
 
-      - name: Install uv
-        run: pip install "uv==0.12.13"
-
-      - name: Build distributions
-        run: uv run --with build python -m build
+      - name: Download tested distributions
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c
+        with:
+          name: dist
+          path: dist/
 
       - name: Publish to PyPI (trusted publishing)
-        uses: pypa/gh-action-pypi-publish@release/v1
+        uses: pypa/gh-action-pypi-publish@dc37677b2e1c63e2034f94d8a5b11f265b73ba33
