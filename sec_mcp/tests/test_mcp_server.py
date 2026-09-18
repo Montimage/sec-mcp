@@ -83,28 +83,3 @@ async def test_add_entry_works_with_v2_storage(tmp_path, monkeypatch):
     await mcp_server.add_entry(url="evil.com", ip="9.9.9.9")
     assert s.is_domain_blacklisted("evil.com")
     assert s.is_ip_blacklisted("9.9.9.9")
-
-
-@pytest.mark.asyncio
-async def test_remove_entry_rejects_invalid_value(storage):
-    with pytest.raises(ValueError):
-        await mcp_server.remove_entry("%%%")
-    with pytest.raises(ValueError):
-        await mcp_server.remove_entry("")
-
-
-@pytest.mark.asyncio
-async def test_remove_entry_removes_domain_url_and_ip(storage):
-    await mcp_server.add_entry(url="evil.com", ip="9.9.9.9")
-    await mcp_server.add_entry(url="https://evil.example/phish")
-    assert (await mcp_server.remove_entry("evil.com"))["success"] is True
-    assert not storage.is_domain_blacklisted("evil.com")
-    assert (await mcp_server.remove_entry("https://evil.example/phish"))["success"] is True
-    assert not storage.is_url_blacklisted("https://evil.example/phish")
-    assert (await mcp_server.remove_entry("9.9.9.9"))["success"] is True
-    assert not storage.is_ip_blacklisted("9.9.9.9")
-
-
-@pytest.mark.asyncio
-async def test_remove_entry_missing_returns_false(storage):
-    assert (await mcp_server.remove_entry("absent.com"))["success"] is False

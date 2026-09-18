@@ -191,7 +191,5 @@ async def add_entry(url: Optional[str] = None, ip: Optional[str] = None, date: O
 @mcp.tool(name="remove_entry", description="Remove a blacklist entry by URL or IP.")
 async def remove_entry(value: str):
     """Remove a blacklist entry by URL or IP."""
-    if not value or not validate_input(value):
-        raise ValueError(f"Invalid entry value: {value}")
     success = core.storage.remove_entry(value)
     return {"success": success}

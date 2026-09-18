@@ -479,24 +479,16 @@ class Storage:
         return True
 
     def remove_entry(self, value: str) -> bool:
-        """Remove a blacklist entry by URL, domain, or IP."""
-        removed = 0
+        """Remove a blacklist entry by URL or IP."""
         with sqlite3.connect(self.db_path) as conn:
-            with conn:
-                removed += conn.execute(
-                    "DELETE FROM blacklist_url WHERE url = ?", (value,)
-                ).rowcount
-                removed += conn.execute(
-                    "DELETE FROM blacklist_domain WHERE domain IN (?, ?)",
-                    (value, value.lower())
-                ).rowcount
-                removed += conn.execute(
-                    "DELETE FROM blacklist_ip WHERE ip = ?", (value,)
-                ).rowcount
+            cursor = conn.execute(
+                "DELETE FROM blacklist WHERE url = ? OR ip = ?",
+                (value, value)
+            )
+            conn.commit()
         with self._cache_lock:
             self._cache.discard(value)
-            self._cache.discard(value.lower())
-        return removed > 0
+        return cursor.rowcount > 0
 
 
 def create_storage(db_path=None):
