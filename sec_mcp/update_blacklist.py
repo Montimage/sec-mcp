@@ -27,9 +27,14 @@ class BlacklistUpdater:
         with open(config_path, "r") as f:
             config = json.load(f)
         self.sources = config.get("blacklist_sources", {})
-        self.max_feed_bytes = int(config.get("max_feed_bytes", 64 * 1024 * 1024))
-        self.min_feed_entries = int(config.get("min_feed_entries", 1))
-        self.max_feed_entries = int(config.get("max_feed_entries", 500000))
+        def _limit(key, default):
+            try:
+                return int(config.get(key, default))
+            except (TypeError, ValueError):
+                return default
+        self.max_feed_bytes = max(1, _limit("max_feed_bytes", 64 * 1024 * 1024))
+        self.min_feed_entries = max(0, _limit("min_feed_entries", 1))
+        self.max_feed_entries = max(self.min_feed_entries, _limit("max_feed_entries", 500000))
         if os.environ.get("MCP_DISABLE_SCHEDULER") != "1":
             self._start_scheduler()
 
@@ -76,15 +81,17 @@ class BlacklistUpdater:
             os.makedirs("downloads", exist_ok=True)
             filename = os.path.join("downloads", f"{source}.txt" if not url.endswith('.csv') else f"{source}.csv")
             use_cache = False
+            content = None
             if os.path.exists(filename):
                 mtime = os.path.getmtime(filename)
                 file_age = datetime.now() - datetime.fromtimestamp(mtime)
-                if file_age < timedelta(days=1) and os.path.getsize(filename) <= self.max_feed_bytes:
-                    use_cache = True
-            if use_cache:
-                with open(filename, "r", encoding="utf-8", errors='ignore') as f:
-                    content = f.read()
-            else:
+                if file_age < timedelta(days=1):
+                    with open(filename, "rb") as f:
+                        cached = f.read(self.max_feed_bytes + 1)
+                    if len(cached) <= self.max_feed_bytes:
+                        content = cached.decode("utf-8", errors="replace")
+                        use_cache = True
+            if not use_cache:
                 chunks = []
                 downloaded = 0
                 async with client.stream("GET", url) as response:
@@ -95,8 +102,6 @@ class BlacklistUpdater:
                             raise ValueError(f"{source} feed exceeds max_feed_bytes ({self.max_feed_bytes}); aborting download")
                         chunks.append(chunk)
                 content = b"".join(chunks).decode("utf-8", errors="replace")
-                with open(filename, "w", encoding="utf-8") as f:
-                    f.write(content)
             entries = []
             
             # Source-specific parsing logic
@@ -351,6 +356,12 @@ class BlacklistUpdater:
                     f"[{self.min_feed_entries}, {self.max_feed_entries}]; keeping existing data."
                 )
                 return
+
+            # Only persist freshly downloaded content once it passes sanity
+            # checks, so corrupt payloads never poison the cache.
+            if not use_cache:
+                with open(filename, "w", encoding="utf-8") as f:
+                    f.write(content)
 
             # Single atomic insert: either the whole feed lands or nothing does.
             self.storage.add_entries(deduped_entries)

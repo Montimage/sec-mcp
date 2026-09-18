@@ -319,7 +319,7 @@ class Storage:
 
         Args:
             entries: List of (url, ip, date, score, source) tuples; each entry
-                contributes at most one row across the blacklist tables.
+                contributes a domain-or-url row plus an optional ip row.
 
         All inserts happen in a single transaction: on any failure the whole
         batch is rolled back so the live tables are never partially updated.

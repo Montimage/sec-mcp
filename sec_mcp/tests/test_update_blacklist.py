@@ -92,6 +92,21 @@ async def test_feed_empty_response_keeps_existing(tmp_path):
     await updater._update_source(client, "TestFeed", "https://feed.example/list")
     assert storage.count_entries() == 1
     assert storage.is_domain_blacklisted("keep-me.com")
+    assert not (tmp_path / "downloads" / "TestFeed.txt").exists()
+
+
+@pytest.mark.asyncio
+async def test_feed_rejects_invalid_config_limits(tmp_path):
+    storage = Storage(str(tmp_path / "feed.db"))
+    bad_config = tmp_path / "bad.json"
+    bad_config.write_text(
+        '{"blacklist_sources": {}, "max_feed_bytes": "bogus", '
+        '"min_feed_entries": -3, "max_feed_entries": -1}'
+    )
+    updater = BlacklistUpdater(storage, config_path=str(bad_config))
+    assert updater.max_feed_bytes == 64 * 1024 * 1024
+    assert updater.min_feed_entries == 0
+    assert updater.max_feed_entries >= updater.min_feed_entries
 
 
 @pytest.mark.asyncio
@@ -142,4 +157,11 @@ async def test_feed_success_updates_atomically(tmp_path):
     assert storage.is_domain_blacklisted("new-bad.com")
     assert storage.is_ip_blacklisted("9.9.9.9")
     assert storage.is_url_blacklisted("https://evil.example/path")
+    assert storage.count_entries() == 4
+    assert (tmp_path / "downloads" / "TestFeed.txt").exists()
+
+    # Fresh cache is reused: a failing network on the next call keeps data.
+    failing = MagicMock()
+    failing.stream = MagicMock(side_effect=Exception("network down"))
+    await updater._update_source(failing, "TestFeed", "https://feed.example/list")
     assert storage.count_entries() == 4
