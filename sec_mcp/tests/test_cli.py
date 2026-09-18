@@ -2,6 +2,7 @@ import json
 import os
 import subprocess
 import sysconfig
+import tomllib
 from pathlib import Path
 
 import pytest
@@ -93,3 +94,11 @@ def test_cli_status_writes_no_cwd_or_package_files(tmp_path):
     assert result.returncode == 0, f"CLI status failed: {result.stderr}"
     assert list(tmp_path.iterdir()) == []
     assert set(package_root.iterdir()) == before
+
+
+def test_cli_version_reports_pyproject_version():
+    pyproject = Path(sec_mcp.__file__).resolve().parent.parent / "pyproject.toml"
+    expected = tomllib.loads(pyproject.read_text(encoding="utf-8"))["project"]["version"]
+    result = CliRunner().invoke(cli, ["--version"])
+    assert result.exit_code == 0
+    assert result.output.strip() == f"{expected} (MCP Client)"
