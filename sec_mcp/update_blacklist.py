@@ -91,17 +91,16 @@ class BlacklistUpdater:
             if cls._scheduler_stop is not None:
                 cls._scheduler_stop.set()
             thread = cls._scheduler_thread
-            cls._scheduler_thread = None
-        if (
-            thread is not None
-            and thread.is_alive()
-            and thread is not threading.current_thread()
-        ):
-            thread.join(timeout=5)
-        with cls._scheduler_lock:
+            if (
+                thread is not None
+                and thread.is_alive()
+                and thread is not threading.current_thread()
+            ):
+                thread.join(timeout=5)
             if cls._scheduler is not None:
                 cls._scheduler.clear()
             cls._scheduler = None
+            cls._scheduler_thread = None
             cls._scheduler_stop = None
 
     async def update_all(self):

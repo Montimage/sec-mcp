@@ -1,6 +1,7 @@
 """Tests for BlacklistUpdater's shared update scheduler."""
 
 import json
+import threading
 from datetime import datetime, timedelta
 
 import pytest
@@ -62,6 +63,62 @@ def test_scheduler_stop_is_idempotent_and_joins_thread(tmp_path, monkeypatch):
 
     BlacklistUpdater.stop()
     BlacklistUpdater.stop()
+
+
+def test_stop_blocks_ensure_until_transition_finishes(tmp_path, monkeypatch):
+    _enable_scheduler(monkeypatch)
+    updater = BlacklistUpdater(Storage(str(tmp_path / "r.db")))
+    cls = BlacklistUpdater
+    old_scheduler = cls._scheduler
+    old_thread = cls._scheduler_thread
+
+    mid_transition = threading.Event()
+    release = threading.Event()
+    ensure_done = threading.Event()
+    ensure_errors = []
+
+    original_join = old_thread.join
+
+    def blocking_join(timeout=None):
+        mid_transition.set()
+        release.wait(timeout=10)
+        return original_join(timeout=timeout)
+
+    old_thread.join = blocking_join
+
+    stop_thread = threading.Thread(target=cls.stop, daemon=True)
+    stop_thread.start()
+    assert mid_transition.wait(timeout=10)
+
+    def run_ensure():
+        try:
+            updater._ensure_scheduler()
+        except Exception as e:
+            ensure_errors.append(e)
+        finally:
+            ensure_done.set()
+
+    ensure_thread = threading.Thread(target=run_ensure, daemon=True)
+    ensure_thread.start()
+    # stop() still holds the lock mid-transition, so ensure must not complete.
+    assert not ensure_done.wait(timeout=0.5)
+
+    release.set()
+    stop_thread.join(timeout=10)
+    ensure_thread.join(timeout=10)
+
+    assert not ensure_errors
+    assert not old_thread.is_alive()
+    assert cls._scheduler is not None and cls._scheduler is not old_scheduler
+    assert len(cls._scheduler.jobs) == 1
+    new_thread = cls._scheduler_thread
+    assert new_thread is not None and new_thread is not old_thread
+    assert new_thread.is_alive()
+    assert cls._scheduler_stop is not None and not cls._scheduler_stop.is_set()
+
+    cls.stop()
+    assert not new_thread.is_alive()
+    assert cls._scheduler_thread is None
 
 
 def test_scheduler_respects_disable_env(tmp_path, monkeypatch):
