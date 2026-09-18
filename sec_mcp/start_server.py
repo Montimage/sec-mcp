@@ -11,13 +11,15 @@ _project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
 if _project_root not in sys.path:
     sys.path.insert(0, _project_root)
 
-from sec_mcp.mcp_server import mcp
+from sec_mcp.mcp_server import get_core, mcp
 from sec_mcp.utility import setup_logging
 
 
 def main():
     """Entrypoint for MCP server via console script."""
     setup_logging()
+    # Initialize storage, logging and the update scheduler before serving.
+    get_core()
     print("Starting MCP server with STDIO transport...", file=sys.stderr)
     mcp.run(transport='stdio')
 

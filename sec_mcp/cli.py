@@ -1,12 +1,34 @@
 import json as _json
+import threading
 
 import click
 
 from .sec_mcp import SecMCP
 from .utility import package_version
 
-# Global SecMCP instance for CLI
-core = SecMCP()
+# Shared SecMCP instance for the CLI, created lazily on first use: importing
+# this module must stay side-effect free — constructing SecMCP creates the
+# SQLite database, opens the log file and starts the scheduler thread.
+_core = None
+_core_lock = threading.Lock()
+
+
+def get_core() -> SecMCP:
+    """Return the shared SecMCP instance, creating it on first call."""
+    global _core
+    if _core is None:
+        with _core_lock:
+            if _core is None:
+                _core = SecMCP()
+    return _core
+
+
+def __getattr__(name: str):
+    # PEP 562: keep `from sec_mcp.cli import core` working — the name resolves
+    # to the lazily-created shared instance instead of a module-level object.
+    if name == "core":
+        return get_core()
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
 
 @click.group()
 @click.version_option(version=package_version(), message="%(version)s (MCP Client)")
@@ -24,6 +46,7 @@ def cli():
 @click.argument('value')
 @click.option('--json', is_flag=True, help='Output in JSON format')
 def check(value: str, json: bool):
+    core = get_core()
     result = core.check(value)
     if json:
         click.echo(_json.dumps(result.to_dict(), indent=2))
@@ -38,6 +61,7 @@ def check(value: str, json: bool):
 @click.argument('domain')
 @click.option('--json', is_flag=True, help='Output in JSON format')
 def check_domain(domain: str, json: bool):
+    core = get_core()
     result = core.check_domain(domain)
     if json:
         click.echo(_json.dumps(result.to_dict(), indent=2))
@@ -52,6 +76,7 @@ def check_domain(domain: str, json: bool):
 @click.argument('url')
 @click.option('--json', is_flag=True, help='Output in JSON format')
 def check_url(url: str, json: bool):
+    core = get_core()
     result = core.check_url(url)
     if json:
         click.echo(_json.dumps(result.to_dict(), indent=2))
@@ -66,6 +91,7 @@ def check_url(url: str, json: bool):
 @click.argument('ip')
 @click.option('--json', is_flag=True, help='Output in JSON format')
 def check_ip(ip: str, json: bool):
+    core = get_core()
     result = core.check_ip(ip)
     if json:
         click.echo(_json.dumps(result.to_dict(), indent=2))
@@ -80,6 +106,7 @@ def check_ip(ip: str, json: bool):
 @click.argument('file', type=click.Path(exists=True))
 @click.option('--json', is_flag=True, help='Output in JSON format')
 def batch(file: str, json: bool):
+    core = get_core()
     with open(file) as f:
         values = [line.strip() for line in f if line.strip()]
     results = core.check_batch(values)
@@ -97,6 +124,7 @@ def batch(file: str, json: bool):
 @cli.command(help="Show blacklist status (entry count, last update, sources).\n\nExample: mcp status --json")
 @click.option('--json', is_flag=True, help='Output in JSON format')
 def status(json):
+    core = get_core()
     status = core.get_status()
     source_counts = core.storage.get_source_counts()
     source_type_counts = core.storage.get_source_type_counts()
@@ -127,6 +155,7 @@ def status(json):
 @click.option('--json', is_flag=True, help='Output minimal JSON confirmation')
 def update(json):
     """Force an immediate update of all blacklists."""
+    core = get_core()
     core.update()
     if json:
         click.echo(_json.dumps({"updated": True}))
@@ -136,6 +165,7 @@ def update(json):
 @cli.command(help="Clear the in-memory URL/IP cache.")
 @click.option('--json', is_flag=True, help='Output in JSON format')
 def flush_cache(json):
+    core = get_core()
     cleared = core.storage.flush_cache()
     if json:
         click.echo(_json.dumps({"cleared": cleared}))
@@ -149,6 +179,7 @@ def flush_cache(json):
 @click.option('-n', '--count', default=10, help='Number of entries to sample')
 def sample(count: int):
     """Output a random sample of blacklist values for quick tests."""
+    core = get_core()
     entries = core.sample(count)
     for value in entries:
         click.echo(value)

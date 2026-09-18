@@ -1,10 +1,12 @@
 """Session-wide hermetic environment for the test suite.
 
-`import sec_mcp` instantiates `SecMCP()` at module level (cli.py), which
-resolves MCP_DB_PATH/MCP_LOG_PATH/MCP_DISABLE_SCHEDULER at that moment — so
-they are set here, before pytest imports any test module. Every artifact the
-package can emit is redirected to temporary storage so a suite run leaves no
-trace in the repository.
+Importing `sec_mcp` is side-effect free (issue #33): the shared `core`
+instances in cli.py/mcp_server.py are built lazily by `get_core()`. But tests
+do construct `SecMCP()`/`Storage`, whose constructors resolve
+MCP_DB_PATH/MCP_LOG_PATH/MCP_DISABLE_SCHEDULER — so they are set here, before
+pytest imports any test module. Every artifact the package can emit is
+redirected to temporary storage so a suite run leaves no trace in the
+repository.
 """
 
 import os
