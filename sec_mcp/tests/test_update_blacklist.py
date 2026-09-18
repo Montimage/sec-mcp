@@ -205,3 +205,55 @@ async def test_feed_cache_filename_confined_to_cache_dir(tmp_path, monkeypatch):
     assert written[0].name == ".._evil.txt"
     assert written[0].parent == cache_dir
     assert not (tmp_path / "evil.txt").exists()
+
+
+def _dshield_updater(tmp_path, monkeypatch, feed_text):
+    cache_dir = tmp_path / "feed_cache"
+    monkeypatch.setenv("MCP_CACHE_DIR", str(cache_dir))
+    cache_dir.mkdir()
+    (cache_dir / "Dshield.txt").write_text(feed_text)
+    storage = Storage(str(tmp_path / "feed.db"))
+    return storage, BlacklistUpdater(storage)
+
+
+@pytest.mark.asyncio
+async def test_dshield_last_address_of_block_is_blacklisted(tmp_path, monkeypatch):
+    storage, updater = _dshield_updater(tmp_path, monkeypatch, (
+        "# DShield.org Recommended Block List\n"
+        "Start\tEnd\tNetmask\tAttacks\tName\tCountry\temail\n"
+        "10.0.0.0\t10.0.0.255\t255.255.255.0\t100\tbad\tXX\tx@y\n"
+    ))
+    await updater._update_source(None, "Dshield", "https://www.dshield.org/block.txt")
+    assert storage.is_ip_blacklisted("10.0.0.255")
+    assert storage.is_ip_blacklisted("10.0.0.0")
+    assert storage.is_ip_blacklisted("10.0.0.128")
+    assert not storage.is_ip_blacklisted("10.0.1.0")
+
+
+@pytest.mark.asyncio
+async def test_dshield_unaligned_range_covers_exact_bounds(tmp_path, monkeypatch):
+    storage, updater = _dshield_updater(tmp_path, monkeypatch, (
+        "10.0.0.4\t10.0.0.7\t255.255.255.252\t1\tbad\tXX\tx@y\n"
+        "10.1.0.5\t10.1.0.5\t255.255.255.255\t1\tbad\tXX\tx@y\n"
+    ))
+    await updater._update_source(None, "Dshield", "https://www.dshield.org/block.txt")
+    assert storage.is_ip_blacklisted("10.0.0.7")
+    assert storage.is_ip_blacklisted("10.0.0.5")
+    assert not storage.is_ip_blacklisted("10.0.0.3")
+    assert not storage.is_ip_blacklisted("10.0.0.8")
+    assert storage.is_ip_blacklisted("10.1.0.5")
+    assert not storage.is_ip_blacklisted("10.1.0.6")
+
+
+@pytest.mark.asyncio
+async def test_dshield_rejects_malformed_rows(tmp_path, monkeypatch):
+    storage, updater = _dshield_updater(tmp_path, monkeypatch, (
+        "999.1.1.1\t999.2.2.2\tx\t1\tbad\tXX\tx@y\n"
+        "10.1.0.9\t10.1.0.1\tx\t1\tbad\tXX\tx@y\n"
+        "10.2.0.0\t10.2.0.1\n"
+        "10.3.0.0\t10.3.0.3\tx\t1\tbad\tXX\tx@y\n"
+    ))
+    await updater._update_source(None, "Dshield", "https://www.dshield.org/block.txt")
+    assert not storage.is_ip_blacklisted("10.1.0.5")
+    assert not storage.is_ip_blacklisted("10.2.0.0")
+    assert storage.is_ip_blacklisted("10.3.0.3")

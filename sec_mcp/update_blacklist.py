@@ -260,6 +260,7 @@ class BlacklistUpdater:
                 try:
                     lines = content.splitlines()
                     from datetime import datetime
+                    from ipaddress import ip_address, summarize_address_range
                     now_str = datetime.now().isoformat(sep=' ', timespec='seconds')
                     first5 = []
                     for idx, line in enumerate(lines):
@@ -268,20 +269,29 @@ class BlacklistUpdater:
                         if not line or line.startswith('#') or line.startswith('Start') or line.startswith('('):
                             continue
                         
-                        # Parse tab-delimited fields
+                        # Parse tab-delimited fields: Start, End, Netmask, ...
                         fields = line.split('\t')
                         if len(fields) < 3:  # Ensure at least IP range start, end, and subnet
                             continue
-                            
-                        # Use the start IP of the range
-                        ip_val = fields[0].strip()
-                        url_val = None
-                        date_val = now_str
-                        score_val = 8
-                        
-                        if idx < 5:
-                            first5.append({'ip': ip_val, 'date': date_val, 'score': score_val})
-                        entries.append((url_val, ip_val, date_val, score_val, source))
+
+                        # Store the range as CIDR networks so lookups cover
+                        # every address in the block, not just the start.
+                        try:
+                            start_ip = ip_address(fields[0].strip())
+                            end_ip = ip_address(fields[1].strip())
+                            networks = list(summarize_address_range(start_ip, end_ip))
+                        except (ValueError, TypeError):
+                            continue
+
+                        for network in networks:
+                            ip_val = str(network.network_address) if network.num_addresses == 1 else str(network)
+                            url_val = None
+                            date_val = now_str
+                            score_val = 8
+
+                            if idx < 5:
+                                first5.append({'ip': ip_val, 'date': date_val, 'score': score_val})
+                            entries.append((url_val, ip_val, date_val, score_val, source))
                     
                     if first5:
                         self.logger.info(f"Dshield first 5 parsed entries: {first5}")
