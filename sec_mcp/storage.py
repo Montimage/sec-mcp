@@ -509,18 +509,11 @@ def create_storage(db_path=None):
     use_v2 = os.environ.get('MCP_USE_V2_STORAGE', 'false').lower() == 'true'
 
     if use_v2:
-        try:
-            import sys
-
-            from .storage_v2 import HybridStorage
-            print("Using optimized HybridStorage (v2) - 1000x faster lookups", file=sys.stderr)
-            return HybridStorage(db_path)
-        except Exception as e:
-            import sys
-            print(f"Warning: Failed to initialize HybridStorage: {e}", file=sys.stderr)
-            print("Falling back to legacy Storage (v1)", file=sys.stderr)
-            return Storage(db_path)
+        # v2 explicitly selected: propagate initialization failures instead of
+        # silently masking them behind a legacy-storage fallback.
+        from .storage_v2 import HybridStorage
+        print("Using optimized HybridStorage (v2) - 1000x faster lookups", file=sys.stderr)
+        return HybridStorage(db_path)
     else:
-        import sys
         print("Using legacy Storage (v1) - set MCP_USE_V2_STORAGE=true for 1000x faster lookups", file=sys.stderr)
         return Storage(db_path)
