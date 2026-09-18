@@ -5,7 +5,6 @@ import threading
 import random
 import os
 import sys
-import tempfile
 from pathlib import Path
 
 class Storage:
@@ -31,15 +30,6 @@ class Storage:
             os.makedirs(db_dir, exist_ok=True)
             db_path = os.path.join(db_dir, "mcp.db")
         else:
-            if db_path == ":memory:":
-                # sqlite3 opens a fresh database per connect(), so true in-memory
-                # storage cannot be shared across this class's connections. Use an
-                # auto-deleted temp file instead of abspath(), which would turn
-                # ":memory:" into a literal file in the working directory.
-                self._tmp_db = tempfile.NamedTemporaryFile(
-                    prefix="sec_mcp_mem_", suffix=".db", delete=True
-                )
-                db_path = self._tmp_db.name
             # Ensure db_path is absolute
             db_path = os.path.abspath(db_path)
             db_dir_from_path = os.path.dirname(db_path)
