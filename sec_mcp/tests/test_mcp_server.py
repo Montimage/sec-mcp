@@ -90,3 +90,36 @@ async def test_add_entry_works_with_v2_storage(tmp_path, monkeypatch):
     await mcp_server.add_entry(url="evil.com", ip="9.9.9.9")
     assert s.is_domain_blacklisted("evil.com")
     assert s.is_ip_blacklisted("9.9.9.9")
+
+
+@pytest.mark.asyncio
+async def test_remove_entry_domain_flips_lookup(storage):
+    await mcp_server.add_entry(url="evil.com")
+    assert storage.is_domain_blacklisted("evil.com")
+    result = await mcp_server.remove_entry("evil.com")
+    assert result["success"] is True
+    assert not storage.is_domain_blacklisted("evil.com")
+
+
+@pytest.mark.asyncio
+async def test_remove_entry_url_flips_lookup(storage):
+    await mcp_server.add_entry(url="https://evil.example/phish")
+    assert storage.is_url_blacklisted("https://evil.example/phish")
+    result = await mcp_server.remove_entry("https://evil.example/phish")
+    assert result["success"] is True
+    assert not storage.is_url_blacklisted("https://evil.example/phish")
+
+
+@pytest.mark.asyncio
+async def test_remove_entry_ip_flips_lookup(storage):
+    await mcp_server.add_entry(ip="9.9.9.9")
+    assert storage.is_ip_blacklisted("9.9.9.9")
+    result = await mcp_server.remove_entry("9.9.9.9")
+    assert result["success"] is True
+    assert not storage.is_ip_blacklisted("9.9.9.9")
+
+
+@pytest.mark.asyncio
+async def test_remove_entry_unknown_returns_false(storage):
+    result = await mcp_server.remove_entry("not-present.example")
+    assert result["success"] is False
