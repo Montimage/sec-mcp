@@ -6,6 +6,9 @@ import threading
 from datetime import datetime
 from pathlib import Path
 from typing import Dict, List, Optional, Set, Tuple
+from urllib.parse import urlparse
+
+from .utility import validate_input
 
 
 class Storage:
@@ -309,6 +312,56 @@ class Storage:
                 ips
             )
             conn.commit()
+
+    def add_entries(self, entries: List[Tuple[Optional[str], Optional[str], str, float, str]]):
+        """
+        Atomically add feed entries from the blacklist updater.
+
+        Args:
+            entries: List of (url, ip, date, score, source) tuples; each entry
+                contributes at most one row across the blacklist tables.
+
+        All inserts happen in a single transaction: on any failure the whole
+        batch is rolled back so the live tables are never partially updated.
+        """
+        domains_to_add = []
+        urls_to_add = []
+        ips_to_add = []
+
+        for url_val, ip_val, date_val, score_val, source in entries:
+            if url_val and url_val.startswith(('http://', 'https://')):
+                try:
+                    parsed_url = urlparse(url_val)
+                    domain = parsed_url.netloc
+                    if domain:
+                        is_domain_entry = not parsed_url.path or parsed_url.path == '/'
+                        if is_domain_entry:
+                            if validate_input(domain):
+                                domains_to_add.append((domain, date_val, score_val, source))
+                        else:
+                            urls_to_add.append((url_val, date_val, score_val, source))
+                except Exception:
+                    continue
+            if ip_val:
+                ips_to_add.append((ip_val, date_val, score_val, source))
+
+        with sqlite3.connect(self.db_path) as conn:
+            with conn:
+                if domains_to_add:
+                    conn.executemany(
+                        "INSERT OR IGNORE INTO blacklist_domain (domain, date, score, source) VALUES (?, ?, ?, ?)",
+                        domains_to_add
+                    )
+                if urls_to_add:
+                    conn.executemany(
+                        "INSERT OR IGNORE INTO blacklist_url (url, date, score, source) VALUES (?, ?, ?, ?)",
+                        urls_to_add
+                    )
+                if ips_to_add:
+                    conn.executemany(
+                        "INSERT OR IGNORE INTO blacklist_ip (ip, date, score, source) VALUES (?, ?, ?, ?)",
+                        ips_to_add
+                    )
 
     def log_update(self, source: str, entry_count: int):
         """Log a successful update from a source."""

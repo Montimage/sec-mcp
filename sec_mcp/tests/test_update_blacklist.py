@@ -1,4 +1,5 @@
-from unittest.mock import ANY, AsyncMock, MagicMock  # Added ANY
+import sqlite3
+from unittest.mock import ANY, MagicMock
 
 import pytest
 
@@ -6,44 +7,139 @@ from sec_mcp.storage import Storage
 from sec_mcp.update_blacklist import BlacklistUpdater
 
 
+class _FakeStreamResponse:
+    def __init__(self, chunks):
+        self._chunks = chunks
+
+    def raise_for_status(self):
+        pass
+
+    async def aiter_bytes(self):
+        for chunk in self._chunks:
+            yield chunk
+
+
+class _FakeStreamCM:
+    def __init__(self, response):
+        self._response = response
+
+    async def __aenter__(self):
+        return self._response
+
+    async def __aexit__(self, exc_type, exc, tb):
+        return False
+
+
+def _stream_client(chunks):
+    client = MagicMock()
+    client.stream = MagicMock(return_value=_FakeStreamCM(_FakeStreamResponse(chunks)))
+    return client
+
+
+def _updater(tmp_path):
+    storage = Storage(str(tmp_path / "feed.db"))
+    storage.add_domain("keep-me.com", "2025-01-01 00:00:00", 5.0, "seed")
+    return storage, BlacklistUpdater(storage)
+
+
 @pytest.mark.asyncio
-async def test_update_source_success():
+async def test_update_source_success(tmp_path):
     storage = MagicMock(spec=Storage)
     updater = BlacklistUpdater(storage)
-    mock_client = MagicMock()
-    mock_response = MagicMock()
-    mock_response.status_code = 200
-    mock_response.text = "url,ip,date,score\nhttps://malicious.com,1.2.3.4,2025-04-18T00:00:00,9.0\nhttps://phishing.com,2.2.2.2,,\n"
-    mock_response.raise_for_status = MagicMock()
-    mock_client.get = AsyncMock(return_value=mock_response)
-    await updater._update_source(mock_client, "PhishStats", "http://fake-url")
+    content = b"url,ip,date,score\nhttps://malicious.com,1.2.3.4,2025-04-18T00:00:00,9.0\nhttps://phishing.com,2.2.2.2,,\n"
+    client = _stream_client([content])
+    await updater._update_source(client, "PhishStats", "https://fake-url")
 
-    # Based on the test data and current parsing logic for PhishStats:
-    # "https://malicious.com" (no path) -> add_domain("malicious.com"), add_ip("1.2.3.4")
-    # "https://phishing.com" (no path) -> add_domain("phishing.com"), add_ip("2.2.2.2")
-    assert storage.add_domain.call_count == 2
-    assert storage.add_ip.call_count == 2
-    assert storage.add_url.call_count == 0 # add_url is not called for domain-only entries
+    storage.add_entries.assert_called_once()
+    entries = storage.add_entries.call_args[0][0]
+    assert ("https://malicious.com", "1.2.3.4", "2025-04-18T00:00:00", 9.0, "PhishStats") in entries
+    assert ("https://phishing.com", "2.2.2.2", ANY, 8.0, "PhishStats") in entries
 
-    storage.add_domain.assert_any_call("malicious.com", "2025-04-18T00:00:00", 9.0, "PhishStats")
-    storage.add_ip.assert_any_call("1.2.3.4", "2025-04-18T00:00:00", 9.0, "PhishStats")
-
-    # For the second entry, date is now_str (mocked by ANY) and score is default 8.0
-    storage.add_domain.assert_any_call("phishing.com", ANY, 8.0, "PhishStats")
-    storage.add_ip.assert_any_call("2.2.2.2", ANY, 8.0, "PhishStats")
 
 @pytest.mark.asyncio
 async def test_update_source_network_error():
     storage = MagicMock(spec=Storage)
     updater = BlacklistUpdater(storage)
-    mock_client = MagicMock()
-    async def raise_exc(*args, **kwargs):
-        raise Exception("Network error")
-    mock_client.get = AsyncMock(side_effect=raise_exc)
-    await updater._update_source(mock_client, "OpenPhish", "http://fake-url")
-    # No entries should be added
-    assert not storage.add_domain.called
-    assert not storage.add_ip.called
-    assert not storage.add_url.called
+    client = MagicMock()
+    client.stream = MagicMock(side_effect=Exception("Network error"))
+    await updater._update_source(client, "OpenPhish", "https://fake-url")
+    assert not storage.add_entries.called
 
-# More tests can be added for CSV parsing and error logging
+
+@pytest.mark.asyncio
+async def test_feed_rejects_non_https_source(tmp_path):
+    storage, updater = _updater(tmp_path)
+    client = _stream_client([b"9.9.9.9\n"])
+    await updater._update_source(client, "EvilFeed", "http://evil.example/feed")
+    client.stream.assert_not_called()
+    assert storage.count_entries() == 1
+
+
+@pytest.mark.asyncio
+async def test_feed_oversized_response_keeps_existing(tmp_path):
+    storage, updater = _updater(tmp_path)
+    updater.max_feed_bytes = 8
+    client = _stream_client([b"9.9.9.9\n", b"8.8.8.8\n"])
+    await updater._update_source(client, "TestFeed", "https://feed.example/list")
+    assert storage.count_entries() == 1
+    assert storage.is_domain_blacklisted("keep-me.com")
+
+
+@pytest.mark.asyncio
+async def test_feed_empty_response_keeps_existing(tmp_path):
+    storage, updater = _updater(tmp_path)
+    client = _stream_client([b"", b"# nothing here\n"])
+    await updater._update_source(client, "TestFeed", "https://feed.example/list")
+    assert storage.count_entries() == 1
+    assert storage.is_domain_blacklisted("keep-me.com")
+
+
+@pytest.mark.asyncio
+async def test_feed_too_few_entries_keeps_existing(tmp_path):
+    storage, updater = _updater(tmp_path)
+    updater.min_feed_entries = 5
+    client = _stream_client([b"9.9.9.9\n8.8.8.8\n"])
+    await updater._update_source(client, "TestFeed", "https://feed.example/list")
+    assert storage.count_entries() == 1
+
+
+@pytest.mark.asyncio
+async def test_feed_too_many_entries_keeps_existing(tmp_path):
+    storage, updater = _updater(tmp_path)
+    updater.max_feed_entries = 1
+    client = _stream_client([b"9.9.9.9\n8.8.8.8\n"])
+    await updater._update_source(client, "TestFeed", "https://feed.example/list")
+    assert storage.count_entries() == 1
+
+
+@pytest.mark.asyncio
+async def test_feed_download_failure_keeps_existing(tmp_path):
+    storage, updater = _updater(tmp_path)
+    client = MagicMock()
+    client.stream = MagicMock(side_effect=Exception("connection reset"))
+    await updater._update_source(client, "TestFeed", "https://feed.example/list")
+    assert storage.count_entries() == 1
+    assert storage.is_domain_blacklisted("keep-me.com")
+
+
+@pytest.mark.asyncio
+async def test_feed_atomic_rollback_no_partial_update(tmp_path):
+    storage, updater = _updater(tmp_path)
+    with sqlite3.connect(storage.db_path) as conn:
+        conn.execute("DROP TABLE blacklist_ip")
+    client = _stream_client([b"new-bad.com\n9.9.9.9\n"])
+    await updater._update_source(client, "TestFeed", "https://feed.example/list")
+    with sqlite3.connect(storage.db_path) as conn:
+        domain_rows = conn.execute("SELECT COUNT(*) FROM blacklist_domain").fetchone()[0]
+    assert domain_rows == 1
+
+
+@pytest.mark.asyncio
+async def test_feed_success_updates_atomically(tmp_path):
+    storage, updater = _updater(tmp_path)
+    client = _stream_client([b"new-bad.com\n9.9.9.9\nhttps://evil.example/path\n"])
+    await updater._update_source(client, "TestFeed", "https://feed.example/list")
+    assert storage.is_domain_blacklisted("new-bad.com")
+    assert storage.is_ip_blacklisted("9.9.9.9")
+    assert storage.is_url_blacklisted("https://evil.example/path")
+    assert storage.count_entries() == 4

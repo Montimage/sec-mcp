@@ -27,6 +27,9 @@ class BlacklistUpdater:
         with open(config_path, "r") as f:
             config = json.load(f)
         self.sources = config.get("blacklist_sources", {})
+        self.max_feed_bytes = int(config.get("max_feed_bytes", 64 * 1024 * 1024))
+        self.min_feed_entries = int(config.get("min_feed_entries", 1))
+        self.max_feed_entries = int(config.get("max_feed_entries", 500000))
         if os.environ.get("MCP_DISABLE_SCHEDULER") != "1":
             self._start_scheduler()
 
@@ -66,7 +69,9 @@ class BlacklistUpdater:
         """Update blacklist from a single source."""
         import os
         from datetime import datetime, timedelta
-        from urllib.parse import urlparse
+        if not url.lower().startswith("https://"):
+            self.logger.warning(f"Rejecting non-HTTPS blacklist source {source}: {url}")
+            return
         try:
             os.makedirs("downloads", exist_ok=True)
             filename = os.path.join("downloads", f"{source}.txt" if not url.endswith('.csv') else f"{source}.csv")
@@ -74,15 +79,22 @@ class BlacklistUpdater:
             if os.path.exists(filename):
                 mtime = os.path.getmtime(filename)
                 file_age = datetime.now() - datetime.fromtimestamp(mtime)
-                if file_age < timedelta(days=1):
+                if file_age < timedelta(days=1) and os.path.getsize(filename) <= self.max_feed_bytes:
                     use_cache = True
             if use_cache:
                 with open(filename, "r", encoding="utf-8", errors='ignore') as f:
                     content = f.read()
             else:
-                response = await client.get(url)
-                response.raise_for_status()
-                content = response.text
+                chunks = []
+                downloaded = 0
+                async with client.stream("GET", url) as response:
+                    response.raise_for_status()
+                    async for chunk in response.aiter_bytes():
+                        downloaded += len(chunk)
+                        if downloaded > self.max_feed_bytes:
+                            raise ValueError(f"{source} feed exceeds max_feed_bytes ({self.max_feed_bytes}); aborting download")
+                        chunks.append(chunk)
+                content = b"".join(chunks).decode("utf-8", errors="replace")
                 with open(filename, "w", encoding="utf-8") as f:
                     f.write(content)
             entries = []
@@ -330,48 +342,19 @@ class BlacklistUpdater:
                 self.logger.info(f"First 5 parsed entries for {source}: {deduped_entries[:5]}")
             else:
                 self.logger.warning(f"No valid entries found for {source} during update.")
-            
-            # Insert entries into database
-            url_count = 0
-            ip_count = 0
-            domain_count = 0
-            for entry in deduped_entries:
-                url_val, ip_val, date_val, score_val, src = entry
-                # Add URL if present and valid
-                if url_val and url_val.startswith(('http://', 'https://')):
-                    try:
-                        # from urllib.parse import urlparse # Moved to top of method
-                        parsed_url = urlparse(url_val)
-                        domain = parsed_url.netloc
-                        if domain: # Ensure domain was successfully parsed
-                            # Check if the URL is essentially just a domain (e.g., http://domain.com or http://domain.com/)
-                            # A URL is considered a "domain entry" if its path component is empty or just "/"
-                            is_domain_entry = not parsed_url.path or parsed_url.path == '/'
 
-                            if is_domain_entry:
-                                if validate_input(domain):  # Validate domain
-                                    self.storage.add_domain(domain, date_val, score_val, src)
-                                    domain_count += 1
-                            else: # It's a specific URL with a path (e.g., http://domain.com/some/path)
-                                # Add the full URL to the URL blacklist
-                                self.storage.add_url(url_val, date_val, score_val, src)
-                                url_count += 1
-                                # Per user request, do NOT add the domain part (domain) to the domain blacklist
-                                # when a specific sub-path URL is being added.
-                    except Exception as e:
-                        self.logger.debug(f"URL parsing error: {e} for {url_val}")
-                        continue
-                
-                # Add IP if present and valid
-                if ip_val:
-                    try:
-                        self.storage.add_ip(ip_val, date_val, score_val, src)
-                        ip_count += 1
-                    except Exception as e:
-                        self.logger.debug(f"IP insertion error: {e} for {ip_val}")
-                        continue
-            
-            self.logger.info(f"Updated {source}: {url_count} URLs, {domain_count} domains, {ip_count} IPs.")
+            # Sanity-check entry count; an implausible feed is rejected wholesale
+            # so existing data is kept rather than replaced by corrupt content.
+            if not (self.min_feed_entries <= len(deduped_entries) <= self.max_feed_entries):
+                self.logger.warning(
+                    f"Rejecting {source}: {len(deduped_entries)} entries outside "
+                    f"[{self.min_feed_entries}, {self.max_feed_entries}]; keeping existing data."
+                )
+                return
+
+            # Single atomic insert: either the whole feed lands or nothing does.
+            self.storage.add_entries(deduped_entries)
+            self.logger.info(f"Updated {source}: {len(deduped_entries)} entries.")
         
         except Exception as e:
             self.logger.error(f"Failed to update {source}: {e}")
