@@ -11,10 +11,9 @@ license = "MIT"
 requires-python = ">=3.11"
 authors = [ { name = "Montimage" } ]
 dependencies = [
-  "requests>=2.31.0",
   "httpx>=0.25.0",
-  "click>=8.1.7",
-  "idna>=3.4",
+  "click>=8.3.3",
+  "idna>=3.15,<3.20",
   "mcp[cli]>=1.28.1,<2",
   "schedule>=1.2.0",
   "tqdm>=4.66.0",
@@ -51,6 +50,21 @@ include = ["sec_mcp*"]
 
 [tool.setuptools.package-data]
 sec_mcp = ["config.json"]
+
+# Advisory floors for transitive dependencies (uv resolves with these lower
+# bounds without making them direct requirements):
+#   h11>=0.16.0          PYSEC-2026-348
+#   starlette>=1.3.1     PYSEC-2026-161/1941/1942/2280/2281/248/249 (mcp 1.x
+#                        already resolves starlette 1.x for py>=3.14)
+#   pygments>=2.20.0     PYSEC-2026-2987
+#   python-dotenv>=1.2.2 PYSEC-2026-2270
+[tool.uv]
+constraint-dependencies = [
+  "h11>=0.16.0",
+  "starlette>=1.3.1",
+  "pygments>=2.20.0",
+  "python-dotenv>=1.2.2",
+]
 
 [tool.ruff]
 target-version = "py311"
