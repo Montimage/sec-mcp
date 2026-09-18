@@ -8,8 +8,9 @@ probes, which are not side-effect free here (see *Probe isolation*).
 
 - **Python 3.11 or newer** — `pyproject.toml` sets `requires-python = ">=3.11"`.
 - **uv** — package and lockfile management; `uv.lock` is the authoritative lockfile.
-- **Node.js + npm** — required only for `react-landing-page/` (Vite + React; see
-  `react-landing-page/package.json`). Not needed for the core `sec_mcp` package.
+- **Node.js 24 LTS + npm** — required only for `react-landing-page/` (Vite + React;
+  see `react-landing-page/package.json` and `react-landing-page/.nvmrc`). Not
+  needed for the core `sec_mcp` package.
 
 ## Environment variables
 
