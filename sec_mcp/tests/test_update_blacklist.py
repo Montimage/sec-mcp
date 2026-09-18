@@ -190,3 +190,18 @@ async def test_update_source_reads_feed_cache_dir(tmp_path, monkeypatch):
     await updater._update_source(None, "CINSSCORE", "https://feed.example/list.txt")
     assert storage.is_ip_blacklisted("9.9.9.9")
     assert not (tmp_path / "downloads").exists()
+
+
+@pytest.mark.asyncio
+async def test_feed_cache_filename_confined_to_cache_dir(tmp_path, monkeypatch):
+    cache_dir = tmp_path / "feed_cache"
+    monkeypatch.setenv("MCP_CACHE_DIR", str(cache_dir))
+    storage = Storage(str(tmp_path / "feed.db"))
+    updater = BlacklistUpdater(storage)
+    client = _stream_client([b"9.9.9.9\n"])
+    await updater._update_source(client, "../evil", "https://feed.example/list.txt")
+    written = list(cache_dir.iterdir())
+    assert len(written) == 1
+    assert written[0].name == ".._evil.txt"
+    assert written[0].parent == cache_dir
+    assert not (tmp_path / "evil.txt").exists()

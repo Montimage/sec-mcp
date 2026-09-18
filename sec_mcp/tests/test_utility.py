@@ -1,6 +1,8 @@
 """Test the utility functions."""
 import logging
+import threading
 
+from sec_mcp import utility
 from sec_mcp.utility import load_config, setup_logging, validate_input
 
 
@@ -39,15 +41,16 @@ def test_setup_logging():
 
 
 def _owned_handlers():
-    return [h for h in logging.getLogger().handlers if getattr(h, "_sec_mcp_owned", False)]
+    fh = utility._file_handler
+    return [fh] if fh is not None and fh in logging.getLogger().handlers else []
 
 
 def _remove_owned_handlers():
-    root = logging.getLogger()
-    for h in root.handlers[:]:
-        if getattr(h, "_sec_mcp_owned", False):
-            root.removeHandler(h)
-            h.close()
+    fh = utility._file_handler
+    if fh is not None:
+        logging.getLogger().removeHandler(fh)
+        fh.close()
+        utility._file_handler = None
 
 
 def test_setup_logging_twice_keeps_one_owned_handler(tmp_path, monkeypatch):
@@ -76,5 +79,32 @@ def test_setup_logging_defaults_to_platformdirs(tmp_path, monkeypatch):
         owned = _owned_handlers()
         assert len(owned) == 1
         assert owned[0].baseFilename == str(tmp_path / "logs" / "mcp-server.log")
+    finally:
+        _remove_owned_handlers()
+
+
+def test_setup_logging_concurrent_calls_leave_one_handler(tmp_path, monkeypatch):
+    monkeypatch.setenv("MCP_LOG_PATH", str(tmp_path / "t.log"))
+    try:
+        threads = [threading.Thread(target=setup_logging) for _ in range(4)]
+        for t in threads:
+            t.start()
+        for t in threads:
+            t.join(timeout=10)
+        assert len(_owned_handlers()) == 1
+    finally:
+        _remove_owned_handlers()
+
+
+def test_setup_logging_survives_unwritable_log_file(tmp_path, monkeypatch):
+    monkeypatch.setenv("MCP_LOG_PATH", str(tmp_path / "x.log"))
+
+    def raising(*a, **kw):
+        raise OSError("read-only filesystem")
+
+    monkeypatch.setattr(logging, "FileHandler", raising)
+    try:
+        setup_logging()
+        assert utility._file_handler is None
     finally:
         _remove_owned_handlers()

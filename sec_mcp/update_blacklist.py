@@ -3,6 +3,7 @@ import csv
 import json
 import logging
 import os
+import re
 import threading
 
 import httpx
@@ -142,7 +143,8 @@ class BlacklistUpdater:
         try:
             cache_dir = _feed_cache_dir()
             os.makedirs(cache_dir, exist_ok=True)
-            filename = os.path.join(cache_dir, f"{source}.txt" if not url.endswith('.csv') else f"{source}.csv")
+            safe_source = re.sub(r"[^\w.-]", "_", source, flags=re.ASCII)
+            filename = os.path.join(cache_dir, f"{safe_source}.txt" if not url.endswith('.csv') else f"{safe_source}.csv")
             use_cache = False
             content = None
             if os.path.exists(filename):
