@@ -8,7 +8,7 @@ Compares:
 - v0.4.0: Hybrid storage with tiered lookup and memory optimizations
 
 Prerequisites:
-    pip install pytricia psutil
+    pip install "sec-mcp[fast-cidr]"  # pytricia extra; psutil is a core dep
 
 Usage:
     python benchmark.py [--quick] [--full] [--memory]
