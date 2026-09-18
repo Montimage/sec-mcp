@@ -6,6 +6,7 @@ import tempfile
 
 import pytest
 
+from sec_mcp.storage import create_storage
 from sec_mcp.storage_v2 import HybridStorage
 
 
@@ -13,12 +14,11 @@ class TestHybridStorageInitialization:
     """Test storage initialization and setup."""
 
     def test_initialization_with_memory_db(self):
-        """Test initialization with in-memory database."""
-        storage = HybridStorage(":memory:")
-        assert storage.db_path == ":memory:"
-        assert len(storage._domains) == 0
-        assert len(storage._urls) == 0
-        assert len(storage._ips) == 0
+        """In-memory databases are unsupported: each connection gets a fresh
+        empty DB, so initialization must fail closed instead of silently
+        presenting an empty store."""
+        with pytest.raises(RuntimeError):
+            HybridStorage(":memory:")
 
     def test_initialization_with_file_db(self):
         """Test initialization with file database."""
@@ -407,6 +407,38 @@ class TestUpdateHistory:
         history = storage.get_update_history(source="OpenPhish")
         assert len(history) == 2
         assert all(h["source"] == "OpenPhish" for h in history)
+
+
+def test_fail_closed_corrupt_db(tmp_path):
+    """A corrupt database raises instead of silently starting empty."""
+    db = tmp_path / "corrupt.db"
+    db.write_bytes(b"not a sqlite database" * 64)
+    with pytest.raises(RuntimeError):
+        HybridStorage(str(db))
+
+
+def test_fail_closed_unreadable_db_path(tmp_path):
+    """A database path that cannot be opened raises instead of an empty store."""
+    with pytest.raises(RuntimeError):
+        HybridStorage(str(tmp_path))
+
+
+def test_fail_closed_schema_init_failure(tmp_path, monkeypatch):
+    """A schema/init failure inside HybridStorage propagates, not an empty store."""
+    def _boom(self):
+        raise sqlite3.OperationalError("cannot create tables")
+    monkeypatch.setattr(HybridStorage, "_init_db", _boom)
+    with pytest.raises(RuntimeError):
+        HybridStorage(str(tmp_path / "schema.db"))
+
+
+def test_fail_closed_no_silent_v1_fallback(tmp_path, monkeypatch):
+    """With v2 explicitly selected, create_storage propagates instead of falling back to v1."""
+    monkeypatch.setenv("MCP_USE_V2_STORAGE", "true")
+    db = tmp_path / "corrupt.db"
+    db.write_bytes(b"not a sqlite database" * 64)
+    with pytest.raises(RuntimeError):
+        create_storage(str(db))
 
 
 if __name__ == "__main__":

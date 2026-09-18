@@ -19,11 +19,11 @@ class TestStorageFactory:
         storage = create_storage(":memory:")
         assert type(storage).__name__ == "Storage"
 
-    def test_factory_creates_v2_when_enabled(self):
+    def test_factory_creates_v2_when_enabled(self, tmp_path):
         """Test that factory creates v2 storage when enabled."""
         os.environ['MCP_USE_V2_STORAGE'] = 'true'
 
-        storage = create_storage(":memory:")
+        storage = create_storage(str(tmp_path / "factory.db"))
         assert type(storage).__name__ == "HybridStorage"
 
         # Clean up
@@ -91,10 +91,10 @@ class TestDataMigration:
 class TestAPICompatibility:
     """Test that v1 and v2 have compatible APIs."""
 
-    def test_same_methods_available(self):
+    def test_same_methods_available(self, tmp_path):
         """Test that v2 has all methods that v1 has."""
         v1 = Storage(":memory:")
-        v2 = HybridStorage(":memory:")
+        v2 = HybridStorage(str(tmp_path / "compat.db"))
 
         # Core lookup methods
         assert hasattr(v2, 'is_domain_blacklisted')

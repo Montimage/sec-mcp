@@ -283,16 +283,18 @@ class HybridStorage:
         # Performance metrics
         self.metrics = StorageMetrics()
 
-        # Initialize database and load data
+        # Initialize database and load data; fail closed on any error so a
+        # broken database can never masquerade as an empty blacklist.
         try:
             self._init_db()
             self._init_cidr_trees()
             self._load_all_data()
             self._loading.set()
         except Exception as e:
-            self.logger.error(f"Failed to initialize storage: {e}", exc_info=True)
-            self.logger.warning("Starting with empty blacklist")
             self._loading.set()
+            raise RuntimeError(
+                f"Cannot initialize database at {self.db_path}: {e}. Check directory permissions and disk space."
+            ) from e
 
     def _get_default_db_path(self) -> str:
         """Get platform-specific default database path."""
