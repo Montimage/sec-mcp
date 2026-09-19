@@ -433,6 +433,7 @@ sec-mcp/
 │   ├── __init__.py
 │   ├── storage.py        # v1 storage (database-only)
 │   ├── storage_v2.py     # v2 storage (hybrid in-memory)
+│   ├── storage_base.py   # Shared schema, DB-path resolution and StorageProtocol
 │   ├── start_server.py   # MCP server
 │   └── cli.py           # CLI interface
 ├── benchmark.py          # Benchmark script
