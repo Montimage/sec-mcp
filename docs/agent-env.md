@@ -54,6 +54,9 @@ the user's default data directory.
 
 ## Baseline status
 
-These commands may still be RED — the repository is mid-modernization and the
-build/test suite is not yet green. Restoring green is P0. When a command fails,
-check it against this known-red baseline before assuming your change caused it.
+The build and suite are **fully green** (400 passed, 0 failed — the earlier
+32/64 known-RED era ended with issue #55). CI enforces the suite on Python
+3.11–3.14 plus `--cov-fail-under=98`. `scripts/check_test_baseline.sh` still
+carries the recorded 32/64 floor as a hard stop, but the working bar is no
+regressions: when a command fails, assume your change caused it and check the
+diff before looking elsewhere.

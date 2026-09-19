@@ -1,3 +1,8 @@
+> **Archived — September 2026.** This task plan belongs to the April 2025 MVP
+> sprint (see `prd.md` in this directory) and predates the modernization epic
+> (issue #3) and the 0.4.0 release. It no longer describes the code or the
+> active roadmap and is kept for history only.
+
 # Development Tasks: Model Context Protocol (MCP) Client
 
 This document outlines the development tasks required to build the **Model Context Protocol (MCP) Client** as specified in the Project Requirement Document (PRD, dated April 15, 2025). Tasks are organized into agile sprints to deliver a Minimum Viable Product (MVP) within a 1-month timeline, addressing core features, user stories, and non-functional requirements. The MVP focuses on blacklist checking, automated updates, and an always-running MCP server, with subsequent sprints covering enhancements and optimizations.

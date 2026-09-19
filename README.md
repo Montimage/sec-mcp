@@ -37,7 +37,7 @@ Developed by [Montimage](https://www.montimage.eu), a company specializing in cy
 - **Comprehensive Security Checks**: Validate domains, URLs, and IP addresses against multiple blacklist feeds
 - **Multiple Threat Sources**: OpenPhish, PhishTank, PhishStats, URLhaus, BlocklistDE, CINSSCORE, and more
 - **High Performance**: Ultra-fast in-memory storage with 1000-20,000x speedup over database-only approach
-- **Smart Optimizations**: Tiered lookup, URL normalization, and integer IPv4 storage for maximum efficiency
+- **Smart Optimizations**: One O(1) in-memory index per entry type, URL normalization, and integer IPv4 storage for maximum efficiency
 - **Flexible Integration**: Use as Python library, CLI tool, or MCP server for LLM integration
 - **Thread-Safe**: SQLite storage with WAL mode and in-memory caching for concurrent operations
 - **Auto-Updates**: Scheduled daily updates from threat intelligence sources
@@ -53,9 +53,9 @@ pip install sec-mcp
 
 ### Requirements
 
-- Python 3.8+
+- Python 3.11 or newer (CI tests 3.11–3.14)
 - SQLite 3
-- Optional: `pytricia` (via `pip install "sec-mcp[fast-cidr]"`) for fast CIDR matching and benchmarking; `psutil` for memory metrics
+- Optional: `pytricia` (via `pip install "sec-mcp[fast-cidr]"`) for fast CIDR matching and benchmarking; without it a pure-Python `ipaddress` matcher is used
 
 ---
 
@@ -98,15 +98,22 @@ pip install sec-mcp
 sec-mcp check https://example.com
 sec-mcp check malicious-domain.com
 sec-mcp check 192.168.1.1
+
+# Type-specific checks
+sec-mcp check-domain example.com
+sec-mcp check-url https://example.com/path
+sec-mcp check-ip 192.168.1.1
 ```
+
+All commands except `sample` accept `--json` for machine-readable output.
 
 #### Batch Check
 ```bash
 # From a file (one URL/domain/IP per line)
 sec-mcp batch urls.txt
 
-# With output to file
-sec-mcp batch urls.txt --output results.json
+# Machine-readable results
+sec-mcp batch urls.txt --json
 ```
 
 #### Status and Updates
@@ -117,8 +124,11 @@ sec-mcp status
 # Update blacklists
 sec-mcp update
 
-# Get detailed statistics
-sec-mcp stats
+# Sample stored entries
+sec-mcp sample -n 20
+
+# Clear the in-memory cache (reloads from the database)
+sec-mcp flush-cache
 ```
 
 ### Python API
@@ -132,21 +142,28 @@ client = SecMCP()
 # Update database (run once after installation)
 client.update()
 
-# Single check
+# Single check — check() returns a CheckResult(blacklisted, explanation)
 result = client.check("https://example.com")
-print(f"Safe: {result.is_safe}")
-print(f"Source: {result.source}")
+print(f"Blacklisted: {result.blacklisted}")
+print(f"Explanation: {result.explanation}")
+# result.to_dict() -> {"is_safe": True, "explain": "Not blacklisted"}
+
+# Type-specific checks
+client.check_domain("example.com")
+client.check_url("https://example.com/path")
+client.check_ip("192.168.1.1")
 
 # Batch check
 urls = ["https://example.com", "https://test.com", "192.168.1.1"]
 results = client.check_batch(urls)
-for r in results:
-    print(f"{r.value}: {'SAFE' if r.is_safe else 'BLOCKED'}")
+for value, r in zip(urls, results):
+    print(f"{value}: {'BLOCKED' if r.blacklisted else 'SAFE'}")
 
-# Get statistics
+# Get status — StatusInfo(entry_count, last_update, sources, server_status)
 status = client.get_status()
-print(f"Total entries: {status.total_entries}")
+print(f"Total entries: {status.entry_count}")
 print(f"Last update: {status.last_update}")
+print(f"Scheduler alive: {client.scheduler_alive()}")
 ```
 
 ### MCP Server
@@ -270,8 +287,8 @@ export MCP_USE_V2_STORAGE=true
 ### Monitoring Performance
 
 ```python
-# Via MCP tool or Python API
-metrics = client.get_storage_metrics()
+# Via the Python API (v2 storage only — get_diagnostics exposes the same data over MCP)
+metrics = client.storage.get_metrics()
 
 # Returns:
 {
@@ -279,10 +296,15 @@ metrics = client.get_storage_metrics()
   "domain_lookups": 567,
   "url_lookups": 432,
   "ip_lookups": 235,
+  "cache_hits": 1100,
+  "cache_misses": 134,
+  "hit_rate": 0.89,
   "avg_lookup_time_ms": "0.0123",
   "memory_usage_mb": "45.3",
-  "hit_rate": 0.89,
-  "using_pytricia": true
+  "entry_count": 450000,
+  "using_pytricia": true,
+  "urls_normalized": 312,
+  "ips_as_integers": 45000
 }
 ```
 
@@ -363,6 +385,9 @@ For detailed benchmarking instructions and methodology, see [BENCHMARK_PLAYBOOK.
 |----------|-------------|---------|
 | `MCP_DB_PATH` | Custom database location | Platform-specific (see below) |
 | `MCP_USE_V2_STORAGE` | Enable high-performance mode | `false` |
+| `MCP_LOG_PATH` | Log file location | platformdirs log dir |
+| `MCP_CACHE_DIR` | Feed download cache directory | platformdirs cache dir |
+| `MCP_DISABLE_SCHEDULER` | Set to `1` to not start the daily-update scheduler thread | unset (scheduler runs) |
 
 ### Default Database Locations
 
@@ -378,19 +403,34 @@ export MCP_DB_PATH=/path/to/custom/location/mcp.db
 
 ### Configuration File
 
-Edit `config.json` to customize:
+The shipped `sec_mcp/config.json` controls feed sources, the update schedule and feed-safety bounds:
 
 ```json
 {
   "blacklist_sources": {
-    "PhishTank": "https://...",
-    "URLhaus": "https://..."
+    "OpenPhish": "https://raw.githubusercontent.com/openphish/public_feed/refs/heads/main/feed.txt",
+    "PhishStats": "https://phishstats.info/phish_score.csv",
+    "URLhaus": "https://urlhaus.abuse.ch/downloads/text/",
+    "PhishTank": "https://data.phishtank.com/data/online-valid.csv",
+    "SpamhausDROP": "https://www.spamhaus.org/drop/drop.txt",
+    "Dshield": "https://www.dshield.org/block.txt",
+    "CINSSCORE": "https://cinsscore.com/list/ci-badguys.txt",
+    "EmergingThreats": "https://rules.emergingthreats.net/blockrules/compromised-ips.txt",
+    "FeodoTracker": "https://feodotracker.abuse.ch/downloads/ipblocklist_recommended.txt",
+    "BlocklistDE": "https://lists.blocklist.de/lists/all.txt"
   },
   "update_time": "00:00",
+  "min_update_interval_seconds": 300,
   "cache_size": 10000,
+  "max_feed_bytes": 67108864,
+  "min_feed_entries": 1,
+  "max_feed_entries": 500000,
+  "max_range_addresses": 65536,
   "log_level": "INFO"
 }
 ```
+
+`update_time` sets the daily update hour, `min_update_interval_seconds` rate-limits forced updates, and the `max_*`/`min_*` keys bound accepted feed sizes.
 
 ---
 
@@ -398,49 +438,65 @@ Edit `config.json` to customize:
 
 ### Setup Development Environment
 
+Requires Python ≥3.11 and [uv](https://docs.astral.sh/uv/getting-started/installation/) (`pip install uv` if needed).
+
 ```bash
 # Clone repository
 git clone https://github.com/montimage/sec-mcp.git
 cd sec-mcp
 
-# Create virtual environment
-python3 -m venv .venv
-source .venv/bin/activate
-
-# Install in development mode (fast-cidr extra installs pytricia)
-pip install -e ".[fast-cidr]"
-
-# Install development dependencies
-pip install pytest
+# One dev-install command — creates .venv, installs the package
+# editable plus the dev group (pytest, pytest-asyncio, pytest-cov,
+# ruff, pytricia), pinned by uv.lock
+uv sync
 ```
+
+That is the whole setup: `uv sync` is the single dev-install command, and it works in a clean container too — verified in `docker run --rm -it python:3.13` with `pip install uv && uv sync` (uv reads `.python-version` and fetches the pinned interpreter itself; pass `--python 3.13` to use the system one instead).
 
 ### Running Tests
 
 ```bash
-# Run all tests
-pytest
+# Run all tests (suite is fully green: 400 passed)
+uv run pytest -q -p no:cacheprovider
 
-# Run with coverage
-pytest --cov=sec_mcp --cov-report=html
+# Lint
+uv run ruff check .
+
+# With coverage (CI enforces --cov-fail-under=98)
+uv run pytest --cov=sec_mcp --cov-report=term --cov-fail-under=98 -q -p no:cacheprovider
 ```
+
+The suite is hermetic — `sec_mcp/tests/conftest.py` points `MCP_DB_PATH`, `MCP_LOG_PATH` and `MCP_CACHE_DIR` at temp dirs and disables the scheduler, so tests leave no trace. Only ad-hoc probes that construct `SecMCP()`/`Storage`/`BlacklistUpdater` need `export MCP_DB_PATH="$(mktemp -d)/probe.db"` first — see `docs/agent-env.md`.
 
 ### Project Structure
 
 ```
 sec-mcp/
-├── sec_mcp/              # Main package
-│   ├── __init__.py
-│   ├── storage.py        # v1 storage (database-only)
-│   ├── storage_v2.py     # v2 storage (hybrid in-memory)
-│   ├── storage_v2_db.py  # v2 persistence layer (all SQLite access)
-│   ├── storage_base.py   # Shared schema, DB-path resolution and StorageProtocol
-│   ├── start_server.py   # MCP server
-│   └── cli.py           # CLI interface
-├── benchmark.py          # Benchmark script
-├── run_benchmark.sh      # Benchmark helper script
-├── dev-docs/            # Development documentation (git-ignored)
-├── tests/               # Test suite
-└── README.md            # This file
+├── sec_mcp/                # Main package
+│   ├── __init__.py         # Public API: SecMCP, CheckResult, StatusInfo, __version__
+│   ├── sec_mcp.py          # SecMCP client facade (check/check_batch/update/get_status)
+│   ├── cli.py              # `sec-mcp` CLI (click)
+│   ├── mcp_server.py       # MCP tool definitions (SDK 2.x MCPServer)
+│   ├── start_server.py     # `sec-mcp-server` entry point
+│   ├── storage.py          # Storage backend selector + v1 storage (database-only)
+│   ├── storage_v2.py       # v2 HybridStorage (in-memory indexes + metrics)
+│   ├── storage_base.py     # Shared schema, DB-path resolution, StorageProtocol, normalize_url
+│   ├── storage_v2_db.py    # v2 persistence layer (SQLiteStore — all SQLite access)
+│   ├── storage_v2_index.py # v2 in-memory indexes and CIDR matching (pytricia/fallback)
+│   ├── storage_v2_writes.py# v2 write path (add/delete entries, persistence + rollback)
+│   ├── storage_v2_stats.py # v2 stats/reporting mixin
+│   ├── storage_queries.py  # v1 read/query half (StorageQueryMixin)
+│   ├── feed_parsers.py     # One parser per blacklist feed source
+│   ├── update_blacklist.py # Feed download, scheduling and ingestion
+│   ├── utility.py          # Validation, logging, config
+│   ├── config.json         # Shipped defaults (sources, schedule, feed bounds)
+│   └── tests/              # pytest suite (pytest.ini sets testpaths)
+├── scripts/                # check_test_baseline.sh (floor gate)
+├── docs/                   # Project docs (agent-env.md, decisions/, archive/)
+├── benchmark.py            # Benchmark script
+├── run_benchmark.sh        # Benchmark helper script
+├── react-landing-page/     # Standalone Vite site (not part of the package)
+└── README.md               # This file
 ```
 
 ---
@@ -465,13 +521,7 @@ sec-mcp is developed and maintained by [Montimage](https://www.montimage.eu), a 
 
 ## Contributing
 
-Contributions are welcome! Please feel free to submit a Pull Request.
-
-1. Fork the repository
-2. Create your feature branch (`git checkout -b feature/amazing-feature`)
-3. Commit your changes (`git commit -m 'Add some amazing feature'`)
-4. Push to the branch (`git push origin feature/amazing-feature`)
-5. Open a Pull Request
+Contributions are welcome! See [CONTRIBUTING.md](CONTRIBUTING.md) for the dev setup, test commands, branch/commit conventions and the PR process — and [CHANGELOG.md](CHANGELOG.md) for release history.
 
 ---
 

@@ -1,3 +1,9 @@
+> **Archived — September 2026.** This PRD describes the original April 2025
+> MVP plan (the `mcp_client` package, `requests`/`tqdm` stack, a single
+> `check_blacklist` MCP tool). It predates the modernization epic (issue #3)
+> and the 0.4.0 release — it no longer describes the code and is kept for
+> history only. Current docs: `README.md`, `docs/agent-env.md`.
+
 # Project Requirement Document: Model Context Protocol (MCP) Client
 
 **Version**: 1.0  
