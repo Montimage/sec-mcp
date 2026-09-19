@@ -48,7 +48,7 @@ jobs:
       - name: Test suite (baseline gate)
         run: ./scripts/check_test_baseline.sh
 
-      - name: Coverage gate (M3 target: 98%)
+      - name: "Coverage gate (M3 target: 98%)"
         # The M3 coverage bound recorded in
         # docs/decisions/2026-09-19-coverage-m3-target.md is 98% — enforced
         # here now that the suite is fully green (the known-RED :memory:
