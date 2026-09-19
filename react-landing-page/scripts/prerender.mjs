@@ -18,5 +18,18 @@ if (!html.includes(marker)) {
     throw new Error(`prerender: ${marker} not found in dist/index.html`);
 }
 writeFileSync(htmlPath, html.replace(marker, `<div id="root">${app}</div>`));
+
+// Keep the sitemap fresh on every publish: public/sitemap.xml is the canonical
+// URL list; dist/sitemap.xml gets its <lastmod> bumped to the build date so the
+// deployed copy never drifts stale (issue #138).
+const today = new Date().toISOString().slice(0, 10);
+const sitemap = readFileSync(join(root, 'public/sitemap.xml'), 'utf8');
+const stamped = sitemap.replace(/<lastmod>[^<]*<\/lastmod>/g, `<lastmod>${today}</lastmod>`);
+if (!/<lastmod>\d{4}-\d{2}-\d{2}<\/lastmod>/.test(stamped)) {
+    throw new Error('prerender: no <lastmod> date stamped into sitemap.xml');
+}
+writeFileSync(join(root, 'dist/sitemap.xml'), stamped);
+console.log(`prerender: stamped dist/sitemap.xml lastmod=${today}`);
+
 rmSync(join(root, 'dist-ssr'), { recursive: true, force: true });
 console.log(`prerender: injected ${app.length} bytes of markup into dist/index.html`);
