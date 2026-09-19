@@ -537,6 +537,27 @@ class TestV2StateConsistency:
         assert storage.is_ip_blacklisted("1.2.3.999") is False
         assert storage.get_ip_blacklist_source("1.2.3.999") is None
 
+    def test_v2_cidr_lookup_rejects_noncanonical_ipv4(self, tmp_path):
+        """Non-canonical octets int() accepts must not alias or crash.
+
+        ``int("+1")``, ``int(" 1")`` and ``int("01")`` all succeed, so
+        ``+1.2.3.4``, ``" 1.2.3.4"`` and ``1.2.3.04`` used to map onto the
+        ``1.2.3.4`` integer — aliasing that entry — and ``+1.2.3.4``
+        reached the radix tree, where pytricia raises SystemError.
+        """
+        storage = HybridStorage(str(tmp_path / "noncanonical.db"))
+        storage.add_ip("1.2.3.4", "2025-01-01", 9.0, "test")
+
+        for malformed in ("+1.2.3.4", " 1.2.3.4", "1.2.3.4 ", "1.2.3.04"):
+            assert storage.is_ip_blacklisted(malformed) is False
+            assert storage.get_ip_blacklist_source(malformed) is None
+
+        storage.add_ips([
+            ("+1.2.3.4", "2025-01-01", 9.0, "test"),
+            ("1.2.3.04", "2025-01-01", 9.0, "test"),
+        ])
+        assert storage.count_entries() == 1
+
     @pytest.mark.parametrize("use_pytricia", [True, False], ids=["pytricia", "fallback"])
     def test_v2_cidr_removal_stops_matching_without_reload(
         self, tmp_path, monkeypatch, use_pytricia

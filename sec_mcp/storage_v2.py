@@ -166,10 +166,15 @@ def ip_to_int(ip: str) -> Optional[int]:
             return None
 
         octets = [int(part) for part in parts]
-        # Reject out-of-range octets: without this check "1.2.3.999" sums to
-        # the same integer as "1.2.6.231", so an invalid address aliases a
-        # different, real one.
-        if any(octet < 0 or octet > 255 for octet in octets):
+        # Reject anything int() parses that a real IPv4 octet cannot be:
+        # out-of-range values ("1.2.3.999" sums to the same integer as
+        # "1.2.6.231") and non-canonical spellings ("+1", " 1", "01") that
+        # alias a different, real address — and that pytricia later rejects
+        # with SystemError when the raw string reaches the radix tree.
+        if any(
+            str(octet) != part or octet < 0 or octet > 255
+            for octet, part in zip(octets, parts)
+        ):
             return None
 
         return (
@@ -759,7 +764,9 @@ class HybridStorage(StorageProtocol):
                     result = ip in self._ipv4_cidr_tree
                 self._update_metrics('ip', start, result)
                 return result
-            except (KeyError, ValueError):
+            except (KeyError, ValueError, SystemError):
+                # pytricia raises SystemError on keys it cannot parse —
+                # a malformed lookup must return False, not crash.
                 self._update_metrics('ip', start, False)
                 return False
         else:
@@ -880,7 +887,7 @@ class HybridStorage(StorageProtocol):
                     return self._ipv6_cidr_tree.get(ip)
                 else:  # IPv4
                     return self._ipv4_cidr_tree.get(ip)
-            except (KeyError, ValueError):
+            except (KeyError, ValueError, SystemError):
                 return None
         else:
             # Fallback: find matching CIDR
