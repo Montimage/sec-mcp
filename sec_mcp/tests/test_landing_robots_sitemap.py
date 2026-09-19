@@ -95,7 +95,9 @@ def test_sitemap_is_valid_xml_with_sitemaps_namespace():
 
 
 def test_sitemap_lists_canonical_url():
-    locs = [el.text for el in _sitemap_root().iter(f"{{{SITEMAP_NS}}}loc")]
+    locs = [
+        el.text or "" for el in _sitemap_root().iter(f"{{{SITEMAP_NS}}}loc")
+    ]
     assert f"{SITE_BASE}/" in locs, "sitemap must list the canonical site URL"
     for loc in locs:
         assert loc.startswith(f"{SITE_BASE}/"), (
@@ -105,11 +107,11 @@ def test_sitemap_lists_canonical_url():
 
 def test_sitemap_lastmod_is_a_valid_recent_date():
     lastmods = [
-        el.text for el in _sitemap_root().iter(f"{{{SITEMAP_NS}}}lastmod")
+        el.text or "" for el in _sitemap_root().iter(f"{{{SITEMAP_NS}}}lastmod")
     ]
     assert lastmods, "every <url> should carry a <lastmod>"
     for value in lastmods:
-        parsed = date.fromisoformat(value)  # raises on malformed dates
+        parsed = date.fromisoformat(value)  # raises on malformed/empty dates
         assert parsed <= date.today(), f"lastmod in the future: {value}"
 
 
