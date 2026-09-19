@@ -243,7 +243,7 @@ def init_db(db_path: str) -> None:
             conn.execute(statement)
         # _canonicalize_url_rows rewrites every stored URL — too expensive
         # to re-run on every open, so it runs once and stamps user_version.
-        if conn.execute("PRAGMA user_version").fetchone()[0] < 1:
+        if conn.execute("PRAGMA user_version").fetchone()[0] < SCHEMA_VERSION:
             _canonicalize_url_rows(conn)
             conn.execute(f"PRAGMA user_version = {SCHEMA_VERSION}")
         conn.commit()
