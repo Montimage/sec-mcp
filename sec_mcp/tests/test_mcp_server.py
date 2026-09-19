@@ -17,6 +17,7 @@ from mcp.client import Client
 from sec_mcp import mcp_server
 from sec_mcp.storage import Storage
 from sec_mcp.storage_v2 import HybridStorage
+from sec_mcp.utility import package_version
 
 # Expected tool catalog: name -> (required args, all argument-schema properties).
 EXPECTED_TOOLS = {
@@ -275,6 +276,65 @@ async def test_call_remove_entry_result_shape(backend_storage):
     (payload,) = _json_blocks(result)
     assert payload == {"success": True}
     assert not backend_storage.is_domain_blacklisted("evil.example")
+
+
+# ============================================================================
+# Server identity and input schemas (issue #37)
+# ============================================================================
+
+
+@pytest.mark.asyncio
+async def test_server_info_identity_via_discover():
+    """server/discover stamps the full serverInfo block and instructions."""
+    async with Client(mcp_server.mcp, mode="auto") as client:
+        info = client.server_info
+        assert info is not None
+        assert info.name == "sec-mcp"
+        assert info.version and info.version == package_version()
+        assert info.title
+        assert info.description
+        assert info.website_url == "https://github.com/Montimage/sec-mcp"
+        assert client.session.discover_result is not None
+        assert client.instructions
+
+
+@pytest.mark.asyncio
+async def test_server_info_identity_via_initialize():
+    """The legacy initialize handshake reports the same identity."""
+    async with _client_session() as client:
+        init = client.session.initialize_result
+        assert init is not None
+        assert init.server_info.name == "sec-mcp"
+        assert init.server_info.version == package_version()
+        assert init.server_info.title
+        assert init.server_info.website_url == "https://github.com/Montimage/sec-mcp"
+        assert init.instructions
+
+
+@pytest.mark.asyncio
+async def test_input_schema_get_diagnostics_constraints():
+    """get_diagnostics declares the 5-mode enum and sample_count bounds."""
+    async with _client_session() as session:
+        listed = await session.list_tools()
+
+    tools = {t.name: t for t in listed.tools}
+    props = tools["get_diagnostics"].input_schema["properties"]
+    assert sorted(props["mode"]["enum"]) == sorted(
+        ["summary", "full", "health", "performance", "sample"]
+    )
+    assert props["sample_count"]["minimum"] == 1
+    assert props["sample_count"]["maximum"] == 100
+
+
+@pytest.mark.asyncio
+async def test_input_schema_parameters_have_descriptions():
+    """Every parameter in every tool's inputSchema carries a description."""
+    async with _client_session() as session:
+        listed = await session.list_tools()
+
+    for tool in listed.tools:
+        for param, spec in tool.input_schema.get("properties", {}).items():
+            assert spec.get("description"), f"{tool.name}.{param} has no description"
 
 
 # ============================================================================
