@@ -1,0 +1,49 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "io.github.montimage/sec-mcp",
+  "description": "Check domains, URLs and IPs against security blacklists backed by SQLite.",
+  "title": "sec-mcp",
+  "version": "0.4.0",
+  "websiteUrl": "https://github.com/Montimage/sec-mcp#readme",
+  "repository": {
+    "url": "https://github.com/Montimage/sec-mcp",
+    "source": "github"
+  },
+  "packages": [
+    {
+      "registryType": "pypi",
+      "registryBaseUrl": "https://pypi.org",
+      "identifier": "sec-mcp",
+      "version": "0.4.0",
+      "runtimeHint": "uvx",
+      "transport": {
+        "type": "stdio"
+      },
+      "runtimeArguments": [
+        {
+          "type": "named",
+          "name": "--from",
+          "value": "sec-mcp",
+          "description": "Install and run from the sec-mcp PyPI package."
+        },
+        {
+          "type": "positional",
+          "value": "sec-mcp-server",
+          "description": "Console-script entry point that starts the MCP server (uvx --from sec-mcp sec-mcp-server)."
+        }
+      ],
+      "environmentVariables": [
+        {
+          "name": "MCP_DB_PATH",
+          "description": "Custom database location. Defaults to the platform-specific user data directory.",
+          "format": "filepath"
+        },
+        {
+          "name": "MCP_USE_V2_STORAGE",
+          "description": "Enable the high-performance in-memory storage engine.",
+          "default": "true"
+        }
+      ]
+    }
+  ]
+}
