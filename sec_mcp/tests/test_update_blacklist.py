@@ -1,8 +1,11 @@
+import ast
+import inspect
 import sqlite3
 from unittest.mock import ANY, MagicMock
 
 import pytest
 
+import sec_mcp.update_blacklist
 from sec_mcp.storage import Storage
 from sec_mcp.update_blacklist import BlacklistUpdater, _feed_cache_dir
 
@@ -443,3 +446,36 @@ async def test_parse_urlhaus_exact_entries():
         ("http://urlhaus-bad.example/cc", None, ANY, 8, "URLhaus"),
         ("https://urlhaus-bad2.example/dd", None, ANY, 8, "URLhaus"),
     ]
+
+
+def _update_blacklist_function_nodes():
+    """AST nodes for every function defined in ``update_blacklist.py``."""
+    tree = ast.parse(inspect.getsource(sec_mcp.update_blacklist))
+    return [
+        node
+        for node in ast.walk(tree)
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
+    ]
+
+
+def test_functions_stay_under_50_lines():
+    """Issue #51: no function in update_blacklist.py may exceed 50 lines."""
+    lengths = {
+        fn.name: fn.end_lineno - fn.lineno + 1
+        for fn in _update_blacklist_function_nodes()
+    }
+    assert lengths, "no functions found in update_blacklist.py"
+    offenders = {name: n for name, n in lengths.items() if n > 50}
+    assert not offenders, f"functions over 50 lines: {offenders}"
+
+
+def test_no_function_local_imports():
+    """Issue #51: every import in update_blacklist.py lives at module top."""
+    offenders = {}
+    for fn in _update_blacklist_function_nodes():
+        count = sum(
+            1 for node in ast.walk(fn) if isinstance(node, (ast.Import, ast.ImportFrom))
+        )
+        if count:
+            offenders[fn.name] = count
+    assert not offenders, f"function-local imports remain: {offenders}"

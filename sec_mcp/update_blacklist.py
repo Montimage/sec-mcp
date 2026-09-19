@@ -6,6 +6,10 @@ import os
 import re
 import threading
 import time
+import traceback
+from datetime import datetime, timedelta
+from ipaddress import ip_address, summarize_address_range
+from urllib.parse import urlparse
 
 import httpx
 import schedule
@@ -150,7 +154,6 @@ class BlacklistUpdater:
         Blocking filesystem work — callers inside coroutines must offload via
         ``asyncio.to_thread`` so the event loop never stalls on disk I/O.
         """
-        from datetime import datetime, timedelta
         if not os.path.exists(filename):
             return None
         file_age = datetime.now() - datetime.fromtimestamp(os.path.getmtime(filename))
@@ -174,7 +177,6 @@ class BlacklistUpdater:
 
     def _is_domain_blacklisted(self, url: str) -> bool:
         """Check if the domain of a URL is blacklisted."""
-        from urllib.parse import urlparse
         try:
             domain = urlparse(url).netloc or urlparse('//' + url).netloc
             if domain and self.storage.is_domain_blacklisted(domain):
@@ -186,288 +188,17 @@ class BlacklistUpdater:
 
     async def _update_source(self, client: httpx.AsyncClient, source: str, url: str):
         """Update blacklist from a single source."""
-        import os
-        from datetime import datetime
         if not url.lower().startswith("https://"):
             self.logger.warning(f"Rejecting non-HTTPS blacklist source {source}: {url}")
             return
         try:
-            cache_dir = _feed_cache_dir()
-            safe_source = re.sub(r"[^\w.-]", "_", source, flags=re.ASCII)
-            filename = os.path.join(cache_dir, f"{safe_source}.txt" if not url.endswith('.csv') else f"{safe_source}.csv")
-            use_cache = False
-            content = None
-            cached = await asyncio.to_thread(self._read_cached_feed, filename)
-            if cached is not None:
-                content = cached.decode("utf-8", errors="replace")
-                use_cache = True
-            if not use_cache:
-                chunks = []
-                downloaded = 0
-                async with client.stream("GET", url) as response:
-                    response.raise_for_status()
-                    async for chunk in response.aiter_bytes():
-                        downloaded += len(chunk)
-                        if downloaded > self.max_feed_bytes:
-                            raise ValueError(f"{source} feed exceeds max_feed_bytes ({self.max_feed_bytes}); aborting download")
-                        chunks.append(chunk)
-                content = b"".join(chunks).decode("utf-8", errors="replace")
-            entries = []
-            
-            # Source-specific parsing logic
-            if source == "PhishStats":
-                try:
-                    # Skip comment lines and use the first non-comment line as header
-                    lines = content.splitlines()
-                    data_lines = [line for line in lines if line.strip() and not line.strip().startswith('#')]
-                    if len(data_lines) < 2: # Need at least a header and one data row
-                        self.logger.warning(f"No data (or only header) found for PhishStats after stripping comments. Content head: {content[:300]}")
-                        return
-                    
-                    reader = csv.DictReader(data_lines) # Uses the first line of data_lines as fieldnames
-                    now_str = datetime.now().isoformat(sep=' ', timespec='seconds')
-                    first5 = []
-                    for idx, row_dict in enumerate(reader):
-                        url_val = row_dict.get('url', '').strip()
-                        ip_val = row_dict.get('ip', '').strip() or None # Ensures empty string becomes None
-                        
-                        date_str = row_dict.get('date', '').strip()
-                        # Validate or default date_val. PhishStats format can be 'YYYY-MM-DD HH:MM:SS'
-                        # For simplicity, we'll use it as is if present, or default to now_str
-                        date_val = date_str if date_str else now_str
-                        
-                        score_str = row_dict.get('score', '').strip()
-                        try:
-                            score_val = float(score_str) if score_str else 8.0
-                        except ValueError:
-                            self.logger.warning(f"Could not parse score '{score_str}' for {source} at row {idx+1}, using default 8.0. Row: {row_dict}")
-                            score_val = 8.0
+            filename = self._feed_cache_filename(source, url)
+            content, use_cache = await self._fetch_feed(client, source, url, filename)
+            entries = self._parse_feed(source, content)
+            if entries is None:
+                return
+            deduped_entries = self._dedupe_entries(entries)
 
-                        if idx < 5: # For debugging
-                            first5.append({'date': date_val, 'score': score_val, 'url': url_val, 'ip': ip_val})
-                        
-                        if url_val: # Must have a URL at least
-                            entries.append((url_val, ip_val, date_val, score_val, source))
-                        if first5:
-                            self.logger.debug(f"PhishStats first 5 parsed rows: {first5}")
-                except Exception as e:
-                    self.logger.error(f"CSV parsing error for {source}: {e}. Raw content head: {content[:300]}")
-                    return
-            elif source == "PhishTank":
-                try:
-                    lines = content.splitlines()
-                    data_lines = [line for line in lines if line.strip()]
-                    reader = csv.DictReader(data_lines)
-                    first5 = []
-                    for idx, row in enumerate(reader):
-                        url_val = row.get("url", "").strip()
-                        date_val = row.get("submission_time", "").replace("T", " ").split("+")[0] if row.get("submission_time") else ""
-                        score_val = 8
-                        target_val = row.get("target", "")
-                        # Optionally: use target_val for tagging or notes
-                        ip_val = None  # PhishTank doesn't provide direct IP
-                        if idx < 5:
-                            first5.append({'date': date_val, 'score': score_val, 'url': url_val, 'target': target_val})
-                        if url_val:
-                            entries.append((url_val, ip_val, date_val, score_val, source))
-                    if first5:
-                        self.logger.debug(f"PhishTank first 5 parsed rows: {first5}")
-                except Exception as e:
-                    self.logger.error(f"CSV parsing error for {source}: {e}. Raw content head: {content[:300]}")
-                    return
-            elif source == "SpamhausDROP":
-                try:
-                    lines = content.splitlines()
-                    first5 = []
-                    from datetime import datetime
-                    now_str = datetime.now().isoformat(sep=' ', timespec='seconds')
-                    for idx, line in enumerate(lines):
-                        line = line.strip()
-                        if not line or line.startswith(';'):
-                            continue
-                        # Extract the network mask (before the first ';')
-                        netmask = line.split(';')[0].strip()
-                        if not netmask:
-                            continue
-                        ip_val = netmask
-                        url_val = None
-                        date_val = now_str
-                        score_val = 8
-                        if idx < 5:
-                            first5.append({'ip_network': ip_val, 'date': date_val, 'score': score_val})
-                        entries.append((url_val, ip_val, date_val, score_val, source))
-                    if first5:
-                        self.logger.debug(f"SpamhausDROP first 5 parsed rows: {first5}")
-                except Exception as e:
-                    self.logger.error(f"Parsing error for {source}: {e}. Raw content head: {content[:300]}")
-                    return
-            elif source == "Dshield":
-                try:
-                    lines = content.splitlines()
-                    from datetime import datetime
-                    from ipaddress import ip_address, summarize_address_range
-                    now_str = datetime.now().isoformat(sep=' ', timespec='seconds')
-                    first5 = []
-                    for idx, line in enumerate(lines):
-                        line = line.strip()
-                        # Skip header lines and empty lines
-                        if not line or line.startswith('#') or line.startswith('Start') or line.startswith('('):
-                            continue
-                        
-                        # Parse tab-delimited fields: Start, End, Netmask, ...
-                        fields = line.split('\t')
-                        if len(fields) < 3:  # Ensure at least IP range start, end, and subnet
-                            continue
-
-                        # Store the range as CIDR networks so lookups cover
-                        # every address in the block, not just the start.
-                        try:
-                            start_ip = ip_address(fields[0].strip())
-                            end_ip = ip_address(fields[1].strip())
-                            networks = list(summarize_address_range(start_ip, end_ip))
-                        except (ValueError, TypeError):
-                            continue
-
-                        # Reject implausibly broad ranges (e.g. a corrupt
-                        # 0.0.0.0-255.255.255.255 row would blacklist everything).
-                        if int(end_ip) - int(start_ip) + 1 > self.max_range_addresses:
-                            continue
-
-                        for network in networks:
-                            ip_val = str(network.network_address) if network.num_addresses == 1 else str(network)
-                            url_val = None
-                            date_val = now_str
-                            score_val = 8
-
-                            if idx < 5:
-                                first5.append({'ip': ip_val, 'date': date_val, 'score': score_val})
-                            entries.append((url_val, ip_val, date_val, score_val, source))
-                    
-                    if first5:
-                        self.logger.info(f"Dshield first 5 parsed entries: {first5}")
-                except Exception as e:
-                    self.logger.error(f"Parsing error for {source}: {e}. Raw content head: {content[:300]}")
-                    return
-            elif source == "CINSSCORE":
-                try:
-                    lines = content.splitlines()
-                    from datetime import datetime
-                    now_str = datetime.now().isoformat(sep=' ', timespec='seconds')
-                    first5 = []
-                    
-                    for idx, line in enumerate(lines):
-                        line = line.strip()
-                        # Skip empty lines and comments
-                        if not line or line.startswith('#'):
-                            continue
-                            
-                        # Each line contains a single IP address
-                        ip_val = line
-                        url_val = None
-                        date_val = now_str
-                        score_val = 8
-                        
-                        if idx < 5:
-                            first5.append({'ip': ip_val, 'date': date_val, 'score': score_val})
-                        entries.append((url_val, ip_val, date_val, score_val, source))
-                    
-                    if first5:
-                        self.logger.info(f"CINSSCORE first 5 parsed entries: {first5}")
-                except Exception as e:
-                    self.logger.error(f"Parsing error for {source}: {e}. Raw content head: {content[:300]}")
-                    return
-            elif source == "EmergingThreats" or source == "FeodoTracker" or source == "BlocklistDE":
-                try:
-                    lines = content.splitlines()
-                    from datetime import datetime
-                    now_str = datetime.now().isoformat(sep=' ', timespec='seconds')
-                    first5 = []
-                    
-                    for idx, line in enumerate(lines):
-                        line = line.strip()
-                        # Skip empty lines and comments
-                        if not line or line.startswith('#'):
-                            continue
-                            
-                        # Each line should contain an IP address or domain
-                        entry = line
-                        
-                        # Determine if the entry is an IP address
-                        try:
-                            from ipaddress import ip_address
-                            ip_address(entry)
-                            ip_val = entry
-                            url_val = None
-                        except ValueError:
-                            # If not an IP, treat as domain/URL
-                            if not entry.startswith(('http://', 'https://')):
-                                url_val = f"http://{entry}"
-                            else:
-                                url_val = entry
-                            ip_val = None
-                        
-                        date_val = now_str
-                        score_val = 8
-                        
-                        if idx < 5:
-                            first5.append({'ip': ip_val, 'url': url_val, 'date': date_val, 'score': score_val})
-                        entries.append((url_val, ip_val, date_val, score_val, source))
-                    
-                    if first5:
-                        self.logger.info(f"{source} first 5 parsed entries: {first5}")
-                except Exception as e:
-                    self.logger.error(f"Parsing error for {source}: {e}. Raw content head: {content[:300]}")
-                    return
-            else:
-                from datetime import datetime
-                from ipaddress import ip_address
-                now_str = datetime.now().isoformat(sep=' ', timespec='seconds')
-                for line in content.splitlines():
-                    line = line.strip()
-                    if not line or line.startswith("#") or not validate_input(line):
-                        continue
-                    
-                    # Try to parse fields if CSV, else treat as single value (IP or URL)
-                    if ',' in line:
-                        parts = [p.strip() for p in line.split(',')]
-                        url_val = parts[0] if parts else None
-                        ip_val = parts[1] if len(parts) > 1 else None
-                        date_val = parts[2] if len(parts) > 2 and parts[2] else now_str
-                        try:
-                            score_val = float(parts[3]) if len(parts) > 3 and parts[3] else 8
-                        except Exception:
-                            score_val = 8
-                    else:
-                        # Determine if the single value is an IP address or URL
-                        try:
-                            # Try parsing as IP address
-                            ip_address(line)
-                            url_val = None
-                            ip_val = line
-                        except ValueError:
-                            # If not an IP, treat as URL
-                            # Add http:// prefix if neither http:// nor https:// is present
-                            if not line.startswith(('http://', 'https://')):
-                                url_val = f"http://{line}"
-                            else:
-                                url_val = line
-                            ip_val = None
-                        
-                        date_val = now_str
-                        score_val = 8
-                        
-                    entries.append((url_val, ip_val, date_val, score_val, source))
-            
-            # Deduplicate: for IP-based sources use ip_val, otherwise use url_val
-            seen = set()
-            deduped_entries = []
-            for entry in entries:
-                url_val, ip_val, date_val, score_val, source = entry
-                key = ip_val if ip_val else url_val  # Use IP if available, otherwise URL
-                if key and key not in seen:
-                    seen.add(key)
-                    deduped_entries.append(entry)
-            
             if deduped_entries:
                 self.logger.info(f"First 5 parsed entries for {source}: {deduped_entries[:5]}")
             else:
@@ -492,11 +223,273 @@ class BlacklistUpdater:
             await asyncio.to_thread(self.storage.add_entries, deduped_entries)
             await asyncio.to_thread(self.storage.log_update, source, len(deduped_entries))
             self.logger.info(f"Updated {source}: {len(deduped_entries)} entries.")
-        
+
         except Exception as e:
             self.logger.error(f"Failed to update {source}: {e}")
-            import traceback
             self.logger.debug(traceback.format_exc())
+
+    def _feed_cache_filename(self, source: str, url: str) -> str:
+        """Return the per-source feed cache path, confined to the cache dir."""
+        cache_dir = _feed_cache_dir()
+        safe_source = re.sub(r"[^\w.-]", "_", source, flags=re.ASCII)
+        extension = ".csv" if url.endswith('.csv') else ".txt"
+        return os.path.join(cache_dir, f"{safe_source}{extension}")
+
+    async def _fetch_feed(self, client: httpx.AsyncClient, source: str, url: str, filename: str):
+        """Return ``(content, use_cache)``: fresh cached content or a download.
+
+        Blocking cache reads are offloaded so the event loop never stalls;
+        downloads abort as soon as ``max_feed_bytes`` is exceeded.
+        """
+        cached = await asyncio.to_thread(self._read_cached_feed, filename)
+        if cached is not None:
+            return cached.decode("utf-8", errors="replace"), True
+        chunks = []
+        downloaded = 0
+        async with client.stream("GET", url) as response:
+            response.raise_for_status()
+            async for chunk in response.aiter_bytes():
+                downloaded += len(chunk)
+                if downloaded > self.max_feed_bytes:
+                    raise ValueError(f"{source} feed exceeds max_feed_bytes ({self.max_feed_bytes}); aborting download")
+                chunks.append(chunk)
+        return b"".join(chunks).decode("utf-8", errors="replace"), False
+
+    def _parse_feed(self, source: str, content: str):
+        """Dispatch to the per-source parser registered in ``_PARSERS``.
+
+        Returns a list of ``(url, ip, date, score, source)`` tuples, or
+        ``None`` when the parser fails and the update must be aborted.
+        """
+        parser = self._PARSERS.get(source, BlacklistUpdater._parse_generic)
+        try:
+            return parser(self, source, content)
+        except Exception as e:
+            self.logger.error(f"Parsing error for {source}: {e}. Raw content head: {content[:300]}")
+            return None
+
+    @staticmethod
+    def _dedupe_entries(entries):
+        """Drop duplicate entries, keyed by IP when present else by URL."""
+        seen = set()
+        deduped_entries = []
+        for entry in entries:
+            url_val, ip_val, date_val, score_val, source = entry
+            key = ip_val if ip_val else url_val  # Use IP if available, otherwise URL
+            if key and key not in seen:
+                seen.add(key)
+                deduped_entries.append(entry)
+        return deduped_entries
+
+    def _parse_phishstats(self, source: str, content: str):
+        """Parse the PhishStats CSV feed (comment lines precede the header)."""
+        lines = content.splitlines()
+        data_lines = [line for line in lines if line.strip() and not line.strip().startswith('#')]
+        if len(data_lines) < 2:  # Need at least a header and one data row
+            self.logger.warning(f"No data (or only header) found for PhishStats after stripping comments. Content head: {content[:300]}")
+            return None
+        reader = csv.DictReader(data_lines)  # Uses the first line of data_lines as fieldnames
+        now_str = datetime.now().isoformat(sep=' ', timespec='seconds')
+        entries = []
+        first5 = []
+        for idx, row_dict in enumerate(reader):
+            url_val = row_dict.get('url', '').strip()
+            ip_val = row_dict.get('ip', '').strip() or None  # Ensures empty string becomes None
+            # PhishStats format can be 'YYYY-MM-DD HH:MM:SS'; use it as is if
+            # present, or default to now_str.
+            date_val = row_dict.get('date', '').strip() or now_str
+            score_str = row_dict.get('score', '').strip()
+            try:
+                score_val = float(score_str) if score_str else 8.0
+            except ValueError:
+                self.logger.warning(f"Could not parse score '{score_str}' for {source} at row {idx+1}, using default 8.0. Row: {row_dict}")
+                score_val = 8.0
+            if idx < 5:  # For debugging
+                first5.append({'date': date_val, 'score': score_val, 'url': url_val, 'ip': ip_val})
+            if url_val:  # Must have a URL at least
+                entries.append((url_val, ip_val, date_val, score_val, source))
+        if first5:
+            self.logger.debug(f"PhishStats first 5 parsed rows: {first5}")
+        return entries
+
+    def _parse_phishtank(self, source: str, content: str):
+        """Parse the PhishTank CSV feed."""
+        data_lines = [line for line in content.splitlines() if line.strip()]
+        reader = csv.DictReader(data_lines)
+        entries = []
+        first5 = []
+        for idx, row in enumerate(reader):
+            url_val = row.get("url", "").strip()
+            date_val = row.get("submission_time", "").replace("T", " ").split("+")[0] if row.get("submission_time") else ""
+            score_val = 8
+            target_val = row.get("target", "")
+            ip_val = None  # PhishTank doesn't provide direct IP
+            if idx < 5:
+                first5.append({'date': date_val, 'score': score_val, 'url': url_val, 'target': target_val})
+            if url_val:
+                entries.append((url_val, ip_val, date_val, score_val, source))
+        if first5:
+            self.logger.debug(f"PhishTank first 5 parsed rows: {first5}")
+        return entries
+
+    def _parse_spamhausdrop(self, source: str, content: str):
+        """Parse the Spamhaus DROP list (';'-delimited network entries)."""
+        now_str = datetime.now().isoformat(sep=' ', timespec='seconds')
+        entries = []
+        first5 = []
+        for idx, line in enumerate(content.splitlines()):
+            line = line.strip()
+            if not line or line.startswith(';'):
+                continue
+            # Extract the network mask (before the first ';')
+            netmask = line.split(';')[0].strip()
+            if not netmask:
+                continue
+            ip_val = netmask
+            url_val = None
+            if idx < 5:
+                first5.append({'ip_network': ip_val, 'date': now_str, 'score': 8})
+            entries.append((url_val, ip_val, now_str, 8, source))
+        if first5:
+            self.logger.debug(f"SpamhausDROP first 5 parsed rows: {first5}")
+        return entries
+
+    def _parse_dshield(self, source: str, content: str):
+        """Parse the DShield tab-delimited block list into CIDR entries."""
+        now_str = datetime.now().isoformat(sep=' ', timespec='seconds')
+        entries = []
+        first5 = []
+        for idx, line in enumerate(content.splitlines()):
+            line = line.strip()
+            # Skip header lines and empty lines
+            if not line or line.startswith('#') or line.startswith('Start') or line.startswith('('):
+                continue
+            # Parse tab-delimited fields: Start, End, Netmask, ...
+            fields = line.split('\t')
+            if len(fields) < 3:  # Ensure at least IP range start, end, and subnet
+                continue
+            # Store the range as CIDR networks so lookups cover
+            # every address in the block, not just the start.
+            try:
+                start_ip = ip_address(fields[0].strip())
+                end_ip = ip_address(fields[1].strip())
+                networks = list(summarize_address_range(start_ip, end_ip))
+            except (ValueError, TypeError):
+                continue
+            # Reject implausibly broad ranges (e.g. a corrupt
+            # 0.0.0.0-255.255.255.255 row would blacklist everything).
+            if int(end_ip) - int(start_ip) + 1 > self.max_range_addresses:
+                continue
+            for network in networks:
+                ip_val = str(network.network_address) if network.num_addresses == 1 else str(network)
+                if idx < 5:
+                    first5.append({'ip': ip_val, 'date': now_str, 'score': 8})
+                entries.append((None, ip_val, now_str, 8, source))
+        if first5:
+            self.logger.info(f"Dshield first 5 parsed entries: {first5}")
+        return entries
+
+    def _parse_cinsscore(self, source: str, content: str):
+        """Parse the CINS Score list — one IP address per line."""
+        now_str = datetime.now().isoformat(sep=' ', timespec='seconds')
+        entries = []
+        first5 = []
+        for idx, line in enumerate(content.splitlines()):
+            line = line.strip()
+            # Skip empty lines and comments
+            if not line or line.startswith('#'):
+                continue
+            # Each line contains a single IP address
+            ip_val = line
+            if idx < 5:
+                first5.append({'ip': ip_val, 'date': now_str, 'score': 8})
+            entries.append((None, ip_val, now_str, 8, source))
+        if first5:
+            self.logger.info(f"CINSSCORE first 5 parsed entries: {first5}")
+        return entries
+
+    def _parse_ip_or_domain_lines(self, source: str, content: str):
+        """Parse a line-per-entry feed mixing IPs and bare domains/URLs."""
+        now_str = datetime.now().isoformat(sep=' ', timespec='seconds')
+        entries = []
+        first5 = []
+        for idx, line in enumerate(content.splitlines()):
+            line = line.strip()
+            # Skip empty lines and comments
+            if not line or line.startswith('#'):
+                continue
+            # Each line should contain an IP address or domain
+            entry = line
+            # Determine if the entry is an IP address
+            try:
+                ip_address(entry)
+                ip_val = entry
+                url_val = None
+            except ValueError:
+                # If not an IP, treat as domain/URL
+                if not entry.startswith(('http://', 'https://')):
+                    url_val = f"http://{entry}"
+                else:
+                    url_val = entry
+                ip_val = None
+            if idx < 5:
+                first5.append({'ip': ip_val, 'url': url_val, 'date': now_str, 'score': 8})
+            entries.append((url_val, ip_val, now_str, 8, source))
+        if first5:
+            self.logger.info(f"{source} first 5 parsed entries: {first5}")
+        return entries
+
+    def _parse_generic(self, source: str, content: str):
+        """Fallback parser: validated lines, CSV-ish or bare IP/URL values."""
+        now_str = datetime.now().isoformat(sep=' ', timespec='seconds')
+        entries = []
+        for line in content.splitlines():
+            line = line.strip()
+            if not line or line.startswith("#") or not validate_input(line):
+                continue
+            # Try to parse fields if CSV, else treat as single value (IP or URL)
+            if ',' in line:
+                parts = [p.strip() for p in line.split(',')]
+                url_val = parts[0] if parts else None
+                ip_val = parts[1] if len(parts) > 1 else None
+                date_val = parts[2] if len(parts) > 2 and parts[2] else now_str
+                try:
+                    score_val = float(parts[3]) if len(parts) > 3 and parts[3] else 8
+                except Exception:
+                    score_val = 8
+            else:
+                # Determine if the single value is an IP address or URL
+                try:
+                    # Try parsing as IP address
+                    ip_address(line)
+                    url_val = None
+                    ip_val = line
+                except ValueError:
+                    # If not an IP, treat as URL
+                    # Add http:// prefix if neither http:// nor https:// is present
+                    if not line.startswith(('http://', 'https://')):
+                        url_val = f"http://{line}"
+                    else:
+                        url_val = line
+                    ip_val = None
+                date_val = now_str
+                score_val = 8
+            entries.append((url_val, ip_val, date_val, score_val, source))
+        return entries
+
+    # One parser per source — dispatch table keyed by the source name used in
+    # config.json. Feeds sharing a format map to the same parser; anything not
+    # listed falls back to ``_parse_generic``.
+    _PARSERS = {
+        "PhishStats": _parse_phishstats,
+        "PhishTank": _parse_phishtank,
+        "SpamhausDROP": _parse_spamhausdrop,
+        "Dshield": _parse_dshield,
+        "CINSSCORE": _parse_cinsscore,
+        "EmergingThreats": _parse_ip_or_domain_lines,
+        "FeodoTracker": _parse_ip_or_domain_lines,
+        "BlocklistDE": _parse_ip_or_domain_lines,
+    }
 
     def force_update(self):
         """Force an immediate update of all blacklists.
