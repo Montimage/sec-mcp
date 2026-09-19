@@ -64,37 +64,38 @@ def _json_blocks(result):
 
 @pytest.mark.asyncio
 async def test_add_entry_requires_url_or_ip(storage):
-    with pytest.raises(ValueError):
-        await mcp_server.add_entry()
+    result = await mcp_server.add_entry()
+    assert result.is_error is True
+    assert "url" in result.content[0].text and "ip" in result.content[0].text
     assert storage.count_entries() == 0
 
 
 @pytest.mark.asyncio
 async def test_add_entry_rejects_invalid_url(storage):
-    with pytest.raises(ValueError):
-        await mcp_server.add_entry(url="%%% not a url %%%")
+    result = await mcp_server.add_entry(url="%%% not a url %%%")
+    assert result.is_error is True
     assert storage.count_entries() == 0
 
 
 @pytest.mark.asyncio
 async def test_add_entry_rejects_unusable_url_host(storage):
-    with pytest.raises(ValueError):
-        await mcp_server.add_entry(url="http://localhost")
+    result = await mcp_server.add_entry(url="http://localhost")
+    assert result.is_error is True
     assert storage.count_entries() == 0
 
 
 @pytest.mark.asyncio
 async def test_add_entry_rejects_invalid_ip(storage):
-    with pytest.raises(ValueError):
-        await mcp_server.add_entry(ip="999.999.999.999")
+    result = await mcp_server.add_entry(ip="999.999.999.999")
+    assert result.is_error is True
     assert storage.count_entries() == 0
 
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize("bad_score", [-1, 10.5, float("nan"), float("inf"), "high", True])
 async def test_add_entry_rejects_invalid_score(storage, bad_score):
-    with pytest.raises(ValueError):
-        await mcp_server.add_entry(url="evil.com", score=bad_score)
+    result = await mcp_server.add_entry(url="evil.com", score=bad_score)
+    assert result.is_error is True
     assert storage.count_entries() == 0
 
 
@@ -202,8 +203,9 @@ async def test_call_check_batch_result_shape(backend_storage):
     items = _json_blocks(result)
     assert [item["value"] for item in items] == ["example.com", "9.9.9.9"]
     for item in items:
-        assert set(item) == {"value", "is_safe", "explanation"}
+        assert set(item) == {"value", "is_safe", "verdict", "explanation"}
         assert item["is_safe"] is True
+        assert item["verdict"] == "safe"
         assert isinstance(item["explanation"], str)
 
 
