@@ -253,15 +253,14 @@ export MCP_USE_V2_STORAGE=true
 
 ### v0.4.0 Optimizations
 
-1. **Tiered Lookup (Hot/Cold Sources)**:
-   - Checks frequently-hit sources first for early exit
-   - 70-90% of lookups hit hot sources
-   - Based on production data analysis
+1. **One In-Memory Index Per Entry Type**:
+   - O(1) hash lookups over a single index each for domains, URLs and IPs
+   - Snapshot swap on reload: readers always see a complete table
 
 2. **URL Normalization**:
    - Automatically catches variations: `HTTP://EVIL.COM/` → `http://evil.com`
    - Removes tracking parameters: `?utm_source=spam`, `?fbclid=123`
-   - 15-25% memory reduction
+   - One canonicalization shared by both backends — identical verdicts
 
 3. **Integer IPv4 Storage**:
    - 4 bytes per IP (vs 13+ bytes as string)

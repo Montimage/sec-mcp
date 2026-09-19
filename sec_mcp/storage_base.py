@@ -12,6 +12,7 @@ import sys
 from datetime import datetime
 from pathlib import Path
 from typing import Dict, List, Optional, Protocol, Tuple, runtime_checkable
+from urllib.parse import parse_qs, urlencode, urlparse, urlunparse
 
 DB_ENV_VAR = "MCP_DB_PATH"
 DEFAULT_DB_FILENAME = "mcp.db"
@@ -110,6 +111,99 @@ def resolve_db_path(db_path: Optional[str] = None) -> str:
     return db_path
 
 
+def normalize_url(url: str) -> str:
+    """Canonicalize a URL so variants of the same page share one blacklist key.
+
+    This is the single normalization every backend applies — on write, on
+    lookup and on the rows already in ``blacklist_url`` — so v1's exact-match
+    SQLite lookups and v2's in-memory index return the same verdict.
+
+    Normalization:
+    - Convert to lowercase
+    - Ensure scheme (default to http if missing, incl. bare hosts)
+    - Remove tracking parameters (utm_*, fbclid, etc.)
+    - Strip trailing slashes from path (a bare ``/`` path becomes empty)
+    - Drop the fragment
+
+    Args:
+        url: URL to normalize
+
+    Returns:
+        Normalized URL string
+
+    Examples:
+        >>> normalize_url("HTTP://EVIL.COM/")
+        "http://evil.com"
+        >>> normalize_url("http://evil.com/?utm_source=spam")
+        "http://evil.com"
+    """
+    try:
+        lowered = url.lower()
+        parsed = urlparse(lowered)
+
+        # A bare host (optionally with path/query) has no scheme — urlparse
+        # leaves netloc empty and puts everything in path. Reparse with the
+        # default scheme so the host lands in netloc instead of producing
+        # "http:///host" garbage.
+        if not parsed.netloc:
+            parsed = urlparse('http://' + lowered.lstrip('/'))
+
+        # Filter out tracking parameters
+        if parsed.query:
+            query_params = parse_qs(parsed.query)
+            # Remove common tracking parameters
+            tracking_params = {
+                'utm_source', 'utm_medium', 'utm_campaign', 'utm_term', 'utm_content',
+                'fbclid', 'gclid', 'mc_eid', '_ga', 'ref', 'referrer'
+            }
+            filtered_params = {
+                k: v for k, v in query_params.items()
+                if k.lower() not in tracking_params
+            }
+            query_string = urlencode(filtered_params, doseq=True)
+        else:
+            query_string = ''
+
+        # Rebuild URL; an all-slash path ("", "/") collapses to "" so
+        # "http://host" and "http://host/" share one canonical form.
+        normalized = urlunparse((
+            parsed.scheme or 'http',  # Default scheme
+            parsed.netloc,
+            parsed.path.rstrip('/'),  # Remove trailing slash(es)
+            '',  # params (deprecated)
+            query_string,
+            ''  # fragment (ignore)
+        ))
+
+        return normalized
+    except Exception:
+        # If normalization fails, return original lowercase
+        return url.lower()
+
+
+def _canonicalize_url_rows(conn: sqlite3.Connection) -> None:
+    """Rewrite ``blacklist_url`` rows to their canonical ``normalize_url`` form.
+
+    Rows written before normalization existed — or inserted directly — keep
+    whatever raw variant was stored, which v1's exact-match lookups cannot
+    find under a different variant. Canonicalizing once at init makes the
+    table itself normalized, so both backends agree on every variant.
+    ``INSERT OR REPLACE`` merges rows whose variants collapse onto one
+    canonical URL.
+    """
+    rows = conn.execute(
+        "SELECT url, date, score, source FROM blacklist_url"
+    ).fetchall()
+    for url, date, score, source in rows:
+        normalized = normalize_url(url)
+        if normalized != url:
+            conn.execute("DELETE FROM blacklist_url WHERE url = ?", (url,))
+            conn.execute(
+                "INSERT OR REPLACE INTO blacklist_url (url, date, score, source) VALUES (?, ?, ?, ?)",
+                (normalized, date, score, source),
+            )
+
+
 def init_db(db_path: str) -> None:
     """Apply the shared PRAGMAs and create the schema in the database at ``db_path``."""
     with sqlite3.connect(db_path) as conn:
@@ -117,6 +211,7 @@ def init_db(db_path: str) -> None:
             conn.execute(pragma)
         for statement in SCHEMA_STATEMENTS:
             conn.execute(statement)
+        _canonicalize_url_rows(conn)
         conn.commit()
 
 

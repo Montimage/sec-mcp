@@ -11,7 +11,7 @@ Performance targets (v0.4.0):
 - Memory usage: 40-50MB for 450K entries (30-40% reduction from v0.3.0)
 
 Optimizations:
-- Tiered lookup (hot/cold sources) for early exit
+- One in-memory index per entry type for O(1) lookups
 - Source-aware routing to skip irrelevant sources
 - URL normalization to reduce duplicates
 - Integer-based IP storage for memory efficiency
@@ -28,26 +28,18 @@ import time
 from dataclasses import dataclass
 from datetime import datetime
 from typing import Dict, List, Optional, Set, Tuple
-from urllib.parse import parse_qs, urlencode, urlparse, urlunparse
 
 try:
-    from .storage_base import StorageProtocol, init_db, resolve_db_path
+    from .storage_base import StorageProtocol, init_db, normalize_url, resolve_db_path
 except ImportError:
     # Direct file load (e.g. benchmark.py's spec_from_file_location) has no
     # package context for a relative import.
-    from sec_mcp.storage_base import StorageProtocol, init_db, resolve_db_path
-
-# ========== Source Classification ==========
-# Based on production data analysis (449K entries)
-
-# Hot URL sources (74% of URLs - PhishTank + URLhaus = 153K/207K)
-HOT_URL_SOURCES = frozenset(['PhishTank', 'URLhaus'])
-
-# Hot IP sources (90% of IPs - BlocklistDE + CINSSCORE = 126K/141K)
-HOT_IP_SOURCES = frozenset(['BlocklistDE', 'CINSSCORE'])
-
-# Hot domain sources (major phishing databases)
-HOT_DOMAIN_SOURCES = frozenset(['PhishTank', 'PhishStats'])
+    from sec_mcp.storage_base import (
+        StorageProtocol,
+        init_db,
+        normalize_url,
+        resolve_db_path,
+    )
 
 
 @dataclass
@@ -72,68 +64,8 @@ class StorageMetrics:
     last_reload: Optional[datetime] = None
 
     # v0.4.0 optimization metrics
-    hot_source_hits: int = 0
-    cold_source_hits: int = 0
     urls_normalized: int = 0
     ips_as_integers: int = 0
-
-
-def normalize_url(url: str) -> str:
-    """
-    Normalize URL to reduce duplicates.
-
-    Normalization:
-    - Convert to lowercase
-    - Remove tracking parameters (utm_*, fbclid, etc.)
-    - Strip trailing slashes from path
-    - Ensure scheme (default to http if missing)
-
-    Args:
-        url: URL to normalize
-
-    Returns:
-        Normalized URL string
-
-    Examples:
-        >>> normalize_url("HTTP://EVIL.COM/")
-        "http://evil.com"
-        >>> normalize_url("http://evil.com/?utm_source=spam")
-        "http://evil.com"
-    """
-    try:
-        # Parse URL
-        parsed = urlparse(url.lower())
-
-        # Filter out tracking parameters
-        if parsed.query:
-            query_params = parse_qs(parsed.query)
-            # Remove common tracking parameters
-            tracking_params = {
-                'utm_source', 'utm_medium', 'utm_campaign', 'utm_term', 'utm_content',
-                'fbclid', 'gclid', 'mc_eid', '_ga', 'ref', 'referrer'
-            }
-            filtered_params = {
-                k: v for k, v in query_params.items()
-                if k.lower() not in tracking_params
-            }
-            query_string = urlencode(filtered_params, doseq=True)
-        else:
-            query_string = ''
-
-        # Rebuild URL
-        normalized = urlunparse((
-            parsed.scheme or 'http',  # Default scheme
-            parsed.netloc,
-            parsed.path.rstrip('/') or '/',  # Remove trailing slash
-            '',  # params (deprecated)
-            query_string,
-            ''  # fragment (ignore)
-        ))
-
-        return normalized
-    except Exception:
-        # If normalization fails, return original lowercase
-        return url.lower()
 
 
 def ip_to_int(ip: str) -> Optional[int]:
@@ -215,7 +147,6 @@ class HybridStorage(StorageProtocol):
     Key features (v0.4.0):
     - In-memory sets for domain/URL/IP lookups (O(1) average case)
     - PyTricia radix trees for fast CIDR matching (O(log n))
-    - Tiered lookup (hot/cold sources) for early exit optimization
     - URL normalization to reduce duplicates and memory usage
     - Integer-based IPv4 storage (4 bytes vs 13 bytes)
     - Thread-safe operations with RLock
@@ -232,11 +163,7 @@ class HybridStorage(StorageProtocol):
     # one or the new one — and never a cleared table.
     _SNAPSHOT_ATTRS = (
         "_domains", "_urls",
-        "_hot_domains", "_cold_domains",
-        "_hot_urls", "_cold_urls",
         "_ips_int", "_ips_str",
-        "_hot_ips_int", "_cold_ips_int",
-        "_hot_ips_str", "_cold_ips_str",
         "_domain_meta", "_url_meta",
         "_ip_meta", "_ip_int_meta",
         "_cidr_metadata", "_cidr_ranges",
@@ -273,26 +200,14 @@ class HybridStorage(StorageProtocol):
 
         # ========== In-memory data structures ==========
 
-        # Unified storage for domains and URLs (kept for backward compatibility).
-        # Single IPs deliberately have no legacy set here: _ips_int/_ips_str
-        # already hold every address exactly once, so a third mirror only
-        # double-counted entries and duplicated attribution metadata.
+        # One index per entry type: _domains for domains, _urls for URLs and
+        # _ips_int/_ips_str for IPv4/IPv6 single addresses.
         self._domains: Set[str] = set()
         self._urls: Set[str] = set()
-
-        # v0.4.0: Tiered storage for optimized lookup
-        self._hot_domains: Set[str] = set()
-        self._cold_domains: Set[str] = set()
-        self._hot_urls: Set[str] = set()
-        self._cold_urls: Set[str] = set()
 
         # v0.4.0: Integer-based IP storage for IPv4
         self._ips_int: Set[int] = set()  # IPv4 as integers
         self._ips_str: Set[str] = set()  # IPv6 as strings
-        self._hot_ips_int: Set[int] = set()
-        self._cold_ips_int: Set[int] = set()
-        self._hot_ips_str: Set[str] = set()
-        self._cold_ips_str: Set[str] = set()
 
         # Metadata storage (value -> entry info)
         self._domain_meta: Dict[str, EntryMetadata] = {}
@@ -365,16 +280,8 @@ class HybridStorage(StorageProtocol):
         builder._use_pytricia = self._use_pytricia
         builder._domains = set()
         builder._urls = set()
-        builder._hot_domains = set()
-        builder._cold_domains = set()
-        builder._hot_urls = set()
-        builder._cold_urls = set()
         builder._ips_int = set()
         builder._ips_str = set()
-        builder._hot_ips_int = set()
-        builder._cold_ips_int = set()
-        builder._hot_ips_str = set()
-        builder._cold_ips_str = set()
         builder._domain_meta = {}
         builder._url_meta = {}
         builder._ip_meta = {}
@@ -414,17 +321,17 @@ class HybridStorage(StorageProtocol):
 
         self.logger.info(
             f"Loaded {total_entries} entries in {elapsed:.2f}s "
-            f"({len(self._domains)} domains [{len(self._hot_domains)} hot], "
-            f"{len(self._urls)} URLs [{len(self._hot_urls)} hot], "
+            f"({len(self._domains)} domains, "
+            f"{len(self._urls)} URLs, "
             f"{len(self._ips_int) + len(self._ips_str)} IPs "
-            f"[{len(self._hot_ips_int) + len(self._hot_ips_str)} hot, {len(self._ips_int)} as int], "
+            f"[{len(self._ips_int)} as int], "
             f"{len(self._cidr_metadata)} CIDRs)"
         )
 
         self.metrics.last_reload = datetime.now()
 
     def _load_domains_from_db(self):
-        """Load all domains from database into memory with tiered classification."""
+        """Load all domains from database into memory."""
         conn = self._get_connection()
         try:
             cursor = conn.execute(
@@ -442,15 +349,8 @@ class HybridStorage(StorageProtocol):
                     domain_lower = domain.lower()
                     metadata = EntryMetadata(source, date, score)
 
-                    # Add to unified storage (backward compatibility)
                     self._domains.add(domain_lower)
                     self._domain_meta[domain_lower] = metadata
-
-                    # v0.4.0: Add to tiered storage
-                    if source in HOT_DOMAIN_SOURCES:
-                        self._hot_domains.add(domain_lower)
-                    else:
-                        self._cold_domains.add(domain_lower)
 
                     loaded += 1
 
@@ -467,7 +367,7 @@ class HybridStorage(StorageProtocol):
             conn.close()
 
     def _load_urls_from_db(self):
-        """Load all URLs from database into memory with normalization and tiering."""
+        """Load all URLs from database into memory with normalization."""
         conn = self._get_connection()
         try:
             cursor = conn.execute(
@@ -490,15 +390,8 @@ class HybridStorage(StorageProtocol):
 
                     metadata = EntryMetadata(source, date, score)
 
-                    # Add to unified storage (backward compatibility)
                     self._urls.add(url_normalized)
                     self._url_meta[url_normalized] = metadata
-
-                    # v0.4.0: Add to tiered storage
-                    if source in HOT_URL_SOURCES:
-                        self._hot_urls.add(url_normalized)
-                    else:
-                        self._cold_urls.add(url_normalized)
 
                     loaded += 1
 
@@ -517,7 +410,7 @@ class HybridStorage(StorageProtocol):
             conn.close()
 
     def _load_ips_from_db(self):
-        """Load all IPs and CIDR ranges with integer storage and tiering."""
+        """Load all IPs and CIDR ranges with integer storage."""
         conn = self._get_connection()
         try:
             cursor = conn.execute(
@@ -565,22 +458,10 @@ class HybridStorage(StorageProtocol):
                             self._ips_int.add(ip_int)
                             self._ip_int_meta[ip_int] = metadata
                             ips_as_int += 1
-
-                            # Tiered storage for IPv4
-                            if source in HOT_IP_SOURCES:
-                                self._hot_ips_int.add(ip_int)
-                            else:
-                                self._cold_ips_int.add(ip_int)
                         else:
                             # IPv6 - keep as string
                             self._ips_str.add(ip)
                             self._ip_meta[ip] = metadata
-
-                            # Tiered storage for IPv6
-                            if source in HOT_IP_SOURCES:
-                                self._hot_ips_str.add(ip)
-                            else:
-                                self._cold_ips_str.add(ip)
 
                         loaded_ips += 1
 
@@ -606,11 +487,8 @@ class HybridStorage(StorageProtocol):
         """
         Check if a domain or any parent domain is blacklisted.
 
-        v0.4.0 optimization: Checks hot sources first for early exit.
-
         Performance: O(depth) where depth is number of domain levels (typically 2-5).
         All lookups are in-memory O(1) hash lookups.
-        Hot source optimization provides 25-40% speedup for most lookups.
 
         Args:
             domain: Domain name to check (e.g., "example.com")
@@ -629,32 +507,16 @@ class HybridStorage(StorageProtocol):
 
         domain = domain.lower()
 
-        # v0.4.0: Check hot sources first (PhishTank, PhishStats = ~91K domains)
-        if domain in self._hot_domains:
-            self.metrics.hot_source_hits += 1
+        # Exact match
+        if domain in self._domains:
             self._update_metrics('domain', start, True)
             return True
 
-        # Check parent domains in hot sources
+        # Check parent domains
         parts = domain.split('.')
         for i in range(1, len(parts)):
             parent = '.'.join(parts[i:])
-            if parent in self._hot_domains:
-                self.metrics.hot_source_hits += 1
-                self._update_metrics('domain', start, True)
-                return True
-
-        # Check cold sources only if not found in hot
-        if domain in self._cold_domains:
-            self.metrics.cold_source_hits += 1
-            self._update_metrics('domain', start, True)
-            return True
-
-        # Check parent domains in cold sources
-        for i in range(1, len(parts)):
-            parent = '.'.join(parts[i:])
-            if parent in self._cold_domains:
-                self.metrics.cold_source_hits += 1
+            if parent in self._domains:
                 self._update_metrics('domain', start, True)
                 return True
 
@@ -665,12 +527,9 @@ class HybridStorage(StorageProtocol):
         """
         Check if a URL is blacklisted (exact match with normalization).
 
-        v0.4.0 optimizations:
-        - Normalizes URL before lookup to catch variations
-        - Checks hot sources first (PhishTank + URLhaus = 74% of URLs)
+        v0.4.0 optimization: normalizes URL before lookup to catch variations.
 
         Performance: O(1) hash lookup in memory.
-        Hot source optimization provides 30-40% speedup.
 
         Args:
             url: URL to check (e.g., "http://example.com/path")
@@ -680,18 +539,10 @@ class HybridStorage(StorageProtocol):
         """
         start = time.perf_counter()
 
-        # v0.4.0: Normalize URL to catch variations
+        # Normalize URL to catch variations (shared with the v1 backend)
         url_normalized = normalize_url(url)
 
-        # v0.4.0: Check hot sources first (PhishTank + URLhaus = 153K/207K URLs)
-        if url_normalized in self._hot_urls:
-            self.metrics.hot_source_hits += 1
-            self._update_metrics('url', start, True)
-            return True
-
-        # Check cold sources only if not found in hot
-        if url_normalized in self._cold_urls:
-            self.metrics.cold_source_hits += 1
+        if url_normalized in self._urls:
             self._update_metrics('url', start, True)
             return True
 
@@ -704,12 +555,10 @@ class HybridStorage(StorageProtocol):
 
         v0.4.0 optimizations:
         - Integer-based IPv4 lookups (4x smaller, faster comparison)
-        - Hot source check first (BlocklistDE + CINSSCORE = 90% of IPs)
 
         Performance:
         - Exact match: O(1)
         - CIDR with PyTricia: O(log n)
-        - Hot source optimization: 30-40% speedup
 
         Args:
             ip: IP address to check (e.g., "192.168.1.1" or "2001:db8::1")
@@ -723,14 +572,8 @@ class HybridStorage(StorageProtocol):
         ip_int = ip_to_int(ip)
 
         if ip_int is not None:
-            # IPv4 - check as integer (hot sources first)
-            if ip_int in self._hot_ips_int:
-                self.metrics.hot_source_hits += 1
-                self._update_metrics('ip', start, True)
-                return True
-
-            if ip_int in self._cold_ips_int:
-                self.metrics.cold_source_hits += 1
+            # IPv4 - check as integer
+            if ip_int in self._ips_int:
                 self._update_metrics('ip', start, True)
                 return True
         else:
@@ -743,14 +586,8 @@ class HybridStorage(StorageProtocol):
                 self._update_metrics('ip', start, False)
                 return False
 
-            # IPv6 - check as string (hot sources first)
-            if ip in self._hot_ips_str:
-                self.metrics.hot_source_hits += 1
-                self._update_metrics('ip', start, True)
-                return True
-
-            if ip in self._cold_ips_str:
-                self.metrics.cold_source_hits += 1
+            # IPv6 - check as string
+            if ip in self._ips_str:
                 self._update_metrics('ip', start, True)
                 return True
 
@@ -921,12 +758,6 @@ class HybridStorage(StorageProtocol):
             self._domains.add(domain_lower)
             self._domain_meta[domain_lower] = metadata
 
-            # v0.4.0: Add to tiered storage
-            if source in HOT_DOMAIN_SOURCES:
-                self._hot_domains.add(domain_lower)
-            else:
-                self._cold_domains.add(domain_lower)
-
             # Persist to database
             try:
                 conn = self._get_connection()
@@ -942,15 +773,14 @@ class HybridStorage(StorageProtocol):
                 # Rollback memory changes on DB failure
                 self._domains.discard(domain_lower)
                 self._domain_meta.pop(domain_lower, None)
-                self._hot_domains.discard(domain_lower)
-                self._cold_domains.discard(domain_lower)
                 self.logger.error(f"Failed to add domain to database: {e}")
                 raise
 
     def add_url(self, url: str, date: str, score: float, source: str):
         """Add a URL to both memory and database with normalization."""
         with self._lock:
-            # v0.4.0: Normalize URL
+            # Normalize URL — the canonical form is what memory, the database
+            # and the v1 backend all agree on.
             url_normalized = normalize_url(url)
             metadata = EntryMetadata(source, date, score)
 
@@ -958,19 +788,13 @@ class HybridStorage(StorageProtocol):
             self._urls.add(url_normalized)
             self._url_meta[url_normalized] = metadata
 
-            # v0.4.0: Add to tiered storage
-            if source in HOT_URL_SOURCES:
-                self._hot_urls.add(url_normalized)
-            else:
-                self._cold_urls.add(url_normalized)
-
-            # Persist to database (store original for compatibility)
+            # Persist the canonical form so v1's exact-match lookups agree
             try:
                 conn = self._get_connection()
                 try:
                     conn.execute(
                         "INSERT OR REPLACE INTO blacklist_url (url, date, score, source) VALUES (?, ?, ?, ?)",
-                        (url, date, score, source)
+                        (url_normalized, date, score, source)
                     )
                     conn.commit()
                 finally:
@@ -979,8 +803,6 @@ class HybridStorage(StorageProtocol):
                 # Rollback
                 self._urls.discard(url_normalized)
                 self._url_meta.pop(url_normalized, None)
-                self._hot_urls.discard(url_normalized)
-                self._cold_urls.discard(url_normalized)
                 self.logger.error(f"Failed to add URL to database: {e}")
                 raise
 
@@ -1030,19 +852,9 @@ class HybridStorage(StorageProtocol):
                 if ip_int is not None:
                     self._ips_int.add(ip_int)
                     self._ip_int_meta[ip_int] = metadata
-
-                    if source in HOT_IP_SOURCES:
-                        self._hot_ips_int.add(ip_int)
-                    else:
-                        self._cold_ips_int.add(ip_int)
                 else:
                     self._ips_str.add(ip)
                     self._ip_meta[ip] = metadata
-
-                    if source in HOT_IP_SOURCES:
-                        self._hot_ips_str.add(ip)
-                    else:
-                        self._cold_ips_str.add(ip)
 
             # Persist to database
             try:
@@ -1063,13 +875,9 @@ class HybridStorage(StorageProtocol):
                     if ip_int is not None:
                         self._ips_int.discard(ip_int)
                         self._ip_int_meta.pop(ip_int, None)
-                        self._hot_ips_int.discard(ip_int)
-                        self._cold_ips_int.discard(ip_int)
                     else:
                         self._ips_str.discard(ip)
                         self._ip_meta.pop(ip, None)
-                        self._hot_ips_str.discard(ip)
-                        self._cold_ips_str.discard(ip)
                 self.logger.error(f"Failed to add IP to database: {e}")
                 raise
 
@@ -1082,12 +890,6 @@ class HybridStorage(StorageProtocol):
                 metadata = EntryMetadata(source, date, score)
                 self._domains.add(domain_lower)
                 self._domain_meta[domain_lower] = metadata
-
-                # v0.4.0: Tiered storage
-                if source in HOT_DOMAIN_SOURCES:
-                    self._hot_domains.add(domain_lower)
-                else:
-                    self._cold_domains.add(domain_lower)
 
             # Persist to database in transaction
             conn = self._get_connection()
@@ -1109,24 +911,20 @@ class HybridStorage(StorageProtocol):
         """Add multiple URLs efficiently (batch operation with normalization)."""
         with self._lock:
             # Update memory
+            normalized_rows = []
             for url, date, score, source in urls:
                 url_normalized = normalize_url(url)
                 metadata = EntryMetadata(source, date, score)
                 self._urls.add(url_normalized)
                 self._url_meta[url_normalized] = metadata
+                normalized_rows.append((url_normalized, date, score, source))
 
-                # v0.4.0: Tiered storage
-                if source in HOT_URL_SOURCES:
-                    self._hot_urls.add(url_normalized)
-                else:
-                    self._cold_urls.add(url_normalized)
-
-            # Persist to database
+            # Persist the canonical forms so v1's exact-match lookups agree
             conn = self._get_connection()
             try:
                 conn.executemany(
                     "INSERT OR REPLACE INTO blacklist_url (url, date, score, source) VALUES (?, ?, ?, ?)",
-                    urls
+                    normalized_rows
                 )
                 conn.commit()
             except Exception as e:
@@ -1166,11 +964,6 @@ class HybridStorage(StorageProtocol):
                     if ip_int is not None:
                         self._ips_int.add(ip_int)
                         self._ip_int_meta[ip_int] = metadata
-
-                        if source in HOT_IP_SOURCES:
-                            self._hot_ips_int.add(ip_int)
-                        else:
-                            self._cold_ips_int.add(ip_int)
                     else:
                         # Skip invalid input — an unparseable IPv4 is not an
                         # IPv6 address and must not be stored as one.
@@ -1180,11 +973,6 @@ class HybridStorage(StorageProtocol):
                             continue
                         self._ips_str.add(ip)
                         self._ip_meta[ip] = metadata
-
-                        if source in HOT_IP_SOURCES:
-                            self._hot_ips_str.add(ip)
-                        else:
-                            self._cold_ips_str.add(ip)
 
                 persist.append((ip, date, score, source))
 
@@ -1434,24 +1222,18 @@ class HybridStorage(StorageProtocol):
             if value.lower() in self._domains:
                 self._domains.discard(value.lower())
                 self._domain_meta.pop(value.lower(), None)
-                self._hot_domains.discard(value.lower())
-                self._cold_domains.discard(value.lower())
                 removed = True
 
             value_normalized = normalize_url(value)
             if value_normalized in self._urls:
                 self._urls.discard(value_normalized)
                 self._url_meta.pop(value_normalized, None)
-                self._hot_urls.discard(value_normalized)
-                self._cold_urls.discard(value_normalized)
                 removed = True
 
             # Try IP as string (IPv6)
             if value in self._ips_str:
                 self._ips_str.discard(value)
                 self._ip_meta.pop(value, None)
-                self._hot_ips_str.discard(value)
-                self._cold_ips_str.discard(value)
                 removed = True
 
             # Try IP as integer (IPv4)
@@ -1459,8 +1241,6 @@ class HybridStorage(StorageProtocol):
             if ip_int is not None and ip_int in self._ips_int:
                 self._ips_int.discard(ip_int)
                 self._ip_int_meta.pop(ip_int, None)
-                self._hot_ips_int.discard(ip_int)
-                self._cold_ips_int.discard(ip_int)
                 removed = True
 
             if value in self._cidr_metadata:
@@ -1484,11 +1264,12 @@ class HybridStorage(StorageProtocol):
                 removed = True
 
             if removed:
-                # Remove from database
+                # Remove from database — blacklist_url holds the canonical
+                # form, so the URL delete must use the normalized value.
                 conn = self._get_connection()
                 try:
                     conn.execute("DELETE FROM blacklist_domain WHERE domain = ?", (value,))
-                    conn.execute("DELETE FROM blacklist_url WHERE url = ?", (value,))
+                    conn.execute("DELETE FROM blacklist_url WHERE url = ?", (value_normalized,))
                     conn.execute("DELETE FROM blacklist_ip WHERE ip = ?", (value,))
                     conn.commit()
                 finally:
@@ -1506,7 +1287,6 @@ class HybridStorage(StorageProtocol):
             self.metrics.memory_usage_mb = 0.0
 
         total_lookups = self.metrics.total_lookups
-        hot_hit_rate = (self.metrics.hot_source_hits / total_lookups * 100) if total_lookups > 0 else 0
 
         return {
             "total_lookups": total_lookups,
@@ -1522,9 +1302,6 @@ class HybridStorage(StorageProtocol):
             "entry_count": self.count_entries(),
             "using_pytricia": self._use_pytricia,
             # v0.4.0 optimization metrics
-            "hot_source_hits": self.metrics.hot_source_hits,
-            "cold_source_hits": self.metrics.cold_source_hits,
-            "hot_hit_rate_pct": f"{hot_hit_rate:.1f}",
             "urls_normalized": self.metrics.urls_normalized,
             "ips_as_integers": self.metrics.ips_as_integers,
             "optimization_version": "0.4.0"

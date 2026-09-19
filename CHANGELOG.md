@@ -49,8 +49,9 @@ publishes to PyPI via trusted OIDC publishing.
   a single owned handler; Dshield ranges stored as CIDR networks.
 
 ### Added
-- Tiered hot/cold lookup system, URL normalization, integer-based IPv4
-  storage and enhanced metrics (v2 storage, `MCP_USE_V2_STORAGE=true`).
+- One in-memory index per entry type, shared URL normalization,
+  integer-based IPv4 storage and enhanced metrics (v2 storage,
+  `MCP_USE_V2_STORAGE=true`).
 - Hermetic test suite with recorded baseline (`R = 32/64`,
   `scripts/check_test_baseline.sh`) and characterization tests for all six
   MCP tools.
