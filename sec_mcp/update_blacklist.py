@@ -144,6 +144,34 @@ class BlacklistUpdater:
                 tasks.append(self._update_source(client, source, url))
             await asyncio.gather(*tasks)
 
+    def _read_cached_feed(self, filename: str):
+        """Return fresh cached feed bytes, or None to force a download.
+
+        Blocking filesystem work — callers inside coroutines must offload via
+        ``asyncio.to_thread`` so the event loop never stalls on disk I/O.
+        """
+        from datetime import datetime, timedelta
+        if not os.path.exists(filename):
+            return None
+        file_age = datetime.now() - datetime.fromtimestamp(os.path.getmtime(filename))
+        if file_age >= timedelta(days=1):
+            return None
+        with open(filename, "rb") as f:
+            cached = f.read(self.max_feed_bytes + 1)
+        if len(cached) > self.max_feed_bytes:
+            return None
+        return cached
+
+    def _write_feed_cache(self, filename: str, content: str):
+        """Persist downloaded feed content to the source cache file.
+
+        Blocking filesystem work — callers inside coroutines must offload via
+        ``asyncio.to_thread`` so the event loop never stalls on disk I/O.
+        """
+        os.makedirs(os.path.dirname(filename), exist_ok=True)
+        with open(filename, "w", encoding="utf-8") as f:
+            f.write(content)
+
     def _is_domain_blacklisted(self, url: str) -> bool:
         """Check if the domain of a URL is blacklisted."""
         from urllib.parse import urlparse
@@ -159,26 +187,20 @@ class BlacklistUpdater:
     async def _update_source(self, client: httpx.AsyncClient, source: str, url: str):
         """Update blacklist from a single source."""
         import os
-        from datetime import datetime, timedelta
+        from datetime import datetime
         if not url.lower().startswith("https://"):
             self.logger.warning(f"Rejecting non-HTTPS blacklist source {source}: {url}")
             return
         try:
             cache_dir = _feed_cache_dir()
-            os.makedirs(cache_dir, exist_ok=True)
             safe_source = re.sub(r"[^\w.-]", "_", source, flags=re.ASCII)
             filename = os.path.join(cache_dir, f"{safe_source}.txt" if not url.endswith('.csv') else f"{safe_source}.csv")
             use_cache = False
             content = None
-            if os.path.exists(filename):
-                mtime = os.path.getmtime(filename)
-                file_age = datetime.now() - datetime.fromtimestamp(mtime)
-                if file_age < timedelta(days=1):
-                    with open(filename, "rb") as f:
-                        cached = f.read(self.max_feed_bytes + 1)
-                    if len(cached) <= self.max_feed_bytes:
-                        content = cached.decode("utf-8", errors="replace")
-                        use_cache = True
+            cached = await asyncio.to_thread(self._read_cached_feed, filename)
+            if cached is not None:
+                content = cached.decode("utf-8", errors="replace")
+                use_cache = True
             if not use_cache:
                 chunks = []
                 downloaded = 0
@@ -463,12 +485,12 @@ class BlacklistUpdater:
             # Only persist freshly downloaded content once it passes sanity
             # checks, so corrupt payloads never poison the cache.
             if not use_cache:
-                with open(filename, "w", encoding="utf-8") as f:
-                    f.write(content)
+                await asyncio.to_thread(self._write_feed_cache, filename, content)
 
             # Single atomic insert: either the whole feed lands or nothing does.
-            self.storage.add_entries(deduped_entries)
-            self.storage.log_update(source, len(deduped_entries))
+            # The SQLite writes are offloaded so the event loop stays responsive.
+            await asyncio.to_thread(self.storage.add_entries, deduped_entries)
+            await asyncio.to_thread(self.storage.log_update, source, len(deduped_entries))
             self.logger.info(f"Updated {source}: {len(deduped_entries)} entries.")
         
         except Exception as e:
