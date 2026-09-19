@@ -156,11 +156,13 @@ def status(json):
 def update(json):
     """Force an immediate update of all blacklists."""
     core = get_core()
-    core.update()
+    result = core.update() or {"updated": True}
     if json:
-        click.echo(_json.dumps({"updated": True}))
-    else:
+        click.echo(_json.dumps(result))
+    elif result.get("updated"):
         click.echo("Blacklist update triggered.")
+    else:
+        click.echo(f"Blacklist update skipped: {result.get('reason', 'rate limited')}")
 
 @cli.command(help="Clear the in-memory URL/IP cache.")
 @click.option('--json', is_flag=True, help='Output in JSON format')

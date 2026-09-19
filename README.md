@@ -195,6 +195,8 @@ sec-mcp can run as an MCP server for AI/LLM integration (e.g., Claude, Windsurf,
 
 **Note**: The tools have been optimized to reduce token usage while maintaining full functionality. The `get_diagnostics` tool consolidates multiple monitoring functions with different modes.
 
+`update_blacklists` is rate limited to one forced update per `min_update_interval_seconds` (default 300 in `config.json`): a second call inside the window returns `{"updated": false, "reason": ...}` without starting downloads, and callers that supply a progress token receive one `notifications/progress` per source. `get_status` and `get_diagnostics` report the real `scheduler_alive` thread state.
+
 All six tools declare a typed return model, so `tools/list` exposes an `outputSchema` for each and call results carry `structuredContent` alongside the serialized text `content` (older clients keep working unchanged). `check_batch` items report a tri-state `verdict` (`safe` / `blacklisted` / `invalid`), and tool failures surface as `isError: true` results rather than connection errors.
 
 #### Diagnostics Tool Modes

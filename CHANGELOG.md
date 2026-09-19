@@ -37,6 +37,12 @@ publishes to PyPI via trusted OIDC publishing.
   the landing page.
 
 ### Fixed
+- `update_blacklists` is rate limited to one forced update per
+  `min_update_interval_seconds` (default 300): a second call inside the
+  window returns `{"updated": false, "reason": ...}` and starts no downloads.
+  With a progress token the tool emits one `notifications/progress` per source.
+- `scheduler_alive` in `get_status` and `get_diagnostics` now reports the real
+  scheduler thread state instead of a hardcoded `true`.
 - MCP admin tool input validation; v1 `remove_entry` repaired against real
   tables; single owned scheduler job with awaited updates and idempotent
   stop; valid JSON for `--json` CLI checks; platformdirs log/cache dirs with

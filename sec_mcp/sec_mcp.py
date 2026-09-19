@@ -158,9 +158,18 @@ class SecMCP:
             server_status="Running (STDIO)"
         )
 
-    def update(self) -> None:
-        """Force an immediate update of all blacklists."""
-        self.updater.force_update()
+    def update(self) -> dict:
+        """Force an immediate update of all blacklists.
+
+        Returns the updater's acknowledgement: ``{"updated": True}`` when the
+        update ran, or ``{"updated": False, "reason": ...}`` when the call was
+        rate limited and no download was started.
+        """
+        return self.updater.force_update()
+
+    def scheduler_alive(self) -> bool:
+        """Whether the background scheduler thread is actually running."""
+        return self.updater.scheduler_alive()
 
     def sample(self, count: int = 10) -> List[str]:
         """Return a random sample of blacklist entries for testing."""
