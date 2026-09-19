@@ -30,9 +30,7 @@ def _catalog():
 
 
 def test_head_links_to_api_catalog():
-    assert (
-        'rel="api-catalog" href="/sec-mcp/.well-known/api-catalog"' in _head()
-    )
+    assert 'rel="api-catalog" href="/sec-mcp/.well-known/api-catalog"' in _head()
 
 
 def test_head_links_to_service_desc_and_doc():
@@ -60,9 +58,7 @@ def test_api_catalog_is_valid_linkset():
 def test_api_catalog_carries_rfc9727_profile_and_relations():
     doc = _catalog()
     profile_hrefs = [
-        link["href"]
-        for entry in doc["linkset"]
-        for link in entry.get("profile", [])
+        link["href"] for entry in doc["linkset"] for link in entry.get("profile", [])
     ]
     assert "https://www.rfc-editor.org/info/rfc9727" in profile_hrefs
     service = next(
@@ -88,7 +84,7 @@ def test_api_catalog_same_origin_targets_exist_in_public():
                 href = link["href"]
                 if not href.startswith(site_prefix):
                     continue
-                rel_path = href[len(site_prefix):]
+                rel_path = href[len(site_prefix) :]
                 assert rel_path == "" or (PUBLIC / rel_path).is_file(), (
                     f"catalog target missing from public/: {href}"
                 )
