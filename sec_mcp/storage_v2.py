@@ -23,7 +23,6 @@ import itertools
 import logging
 import os
 import random
-import sqlite3
 import threading
 import time
 from dataclasses import dataclass
@@ -31,16 +30,13 @@ from datetime import datetime
 from typing import Dict, List, Optional, Set, Tuple
 
 try:
-    from .storage_base import StorageProtocol, init_db, normalize_url, resolve_db_path
+    from .storage_base import StorageProtocol, normalize_url, resolve_db_path
+    from .storage_v2_db import SQLiteStore
 except ImportError:
     # Direct file load (e.g. benchmark.py's spec_from_file_location) has no
     # package context for a relative import.
-    from sec_mcp.storage_base import (
-        StorageProtocol,
-        init_db,
-        normalize_url,
-        resolve_db_path,
-    )
+    from sec_mcp.storage_base import StorageProtocol, normalize_url, resolve_db_path
+    from sec_mcp.storage_v2_db import SQLiteStore
 
 
 @dataclass
@@ -199,6 +195,10 @@ class HybridStorage(StorageProtocol):
 
         self.db_path = db_path
 
+        # Persistence layer — every SQLite call this backend makes goes
+        # through this store; nothing below touches the database directly.
+        self._db = SQLiteStore(db_path)
+
         # ========== In-memory data structures ==========
 
         # One index per entry type: _domains for domains, _urls for URLs and
@@ -246,8 +246,8 @@ class HybridStorage(StorageProtocol):
             ) from e
 
     def _init_db(self):
-        """Initialize the SQLite database with the shared schema and PRAGMAs."""
-        init_db(self.db_path)
+        """Initialize the database with the shared schema and PRAGMAs."""
+        self._db.init_schema()
         self.logger.info(f"Database initialized at {self.db_path}")
 
     def _init_cidr_trees(self):
@@ -261,10 +261,6 @@ class HybridStorage(StorageProtocol):
         except ImportError:
             self.logger.warning("PyTricia not available, using fallback CIDR matching (slower)")
             self._use_pytricia = False
-
-    def _get_connection(self) -> sqlite3.Connection:
-        """Get a database connection."""
-        return sqlite3.connect(self.db_path, timeout=30.0)
 
     @contextlib.contextmanager
     def shared_connection(self):
@@ -282,10 +278,13 @@ class HybridStorage(StorageProtocol):
         Reload builds the replacement snapshot on this detached receiver —
         reusing the ``_load_*_from_db`` methods unchanged — while the live
         structures stay intact for concurrent readers. Only the swap in
-        ``_load_all_data`` mutates what lookups see.
+        ``_load_all_data`` mutates what lookups see. It gets its own
+        ``SQLiteStore``, so no connection state is shared with the live
+        instance.
         """
         builder = object.__new__(HybridStorage)
         builder.db_path = self.db_path
+        builder._db = SQLiteStore(self.db_path)
         builder.logger = self.logger
         builder.metrics = self.metrics
         builder._use_pytricia = self._use_pytricia
@@ -343,154 +342,127 @@ class HybridStorage(StorageProtocol):
 
     def _load_domains_from_db(self):
         """Load all domains from database into memory."""
-        conn = self._get_connection()
-        try:
-            cursor = conn.execute(
-                "SELECT domain, source, date, score FROM blacklist_domain"
-            )
+        loaded = 0
+        errors = 0
 
-            loaded = 0
-            errors = 0
+        for domain, source, date, score in self._db.iter_domain_rows():
+            try:
+                if not domain or not isinstance(domain, str):
+                    raise ValueError("Invalid domain")
 
-            for domain, source, date, score in cursor:
-                try:
-                    if not domain or not isinstance(domain, str):
-                        raise ValueError("Invalid domain")
+                domain_lower = domain.lower()
+                metadata = EntryMetadata(source, date, score)
 
-                    domain_lower = domain.lower()
-                    metadata = EntryMetadata(source, date, score)
+                self._domains.add(domain_lower)
+                self._domain_meta[domain_lower] = metadata
 
-                    self._domains.add(domain_lower)
-                    self._domain_meta[domain_lower] = metadata
+                loaded += 1
 
-                    loaded += 1
+            except Exception as e:
+                self.logger.warning(f"Skipping invalid domain entry: {e}")
+                errors += 1
 
-                except Exception as e:
-                    self.logger.warning(f"Skipping invalid domain entry: {e}")
-                    errors += 1
-
-            if errors > 0:
-                self.logger.info(f"Loaded {loaded} domains ({errors} errors)")
-            else:
-                self.logger.debug(f"Loaded {loaded} domains")
-
-        finally:
-            conn.close()
+        if errors > 0:
+            self.logger.info(f"Loaded {loaded} domains ({errors} errors)")
+        else:
+            self.logger.debug(f"Loaded {loaded} domains")
 
     def _load_urls_from_db(self):
         """Load all URLs from database into memory with normalization."""
-        conn = self._get_connection()
-        try:
-            cursor = conn.execute(
-                "SELECT url, source, date, score FROM blacklist_url"
-            )
+        loaded = 0
+        errors = 0
+        normalized_count = 0
 
-            loaded = 0
-            errors = 0
-            normalized_count = 0
+        for url, source, date, score in self._db.iter_url_rows():
+            try:
+                if not url or not isinstance(url, str):
+                    raise ValueError("Invalid URL")
 
-            for url, source, date, score in cursor:
-                try:
-                    if not url or not isinstance(url, str):
-                        raise ValueError("Invalid URL")
+                # v0.4.0: Normalize URL to reduce duplicates
+                url_normalized = normalize_url(url)
+                if url_normalized != url:
+                    normalized_count += 1
 
-                    # v0.4.0: Normalize URL to reduce duplicates
-                    url_normalized = normalize_url(url)
-                    if url_normalized != url:
-                        normalized_count += 1
+                metadata = EntryMetadata(source, date, score)
 
-                    metadata = EntryMetadata(source, date, score)
+                self._urls.add(url_normalized)
+                self._url_meta[url_normalized] = metadata
 
-                    self._urls.add(url_normalized)
-                    self._url_meta[url_normalized] = metadata
+                loaded += 1
 
-                    loaded += 1
+            except Exception as e:
+                self.logger.warning(f"Skipping invalid URL entry: {e}")
+                errors += 1
 
-                except Exception as e:
-                    self.logger.warning(f"Skipping invalid URL entry: {e}")
-                    errors += 1
+        self.metrics.urls_normalized = normalized_count
 
-            self.metrics.urls_normalized = normalized_count
-
-            if errors > 0:
-                self.logger.info(f"Loaded {loaded} URLs ({normalized_count} normalized, {errors} errors)")
-            else:
-                self.logger.debug(f"Loaded {loaded} URLs ({normalized_count} normalized)")
-
-        finally:
-            conn.close()
+        if errors > 0:
+            self.logger.info(f"Loaded {loaded} URLs ({normalized_count} normalized, {errors} errors)")
+        else:
+            self.logger.debug(f"Loaded {loaded} URLs ({normalized_count} normalized)")
 
     def _load_ips_from_db(self):
         """Load all IPs and CIDR ranges with integer storage."""
-        conn = self._get_connection()
-        try:
-            cursor = conn.execute(
-                "SELECT ip, source, date, score FROM blacklist_ip"
-            )
+        loaded_ips = 0
+        loaded_cidrs = 0
+        errors = 0
+        ips_as_int = 0
 
-            loaded_ips = 0
-            loaded_cidrs = 0
-            errors = 0
-            ips_as_int = 0
+        for ip, source, date, score in self._db.iter_ip_rows():
+            try:
+                if not ip or not isinstance(ip, str):
+                    raise ValueError("Invalid IP")
 
-            for ip, source, date, score in cursor:
-                try:
-                    if not ip or not isinstance(ip, str):
-                        raise ValueError("Invalid IP")
+                metadata = EntryMetadata(source, date, score)
 
-                    metadata = EntryMetadata(source, date, score)
-
-                    if '/' in ip:
-                        # CIDR range
-                        if self._use_pytricia:
-                            # Add to radix tree
-                            if ':' in ip:  # IPv6
-                                self._ipv6_cidr_tree[ip] = source
-                            else:  # IPv4
-                                self._ipv4_cidr_tree[ip] = source
-                        else:
-                            # Add to fallback list
-                            try:
-                                network = ipaddress.ip_network(ip, strict=False)
-                                self._cidr_ranges.append((network, metadata))
-                            except ValueError as e:
-                                self.logger.warning(f"Invalid CIDR {ip}: {e}")
-                                errors += 1
-                                continue
-
-                        self._cidr_metadata[ip] = metadata
-                        loaded_cidrs += 1
+                if '/' in ip:
+                    # CIDR range
+                    if self._use_pytricia:
+                        # Add to radix tree
+                        if ':' in ip:  # IPv6
+                            self._ipv6_cidr_tree[ip] = source
+                        else:  # IPv4
+                            self._ipv4_cidr_tree[ip] = source
                     else:
-                        # Single IP - v0.4.0: Store IPv4 as integer
-                        ip_int = ip_to_int(ip)
+                        # Add to fallback list
+                        try:
+                            network = ipaddress.ip_network(ip, strict=False)
+                            self._cidr_ranges.append((network, metadata))
+                        except ValueError as e:
+                            self.logger.warning(f"Invalid CIDR {ip}: {e}")
+                            errors += 1
+                            continue
 
-                        if ip_int is not None:
-                            # IPv4 - store as integer
-                            self._ips_int.add(ip_int)
-                            self._ip_int_meta[ip_int] = metadata
-                            ips_as_int += 1
-                        else:
-                            # IPv6 - keep as string
-                            self._ips_str.add(ip)
-                            self._ip_meta[ip] = metadata
+                    self._cidr_metadata[ip] = metadata
+                    loaded_cidrs += 1
+                else:
+                    # Single IP - v0.4.0: Store IPv4 as integer
+                    ip_int = ip_to_int(ip)
 
-                        loaded_ips += 1
+                    if ip_int is not None:
+                        # IPv4 - store as integer
+                        self._ips_int.add(ip_int)
+                        self._ip_int_meta[ip_int] = metadata
+                        ips_as_int += 1
+                    else:
+                        # IPv6 - keep as string
+                        self._ips_str.add(ip)
+                        self._ip_meta[ip] = metadata
 
-                except Exception as e:
-                    self.logger.warning(f"Skipping invalid IP entry: {e}")
-                    errors += 1
+                    loaded_ips += 1
 
-            self.metrics.ips_as_integers = ips_as_int
+            except Exception as e:
+                self.logger.warning(f"Skipping invalid IP entry: {e}")
+                errors += 1
 
-            if errors > 0:
-                self.logger.info(
-                    f"Loaded {loaded_ips} IPs ({ips_as_int} as integers), {loaded_cidrs} CIDRs ({errors} errors)"
-                )
-            else:
-                self.logger.debug(f"Loaded {loaded_ips} IPs ({ips_as_int} as integers), {loaded_cidrs} CIDRs")
+        self.metrics.ips_as_integers = ips_as_int
 
-        finally:
-            conn.close()
+        if errors > 0:
+            self.logger.info(
+                f"Loaded {loaded_ips} IPs ({ips_as_int} as integers), {loaded_cidrs} CIDRs ({errors} errors)"
+            )
+        else:
+            self.logger.debug(f"Loaded {loaded_ips} IPs ({ips_as_int} as integers), {loaded_cidrs} CIDRs")
 
     # ========== Fast Lookup Methods (v0.4.0 Optimized) ==========
 
@@ -771,15 +743,7 @@ class HybridStorage(StorageProtocol):
 
             # Persist to database
             try:
-                conn = self._get_connection()
-                try:
-                    conn.execute(
-                        "INSERT OR REPLACE INTO blacklist_domain (domain, date, score, source) VALUES (?, ?, ?, ?)",
-                        (domain, date, score, source)
-                    )
-                    conn.commit()
-                finally:
-                    conn.close()
+                self._db.upsert_domain(domain, date, score, source)
             except Exception as e:
                 # Rollback memory changes on DB failure
                 self._domains.discard(domain_lower)
@@ -801,15 +765,7 @@ class HybridStorage(StorageProtocol):
 
             # Persist the canonical form so v1's exact-match lookups agree
             try:
-                conn = self._get_connection()
-                try:
-                    conn.execute(
-                        "INSERT OR REPLACE INTO blacklist_url (url, date, score, source) VALUES (?, ?, ?, ?)",
-                        (url_normalized, date, score, source)
-                    )
-                    conn.commit()
-                finally:
-                    conn.close()
+                self._db.upsert_url(url_normalized, date, score, source)
             except Exception as e:
                 # Rollback
                 self._urls.discard(url_normalized)
@@ -869,15 +825,7 @@ class HybridStorage(StorageProtocol):
 
             # Persist to database
             try:
-                conn = self._get_connection()
-                try:
-                    conn.execute(
-                        "INSERT OR REPLACE INTO blacklist_ip (ip, date, score, source) VALUES (?, ?, ?, ?)",
-                        (ip, date, score, source)
-                    )
-                    conn.commit()
-                finally:
-                    conn.close()
+                self._db.upsert_ip(ip, date, score, source)
             except Exception as e:
                 # Rollback
                 if is_cidr:
@@ -903,20 +851,13 @@ class HybridStorage(StorageProtocol):
                 self._domain_meta[domain_lower] = metadata
 
             # Persist to database in transaction
-            conn = self._get_connection()
             try:
-                conn.executemany(
-                    "INSERT OR REPLACE INTO blacklist_domain (domain, date, score, source) VALUES (?, ?, ?, ?)",
-                    domains
-                )
-                conn.commit()
+                self._db.upsert_domains(domains)
             except Exception as e:
                 self.logger.error(f"Failed to add domains batch: {e}")
                 # Reload from DB to ensure consistency
                 self._load_domains_from_db()
                 raise
-            finally:
-                conn.close()
 
     def add_urls(self, urls: List[Tuple[str, str, float, str]]):
         """Add multiple URLs efficiently (batch operation with normalization)."""
@@ -931,19 +872,12 @@ class HybridStorage(StorageProtocol):
                 normalized_rows.append((url_normalized, date, score, source))
 
             # Persist the canonical forms so v1's exact-match lookups agree
-            conn = self._get_connection()
             try:
-                conn.executemany(
-                    "INSERT OR REPLACE INTO blacklist_url (url, date, score, source) VALUES (?, ?, ?, ?)",
-                    normalized_rows
-                )
-                conn.commit()
+                self._db.upsert_urls(normalized_rows)
             except Exception as e:
                 self.logger.error(f"Failed to add URLs batch: {e}")
                 self._load_urls_from_db()
                 raise
-            finally:
-                conn.close()
 
     def add_ips(self, ips: List[Tuple[str, str, float, str]]):
         """Add multiple IPs efficiently (batch operation with integer storage)."""
@@ -988,19 +922,12 @@ class HybridStorage(StorageProtocol):
                 persist.append((ip, date, score, source))
 
             # Persist to database
-            conn = self._get_connection()
             try:
-                conn.executemany(
-                    "INSERT OR REPLACE INTO blacklist_ip (ip, date, score, source) VALUES (?, ?, ?, ?)",
-                    persist
-                )
-                conn.commit()
+                self._db.upsert_ips(persist)
             except Exception as e:
                 self.logger.error(f"Failed to add IPs batch: {e}")
                 self._load_ips_from_db()
                 raise
-            finally:
-                conn.close()
 
     def add_entries(self, entries: List[Tuple[str, Optional[str], str, float, str]]):
         """
@@ -1147,66 +1074,20 @@ class HybridStorage(StorageProtocol):
 
     def get_last_update(self) -> datetime:
         """Get timestamp of last update from database."""
-        conn = self._get_connection()
-        try:
-            cursor = conn.execute("SELECT MAX(timestamp) FROM updates")
-            result = cursor.fetchone()[0]
-            return datetime.fromisoformat(result) if result else datetime.min
-        finally:
-            conn.close()
+        result = self._db.get_last_update()
+        return datetime.fromisoformat(result) if result else datetime.min
 
     def get_last_update_per_source(self) -> Dict[str, str]:
         """Get last update timestamp for each source."""
-        conn = self._get_connection()
-        try:
-            cursor = conn.execute(
-                "SELECT source, MAX(timestamp) FROM updates GROUP BY source"
-            )
-            return {row[0]: row[1] for row in cursor.fetchall()}
-        finally:
-            conn.close()
+        return self._db.get_last_update_per_source()
 
     def get_update_history(self, source: str = None, start: str = None, end: str = None) -> list:
         """Return update history records from database."""
-        conn = self._get_connection()
-        try:
-            parts = []
-            params = []
-
-            if source:
-                parts.append("source = ?")
-                params.append(source)
-            if start:
-                parts.append("timestamp >= ?")
-                params.append(start)
-            if end:
-                parts.append("timestamp <= ?")
-                params.append(end)
-
-            query = "SELECT timestamp, source, entry_count FROM updates"
-            if parts:
-                query += " WHERE " + " AND ".join(parts)
-            query += " ORDER BY timestamp"
-
-            cursor = conn.execute(query, params)
-            return [
-                {"timestamp": row[0], "source": row[1], "entry_count": row[2]}
-                for row in cursor.fetchall()
-            ]
-        finally:
-            conn.close()
+        return self._db.get_update_history(source=source, start=start, end=end)
 
     def log_update(self, source: str, entry_count: int):
         """Log an update to the database."""
-        conn = self._get_connection()
-        try:
-            conn.execute(
-                "INSERT INTO updates (source, entry_count) VALUES (?, ?)",
-                (source, entry_count)
-            )
-            conn.commit()
-        finally:
-            conn.close()
+        self._db.log_update(source, entry_count)
 
     # ========== Utility Methods ==========
 
@@ -1277,14 +1158,7 @@ class HybridStorage(StorageProtocol):
             if removed:
                 # Remove from database — blacklist_url holds the canonical
                 # form, so the URL delete must use the normalized value.
-                conn = self._get_connection()
-                try:
-                    conn.execute("DELETE FROM blacklist_domain WHERE domain = ?", (value,))
-                    conn.execute("DELETE FROM blacklist_url WHERE url = ?", (value_normalized,))
-                    conn.execute("DELETE FROM blacklist_ip WHERE ip = ?", (value,))
-                    conn.commit()
-                finally:
-                    conn.close()
+                self._db.delete_entry(value, value_normalized)
 
             return removed
 
