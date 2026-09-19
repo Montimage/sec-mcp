@@ -1,21 +1,23 @@
+import contextlib
 import ipaddress
 import os
 import random
 import sqlite3
 import sys
 import threading
+from collections import OrderedDict
 from datetime import datetime
-from typing import Dict, List, Optional, Set, Tuple
+from typing import Dict, List, Optional, Tuple
 from urllib.parse import urlparse
 
 from . import storage_base
-from .utility import validate_input
+from .utility import load_config, validate_input
 
 
 class Storage(storage_base.StorageProtocol):
     """SQLite-based storage with in-memory caching for high-throughput blacklist checks."""
 
-    def __init__(self, db_path=None):
+    def __init__(self, db_path=None, cache_size: Optional[int] = None):
         # resolve_db_path covers the explicit/env/default chain; the platform
         # default is already absolute, so abspath is a no-op for it.
         db_path = storage_base.resolve_db_path(db_path)
@@ -27,8 +29,30 @@ class Storage(storage_base.StorageProtocol):
             except OSError as e:
                 raise RuntimeError(f"Cannot create database directory {db_dir_from_path}: {e}")
         self.db_path = db_path
-        self._cache: Set[str] = set()  # In-memory cache for faster lookups
+
+        # Bounded positive-hit cache (OrderedDict used as an LRU set): a
+        # lookup that found an entry blacklisted replays from memory, and
+        # the oldest hits are evicted once the configured max size is
+        # exceeded. ``cache_size`` defaults to config.json's "cache_size".
+        if cache_size is None:
+            try:
+                cache_size = int(load_config().get("cache_size", 10000))
+            except (OSError, TypeError, ValueError):
+                cache_size = 10000
+        self._cache_max_size = max(0, int(cache_size))
+        self._cache: "OrderedDict[str, None]" = OrderedDict()
         self._cache_lock = threading.Lock()
+
+        # Thread-local ambient connection installed by shared_connection().
+        self._local = threading.local()
+
+        # Parsed CIDR ranges paired with their sources, loaded lazily once
+        # and matched in memory so an IP lookup never scans the whole
+        # blacklist_ip table. None means "not loaded": a write to the ip
+        # table or flush_cache() invalidates back to None for a reload.
+        self._cidr_ranges: Optional[List[Tuple[object, str]]] = None
+        self._cidr_lock = threading.Lock()
+
         self._init_db()
 
     def _init_db(self):
@@ -38,25 +62,112 @@ class Storage(storage_base.StorageProtocol):
         except sqlite3.OperationalError as e:
             raise RuntimeError(f"Cannot initialize database at {self.db_path}: {e}. Check directory permissions and disk space.")
 
+    @contextlib.contextmanager
+    def _connection(self):
+        """Yield the connection this call runs on.
+
+        Inside another ``_connection()``/``shared_connection()`` block the
+        ambient connection is reused; the outermost call on this thread
+        opens a fresh one, installs it as ambient for nested calls, and
+        closes it on exit — one ``sqlite3.connect`` per outermost call.
+        """
+        ambient = getattr(self._local, "conn", None)
+        if ambient is not None:
+            yield ambient
+            return
+        conn = sqlite3.connect(self.db_path)
+        self._local.conn = conn
+        try:
+            yield conn
+        finally:
+            self._local.conn = None
+            conn.close()
+
+    @contextlib.contextmanager
+    def shared_connection(self):
+        """Run a sequence of storage calls on a single SQLite connection.
+
+        Calls made on this thread inside the block reuse the ambient
+        connection instead of opening one per call, so a ``SecMCP.check()``
+        costs exactly one ``sqlite3.connect`` no matter how many storage
+        methods it touches. Reentrant: nested blocks share the outer
+        connection.
+        """
+        with self._connection() as conn:
+            yield conn
+
+    def _cache_get(self, key: str) -> bool:
+        """Cache hit check that also refreshes recency for LRU eviction."""
+        with self._cache_lock:
+            if key not in self._cache:
+                return False
+            self._cache.move_to_end(key)
+            return True
+
+    def _cache_put(self, key: str) -> None:
+        """Insert into the bounded cache, evicting oldest hits past max size."""
+        if self._cache_max_size <= 0:
+            return
+        with self._cache_lock:
+            self._cache[key] = None
+            self._cache.move_to_end(key)
+            while len(self._cache) > self._cache_max_size:
+                self._cache.popitem(last=False)
+
+    def _cidr_entries(self) -> List[Tuple[object, str]]:
+        """Parsed CIDR ranges and their sources, loaded once then cached.
+
+        The one SELECT this pays fetches only CIDR rows; every later IP
+        lookup matches in memory — zero full-table CIDR scans per lookup.
+
+        The whole load runs under ``_cidr_lock``: a writer always commits
+        *before* calling ``_invalidate_cidr_ranges``, so serializing the
+        check + fetch + store against invalidation means a range list read
+        before a commit can never be stored after that commit's
+        invalidation — the stale store would otherwise leave a new CIDR
+        permanently unmatched until the next write.
+        """
+        with self._cidr_lock:
+            if self._cidr_ranges is not None:
+                return self._cidr_ranges
+            with self._connection() as conn:
+                rows = conn.execute(
+                    "SELECT ip, source FROM blacklist_ip WHERE INSTR(ip, '/') > 0"
+                ).fetchall()
+            ranges = []
+            for net_str, source in rows:
+                try:
+                    ranges.append((ipaddress.ip_network(net_str, strict=False), source))
+                except ValueError:
+                    # Invalid network string in DB — skip it, exactly as the
+                    # per-lookup scan used to.
+                    continue
+            self._cidr_ranges = ranges
+            return ranges
+
+    def _invalidate_cidr_ranges(self) -> None:
+        """Drop the cached CIDR ranges after a write to blacklist_ip."""
+        with self._cidr_lock:
+            self._cidr_ranges = None
+
     def is_domain_blacklisted(self, domain: str) -> bool:
         """Check if a domain or its parent domains are blacklisted."""
-        # Check domain and all parent domains
+        # Check the domain and all parent domains: the whole cache first —
+        # a fully-cached chain never opens a connection — then the DB on a
+        # single connection (the loop used to open one connect per level).
         domain_parts = domain.lower().split('.')
-        for i in range(len(domain_parts) - 1):
-            sub = '.'.join(domain_parts[i:])
-            # Check cache first
-            with self._cache_lock:
-                if sub in self._cache:
-                    return True
-            # If not in cache, check DB
-            with sqlite3.connect(self.db_path) as conn:
+        subs = ['.'.join(domain_parts[i:]) for i in range(len(domain_parts) - 1)]
+        for sub in subs:
+            if self._cache_get(sub):
+                return True
+        with self._connection() as conn:
+            for sub in subs:
                 cursor = conn.execute(
                     "SELECT 1 FROM blacklist_domain WHERE domain = ?",
                     (sub,)
                 )
                 if cursor.fetchone():
-                    with self._cache_lock:
-                        self._cache.add(sub) # Add to cache if found in DB
+                    self._cache_put(sub) # Add to cache if found in DB
                     return True
         return False
 
@@ -66,73 +177,52 @@ class Storage(storage_base.StorageProtocol):
         # same function the v2 backend applies, giving identical verdicts.
         url = storage_base.normalize_url(url)
         # Check cache first
-        with self._cache_lock:
-            if url in self._cache:
-                return True
+        if self._cache_get(url):
+            return True
         # If not in cache, check DB
-        with sqlite3.connect(self.db_path) as conn:
+        with self._connection() as conn:
             cursor = conn.execute(
                 "SELECT 1 FROM blacklist_url WHERE url = ?",
                 (url,)
             )
             if cursor.fetchone():
-                with self._cache_lock:
-                    self._cache.add(url) # Add to cache if found in DB
+                self._cache_put(url) # Add to cache if found in DB
                 return True
         return False
 
     def is_ip_blacklisted(self, ip: str) -> bool:
         """Check if an IP is blacklisted (either exact match or contained in any network mask)."""
         try:
-            ip_obj = ipaddress.ip_address(ip)
+            addr = ipaddress.ip_address(ip)
         except ValueError:
             return False
         # Check cache first for exact IP
-        with self._cache_lock:
-            if ip in self._cache:
-                return True
+        if self._cache_get(ip):
+            return True
         # If not in cache, check DB for exact IP
-        with sqlite3.connect(self.db_path) as conn:
+        with self._connection() as conn:
             cursor = conn.execute(
                 "SELECT 1 FROM blacklist_ip WHERE ip = ?",
                 (ip,)
             )
             if cursor.fetchone():
-                with self._cache_lock:
-                    self._cache.add(ip) # Add exact IP to cache if found
+                self._cache_put(ip) # Add exact IP to cache if found
                 return True
 
-            # Check for network mask (this part is more complex and less cacheable directly without processing all masks)
-            # The current implementation checks all network masks, which might be slow.
-            # For CIDR matches, we won't cache the specific IP 'ip' under the CIDR key directly here,
-            # as the cache is for exact matches. A positive CIDR match means the IP is bad,
-            # but caching 'ip' itself might be misleading if 'ip' isn't an exact entry.
-            # However, if an IP is found via CIDR, it IS blacklisted.
-            cursor = conn.execute(
-                "SELECT ip FROM blacklist_ip WHERE INSTR(ip, '/') > 0"  # Select only CIDRs
-            )
-            try:
-                addr = ipaddress.ip_address(ip)
-                for row in cursor.fetchall():
-                    net_str = row[0]
-                    # Ensure net_str is a valid network before creating ip_network object
-                    try:
-                        network = ipaddress.ip_network(net_str, strict=False)
-                        if addr in network:
-                            # We found it via CIDR. We can cache the specific IP as blacklisted.
-                            with self._cache_lock:
-                                self._cache.add(ip)
-                            return True
-                    except ValueError:
-                        # Invalid network string in DB, log or handle as appropriate
-                        continue 
-            except ValueError:
-                pass # Invalid IP format for 'ip', should not happen if input is validated
+            # CIDR membership is matched against the cached in-memory ranges
+            # (_cidr_entries) instead of re-scanning every CIDR row per lookup;
+            # a cold load reuses this same connection. A positive CIDR match
+            # means the IP is bad, so it is cached like an exact hit —
+            # remove_entry still clears the whole cache.
+            for network, _source in self._cidr_entries():
+                if addr in network:
+                    self._cache_put(ip)
+                    return True
         return False
 
     def add_domain(self, domain: str, date: str, score: float, source: str):
         """Add a domain to the domain blacklist."""
-        with sqlite3.connect(self.db_path) as conn:
+        with self._connection() as conn:
             conn.execute(
                 "INSERT OR IGNORE INTO blacklist_domain (domain, date, score, source) VALUES (?, ?, ?, ?)",
                 (domain, date, score, source)
@@ -142,7 +232,7 @@ class Storage(storage_base.StorageProtocol):
     def add_url(self, url: str, date: str, score: float, source: str):
         """Add a URL to the URL blacklist (stored in canonical form)."""
         url = storage_base.normalize_url(url)
-        with sqlite3.connect(self.db_path) as conn:
+        with self._connection() as conn:
             conn.execute(
                 "INSERT OR IGNORE INTO blacklist_url (url, date, score, source) VALUES (?, ?, ?, ?)",
                 (url, date, score, source)
@@ -152,7 +242,7 @@ class Storage(storage_base.StorageProtocol):
     def add_ip(self, ip: str, date: str, score: float, source: str):
         """Add an IP to the IP blacklist."""
         try:
-            with sqlite3.connect(self.db_path) as conn:
+            with self._connection() as conn:
                 conn.execute(
                     "INSERT OR IGNORE INTO blacklist_ip (ip, date, score, source) VALUES (?, ?, ?, ?)",
                     (ip, date, score, source)
@@ -160,13 +250,15 @@ class Storage(storage_base.StorageProtocol):
                 conn.commit()
         except sqlite3.OperationalError as e:
             raise RuntimeError(f"Cannot write to database at {self.db_path}: {e}. Check directory permissions and that the database was initialized properly.")
+        # A new CIDR row changes what member IPs match — reload lazily.
+        self._invalidate_cidr_ranges()
 
     def get_domain_blacklist_source(self, domain: str) -> Optional[str]:
         """Get the source that blacklisted a domain (including parent domains)."""
         domain_parts = domain.lower().split('.')
-        for i in range(len(domain_parts) - 1):
-            sub = '.'.join(domain_parts[i:])
-            with sqlite3.connect(self.db_path) as conn:
+        with self._connection() as conn:
+            for i in range(len(domain_parts) - 1):
+                sub = '.'.join(domain_parts[i:])
                 cursor = conn.execute(
                     "SELECT source FROM blacklist_domain WHERE domain = ?",
                     (sub,)
@@ -179,7 +271,7 @@ class Storage(storage_base.StorageProtocol):
     def get_url_blacklist_source(self, url: str) -> Optional[str]:
         """Get the source that blacklisted a URL (exact match on the canonical form)."""
         url = storage_base.normalize_url(url)
-        with sqlite3.connect(self.db_path) as conn:
+        with self._connection() as conn:
             cursor = conn.execute(
                 "SELECT source FROM blacklist_url WHERE url = ?",
                 (url,)
@@ -189,7 +281,7 @@ class Storage(storage_base.StorageProtocol):
 
     def get_ip_blacklist_source(self, ip: str) -> Optional[str]:
         """Get the source that blacklisted an IP (exact match or containing CIDR range)."""
-        with sqlite3.connect(self.db_path) as conn:
+        with self._connection() as conn:
             cursor = conn.execute(
                 "SELECT source FROM blacklist_ip WHERE ip = ?",
                 (ip,)
@@ -198,26 +290,20 @@ class Storage(storage_base.StorageProtocol):
             if result:
                 return result[0]
             # An IP blacklisted only through a CIDR range still attributes
-            # that range's source (same scan is_ip_blacklisted performs).
+            # that range's source — matched in memory against the cached
+            # ranges, not by re-scanning the table.
             try:
                 addr = ipaddress.ip_address(ip)
             except ValueError:
                 return None
-            cursor = conn.execute(
-                "SELECT ip, source FROM blacklist_ip WHERE INSTR(ip, '/') > 0"
-            )
-            for net_str, source in cursor.fetchall():
-                try:
-                    if addr in ipaddress.ip_network(net_str, strict=False):
-                        return source
-                except ValueError:
-                    # Invalid network string in DB — skip it
-                    continue
-            return None
+            for network, source in self._cidr_entries():
+                if addr in network:
+                    return source
+        return None
 
     def add_domains(self, domains: List[Tuple[str, str, float, str]]):
         """Add multiple domains to the domain blacklist."""
-        with sqlite3.connect(self.db_path) as conn:
+        with self._connection() as conn:
             conn.executemany(
                 "INSERT OR IGNORE INTO blacklist_domain (domain, date, score, source) VALUES (?, ?, ?, ?)",
                 domains
@@ -230,7 +316,7 @@ class Storage(storage_base.StorageProtocol):
             (storage_base.normalize_url(url), date, score, source)
             for url, date, score, source in urls
         ]
-        with sqlite3.connect(self.db_path) as conn:
+        with self._connection() as conn:
             conn.executemany(
                 "INSERT OR IGNORE INTO blacklist_url (url, date, score, source) VALUES (?, ?, ?, ?)",
                 urls
@@ -239,12 +325,13 @@ class Storage(storage_base.StorageProtocol):
 
     def add_ips(self, ips: List[Tuple[str, str, float, str]]):
         """Add multiple IPs to the IP blacklist."""
-        with sqlite3.connect(self.db_path) as conn:
+        with self._connection() as conn:
             conn.executemany(
                 "INSERT OR IGNORE INTO blacklist_ip (ip, date, score, source) VALUES (?, ?, ?, ?)",
                 ips
             )
             conn.commit()
+        self._invalidate_cidr_ranges()
 
     def add_entries(self, entries: List[Tuple[Optional[str], Optional[str], str, float, str]]):
         """
@@ -280,7 +367,7 @@ class Storage(storage_base.StorageProtocol):
             if ip_val:
                 ips_to_add.append((ip_val, date_val, score_val, source))
 
-        with sqlite3.connect(self.db_path) as conn:
+        with self._connection() as conn:
             with conn:
                 if domains_to_add:
                     conn.executemany(
@@ -297,10 +384,12 @@ class Storage(storage_base.StorageProtocol):
                         "INSERT OR IGNORE INTO blacklist_ip (ip, date, score, source) VALUES (?, ?, ?, ?)",
                         ips_to_add
                     )
+        if ips_to_add:
+            self._invalidate_cidr_ranges()
 
     def log_update(self, source: str, entry_count: int):
         """Log a successful update from a source."""
-        with sqlite3.connect(self.db_path) as conn:
+        with self._connection() as conn:
             conn.execute(
                 "INSERT INTO updates (source, entry_count) VALUES (?, ?)",
                 (source, entry_count)
@@ -309,7 +398,7 @@ class Storage(storage_base.StorageProtocol):
 
     def count_entries(self) -> int:
         """Get total number of blacklist entries (sum of all tables)."""
-        with sqlite3.connect(self.db_path) as conn:
+        with self._connection() as conn:
             domain_count = conn.execute("SELECT COUNT(*) FROM blacklist_domain").fetchone()[0]
             url_count = conn.execute("SELECT COUNT(*) FROM blacklist_url").fetchone()[0]
             ip_count = conn.execute("SELECT COUNT(*) FROM blacklist_ip").fetchone()[0]
@@ -318,7 +407,7 @@ class Storage(storage_base.StorageProtocol):
     def get_source_counts(self) -> Dict[str, int]:
         """Get the number of blacklist entries for each source (all tables)."""
         counts = {}
-        with sqlite3.connect(self.db_path) as conn:
+        with self._connection() as conn:
             for table in ["blacklist_domain", "blacklist_url", "blacklist_ip"]:
                 cursor = conn.execute(f"SELECT source, COUNT(*) FROM {table} GROUP BY source")
                 for row in cursor.fetchall():
@@ -329,7 +418,7 @@ class Storage(storage_base.StorageProtocol):
     def get_source_type_counts(self) -> Dict[str, dict]:
         """Get the number of domain, url, and ip entries for each source."""
         stats = {}
-        with sqlite3.connect(self.db_path) as conn:
+        with self._connection() as conn:
             # Domains
             cursor = conn.execute("SELECT source, COUNT(*) FROM blacklist_domain GROUP BY source")
             for row in cursor.fetchall():
@@ -352,7 +441,7 @@ class Storage(storage_base.StorageProtocol):
 
     def get_last_update(self) -> datetime:
         """Get timestamp of last update."""
-        with sqlite3.connect(self.db_path) as conn:
+        with self._connection() as conn:
             cursor = conn.execute(
                 "SELECT MAX(timestamp) FROM updates"
             )
@@ -362,7 +451,7 @@ class Storage(storage_base.StorageProtocol):
     def get_active_sources(self) -> List[str]:
         """Get list of active blacklist sources (from all tables)."""
         sources = set()
-        with sqlite3.connect(self.db_path) as conn:
+        with self._connection() as conn:
             for table in ["blacklist_domain", "blacklist_url", "blacklist_ip"]:
                 cursor = conn.execute(f"SELECT DISTINCT source FROM {table}")
                 sources.update(row[0] for row in cursor.fetchall())
@@ -371,7 +460,7 @@ class Storage(storage_base.StorageProtocol):
     def sample_entries(self, count: int = 10) -> List[str]:
         """Return a random sample of blacklist entries from all tables for testing."""
         entries = []
-        with sqlite3.connect(self.db_path) as conn:
+        with self._connection() as conn:
             for table, field in [("blacklist_domain", "domain"), ("blacklist_url", "url"), ("blacklist_ip", "ip")]:
                 cursor = conn.execute(f"SELECT {field} FROM {table} ORDER BY RANDOM() LIMIT ?", (count,))
                 entries.extend(row[0] for row in cursor.fetchall())
@@ -380,7 +469,7 @@ class Storage(storage_base.StorageProtocol):
 
     def get_last_update_per_source(self) -> Dict[str, str]:
         """Get last update timestamp for each source."""
-        with sqlite3.connect(self.db_path) as conn:
+        with self._connection() as conn:
             cursor = conn.execute(
                 "SELECT source, MAX(timestamp) FROM updates GROUP BY source"
             )
@@ -388,7 +477,7 @@ class Storage(storage_base.StorageProtocol):
 
     def get_update_history(self, source: str = None, start: str = None, end: str = None) -> list:
         """Return update history records, optionally filtered by source and time range."""
-        with sqlite3.connect(self.db_path) as conn:
+        with self._connection() as conn:
             parts = []
             params = []
             if source:
@@ -411,9 +500,10 @@ class Storage(storage_base.StorageProtocol):
             ]
 
     def flush_cache(self) -> bool:
-        """Clear the in-memory URL/IP cache."""
+        """Clear the in-memory positive-hit cache and cached CIDR ranges."""
         with self._cache_lock:
             self._cache.clear()
+        self._invalidate_cidr_ranges()
         return True
 
     def remove_entry(self, value: str) -> bool:
@@ -421,7 +511,7 @@ class Storage(storage_base.StorageProtocol):
         # blacklist_url stores the canonical form — the URL delete must use
         # the same normalized value the writes and lookups apply.
         url_normalized = storage_base.normalize_url(value)
-        with sqlite3.connect(self.db_path) as conn:
+        with self._connection() as conn:
             with conn:
                 removed = (
                     conn.execute(
@@ -437,18 +527,21 @@ class Storage(storage_base.StorageProtocol):
                         (value,)
                     ).rowcount
                 )
-        # Clear the whole cache: an entry can be cached under a different key
-        # than `value` (e.g. a member IP cached after matching a CIDR, or a
-        # parent domain cached for a subdomain lookup), so discarding `value`
-        # alone would leave stale hits after removal.
+        # Clear the whole positive-hit cache: an entry can be cached under a
+        # different key than `value` (e.g. a member IP cached after matching
+        # a CIDR, or a parent domain cached for a subdomain lookup), so
+        # discarding `value` alone would leave stale hits after removal.
+        # Cached CIDR ranges are invalidated too: a removed range must stop
+        # matching its member IPs immediately.
         with self._cache_lock:
             self._cache.clear()
+        self._invalidate_cidr_ranges()
         return removed > 0
 
 
 def create_storage(db_path=None):
     """
-    Factory function to create storage instance based on configuration.
+    Factory function to create the appropriate storage instance based on configuration.
 
     Uses environment variable MCP_USE_V2_STORAGE to determine which storage
     implementation to use:

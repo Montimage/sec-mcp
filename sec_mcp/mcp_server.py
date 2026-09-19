@@ -169,17 +169,20 @@ async def check_batch(
     try:
         core = get_core()
         results = []
-        for value in values:
-            if not validate_input(value):
-                results.append({"value": value, "is_safe": False, "verdict": "invalid", "explanation": "Invalid input format."})
-            else:
-                res = core.check(value)
-                results.append({
-                    "value": value,
-                    "is_safe": not res.blacklisted,
-                    "verdict": "blacklisted" if res.blacklisted else "safe",
-                    "explanation": res.explanation,
-                })
+        # One shared connection for the whole batch: each core.check()
+        # reuses it instead of paying a connect per value.
+        with core.storage.shared_connection():
+            for value in values:
+                if not validate_input(value):
+                    results.append({"value": value, "is_safe": False, "verdict": "invalid", "explanation": "Invalid input format."})
+                else:
+                    res = core.check(value)
+                    results.append({
+                        "value": value,
+                        "is_safe": not res.blacklisted,
+                        "verdict": "blacklisted" if res.blacklisted else "safe",
+                        "explanation": res.explanation,
+                    })
         return results
     except MCPError:
         # Protocol-level errors must keep raising so they surface as JSON-RPC

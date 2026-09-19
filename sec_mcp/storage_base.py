@@ -24,8 +24,11 @@ DB_PRAGMAS = (
     "PRAGMA cache_size=10000;",
 )
 
-# The one canonical schema for both backends. The source indexes are cheap on
-# small installs and keep v1/v2 databases byte-compatible.
+# The one canonical schema for both backends. Only secondary indexes are
+# declared: an index on a PRIMARY KEY column would duplicate the implicit
+# index SQLite already maintains for the key, so none is created. The
+# source indexes are cheap on small installs and keep v1/v2 databases
+# byte-compatible.
 SCHEMA_STATEMENTS = (
     """
     CREATE TABLE IF NOT EXISTS blacklist_domain (
@@ -35,7 +38,6 @@ SCHEMA_STATEMENTS = (
         source TEXT
     )
     """,
-    "CREATE INDEX IF NOT EXISTS idx_blacklist_domain ON blacklist_domain(domain);",
     "CREATE INDEX IF NOT EXISTS idx_domain_source ON blacklist_domain(source);",
     """
     CREATE TABLE IF NOT EXISTS blacklist_url (
@@ -45,7 +47,6 @@ SCHEMA_STATEMENTS = (
         source TEXT
     )
     """,
-    "CREATE INDEX IF NOT EXISTS idx_blacklist_url ON blacklist_url(url);",
     "CREATE INDEX IF NOT EXISTS idx_url_source ON blacklist_url(source);",
     """
     CREATE TABLE IF NOT EXISTS blacklist_ip (
@@ -55,7 +56,6 @@ SCHEMA_STATEMENTS = (
         source TEXT
     )
     """,
-    "CREATE INDEX IF NOT EXISTS idx_blacklist_ip ON blacklist_ip(ip);",
     "CREATE INDEX IF NOT EXISTS idx_ip_source ON blacklist_ip(source);",
     """
     CREATE TABLE IF NOT EXISTS updates (
@@ -67,6 +67,16 @@ SCHEMA_STATEMENTS = (
     """,
     "CREATE INDEX IF NOT EXISTS idx_updates_source ON updates(source);",
     "CREATE INDEX IF NOT EXISTS idx_updates_timestamp ON updates(timestamp);",
+)
+
+# Indexes pre-deduplication schemas created on columns that are already the
+# table's PRIMARY KEY — pure write overhead the planner never uses. New
+# databases never get them; init_db drops them idempotently from databases
+# created by older versions.
+LEGACY_PK_DUPLICATE_INDEXES = (
+    "DROP INDEX IF EXISTS idx_blacklist_domain;",
+    "DROP INDEX IF EXISTS idx_blacklist_url;",
+    "DROP INDEX IF EXISTS idx_blacklist_ip;",
 )
 
 
@@ -211,6 +221,8 @@ def init_db(db_path: str) -> None:
             conn.execute(pragma)
         for statement in SCHEMA_STATEMENTS:
             conn.execute(statement)
+        for statement in LEGACY_PK_DUPLICATE_INDEXES:
+            conn.execute(statement)
         _canonicalize_url_rows(conn)
         conn.commit()
 
@@ -279,3 +291,14 @@ class StorageProtocol(Protocol):
     def log_update(self, source: str, entry_count: int) -> None: ...
 
     def flush_cache(self) -> bool: ...
+
+    # ----- Connection scope -----
+    def shared_connection(self):
+        """Context manager: run a sequence of storage calls on one connection.
+
+        The v1 backend routes every call made on this thread inside the
+        block through a single ambient ``sqlite3.Connection``; the v2
+        backend is a no-op (its lookups are in-memory). ``SecMCP.check``
+        enters it so a whole check costs at most one ``sqlite3.connect``.
+        """
+        ...

@@ -17,6 +17,7 @@ Optimizations:
 - Integer-based IP storage for memory efficiency
 """
 
+import contextlib
 import ipaddress
 import itertools
 import logging
@@ -264,6 +265,16 @@ class HybridStorage(StorageProtocol):
     def _get_connection(self) -> sqlite3.Connection:
         """Get a database connection."""
         return sqlite3.connect(self.db_path, timeout=30.0)
+
+    @contextlib.contextmanager
+    def shared_connection(self):
+        """Uniform connection-scope API — a no-op for the in-memory backend.
+
+        The v1 backend routes every call inside the block through one
+        ambient SQLite connection; HybridStorage resolves lookups from
+        memory, so the block only scopes the calls — nothing is opened.
+        """
+        yield self
 
     def _scratch(self):
         """Return a scratch HybridStorage with empty in-memory structures.
