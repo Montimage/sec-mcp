@@ -6,7 +6,7 @@ const Header = () => {
         <header className="bg-slate-800 text-white p-4 shadow-md">
             <div className="container mx-auto flex flex-col md:flex-row md:justify-between items-center">
                 <div className="flex items-center mb-6 md:mb-0">
-                    <h1 className="text-2xl font-bold flex items-center">
+                    <span className="text-2xl font-bold flex items-center">
                         <svg className="w-8 h-8 mr-2" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
                             {/* Security shield with network/check elements */}
                             <defs>
@@ -28,7 +28,7 @@ const Header = () => {
                             <path d="M8 12L11 15L16 9" stroke="white" strokeWidth="1.5" fill="none" strokeLinecap="round" strokeLinejoin="round" />
                         </svg>
                         sec-mcp
-                    </h1>
+                    </span>
                     <div className="flex items-center ml-4 pl-4 border-l border-gray-600">
                         <span className="text-sm text-gray-400 mr-2">by</span>
                         <a href="https://www.montimage.eu" target="_blank" rel="noopener noreferrer" className="transition-opacity hover:opacity-80">
@@ -39,9 +39,9 @@ const Header = () => {
                 <nav className="w-full md:w-auto">
                     <ul className="flex flex-wrap justify-center md:justify-start gap-4 md:gap-6">
                         <li><a href="#features" className="hover:text-blue-400 transition-colors">Features</a></li>
-                        <li><a href="#api" className="hover:text-blue-400 transition-colors">API</a></li>
-                        <li><a href="#installation" className="hover:text-blue-400 transition-colors">Installation</a></li>
                         <li><a href="#mcp" className="hover:text-blue-400 transition-colors">MCP Server</a></li>
+                        <li><a href="#installation" className="hover:text-blue-400 transition-colors">Installation</a></li>
+                        <li><a href="#api" className="hover:text-blue-400 transition-colors">API</a></li>
                         <li>
                             <a href="mailto:contact@montimage.eu" className="flex items-center hover:text-blue-400 transition-colors">
                                 <svg className="w-5 h-5 mr-1" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" strokeWidth="0.5">
@@ -59,7 +59,7 @@ const Header = () => {
                             </a>
                         </li>
                         <li>
-                            <a href="https://pepy.tech/projects/sec-mcp"><img src="https://static.pepy.tech/badge/sec-mcp" alt="PyPI Downloads" /></a>
+                            <a href="https://pepy.tech/projects/sec-mcp"><img src="https://static.pepy.tech/badge/sec-mcp" alt="PyPI Downloads" width="100" height="20" /></a>
                         </li>
                     </ul>
                 </nav>
