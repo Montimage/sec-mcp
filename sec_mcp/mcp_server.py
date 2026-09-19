@@ -7,6 +7,7 @@ from urllib.parse import urlparse
 
 import anyio
 from mcp.server.mcpserver import MCPServer
+from mcp.types import ToolAnnotations
 
 # import SecMCP for server logic
 from .sec_mcp import SecMCP
@@ -45,7 +46,8 @@ def __getattr__(name: str):
 # CORE TOOLS - Primary functionality
 # ============================================================================
 
-@mcp.tool(name="check_batch", description="Check multiple domains/URLs/IPs in one call. Returns list of {value, is_safe, explanation}.")
+@mcp.tool(name="check_batch", title="Check Batch", description="Check multiple domains/URLs/IPs in one call. Returns list of {value, is_safe, explanation}.",
+          annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False, idempotentHint=True, openWorldHint=False))
 async def check_batch(values: List[str]):
     """Check multiple values against the blacklist in a single call."""
     core = get_core()
@@ -59,7 +61,8 @@ async def check_batch(values: List[str]):
     return results
 
 
-@mcp.tool(name="get_status", description="Get blacklist status including entry counts and sources. Returns JSON: {entry_count, last_update, sources, server_status, source_counts}.")
+@mcp.tool(name="get_status", title="Get Status", description="Get blacklist status including entry counts and sources. Returns JSON: {entry_count, last_update, sources, server_status, source_counts}.",
+          annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False, idempotentHint=True, openWorldHint=False))
 async def get_status():
     """Return current blacklist status, including per-source entry counts."""
     core = get_core()
@@ -74,7 +77,8 @@ async def get_status():
     }
 
 
-@mcp.tool(description="Force immediate update of all blacklists. Returns JSON: {updated: bool}.")
+@mcp.tool(title="Update Blacklists", description="Force immediate update of all blacklists. Returns JSON: {updated: bool}.",
+          annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=False, idempotentHint=True, openWorldHint=True))
 async def update_blacklists():
     """Trigger an immediate blacklist refresh."""
     core = get_core()
@@ -87,7 +91,8 @@ async def update_blacklists():
 # DIAGNOSTICS - Consolidated monitoring and debugging
 # ============================================================================
 
-@mcp.tool(name="get_diagnostics", description="Get diagnostic information. Mode options: 'summary' (default), 'full', 'health', 'performance', 'sample'.")
+@mcp.tool(name="get_diagnostics", title="Get Diagnostics", description="Get diagnostic information. Mode options: 'summary' (default), 'full', 'health', 'performance', 'sample'.",
+          annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False, idempotentHint=True, openWorldHint=False))
 async def get_diagnostics(mode: str = "summary", sample_count: int = 10):
     """
     Get diagnostic information about the blacklist system.
@@ -194,7 +199,8 @@ async def get_diagnostics(mode: str = "summary", sample_count: int = 10):
 _MANUAL_SOURCE = "manual"
 
 
-@mcp.tool(name="add_entry", description="Add a manual blacklist entry.")
+@mcp.tool(name="add_entry", title="Add Entry", description="Add a manual blacklist entry.",
+          annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=False, idempotentHint=True, openWorldHint=False))
 async def add_entry(url: Optional[str] = None, ip: Optional[str] = None, date: Optional[str] = None, score: float = 8.0, source: str = _MANUAL_SOURCE):
     """Add a manual blacklist entry."""
     if not url and not ip:
@@ -220,7 +226,8 @@ async def add_entry(url: Optional[str] = None, ip: Optional[str] = None, date: O
     return {"success": True}
 
 
-@mcp.tool(name="remove_entry", description="Remove a blacklist entry by URL or IP.")
+@mcp.tool(name="remove_entry", title="Remove Entry", description="Remove a blacklist entry by URL or IP.",
+          annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=True, idempotentHint=True, openWorldHint=False))
 async def remove_entry(value: str):
     """Remove a blacklist entry by URL or IP."""
     success = get_core().storage.remove_entry(value)
