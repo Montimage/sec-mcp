@@ -20,8 +20,8 @@ const Installation = () => {
                                 <h4 className="text-lg font-medium mb-2">1. Create a virtual environment (recommended)</h4>
                                 <div className="bg-slate-900 rounded-lg p-4 border border-slate-700">
                                     <CodeBlock>
-{`# Python 3.10+ is required
-python3.12 -m venv .venv
+{`# Python 3.11+ is required
+python3 -m venv .venv
 source .venv/bin/activate  # On Windows: .venv\\Scripts\\activate`}
                                     </CodeBlock>
                                 </div>
