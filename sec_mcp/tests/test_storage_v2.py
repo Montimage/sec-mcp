@@ -3,6 +3,7 @@
 import os
 import sqlite3
 import tempfile
+import tracemalloc
 
 import pytest
 
@@ -407,6 +408,44 @@ class TestUpdateHistory:
         history = storage.get_update_history(source="OpenPhish")
         assert len(history) == 2
         assert all(h["source"] == "OpenPhish" for h in history)
+
+
+def test_sample_entries_bounded_allocation(tmp_path):
+    """sample_entries(10) must not materialize a list of all entries.
+
+    Seeds a 100K-entry store via a single bulk transaction, then asserts the
+    peak allocation during the call stays far below what a full-entry list
+    would cost (~1.8MB of pointers alone for 100K entries).
+    """
+    storage = HybridStorage(str(tmp_path / "big.db"))
+    storage.add_domains(
+        [(f"evil{i}.com", "2025-01-01", 9.0, "test") for i in range(100_000)]
+    )
+    assert storage.count_entries() == 100_000
+
+    tracemalloc.start()
+    try:
+        sample = storage.sample_entries(10)
+        _, peak = tracemalloc.get_traced_memory()
+    finally:
+        tracemalloc.stop()
+
+    assert len(sample) == 10
+    assert len(set(sample)) == 10
+    assert all(entry in storage._domains for entry in sample)
+    # Reservoir sampling uses O(count) space; a full-entry list would
+    # exceed this bound many times over.
+    assert peak < 1_000_000
+
+
+def test_sample_entries_small_store_and_zero_count(tmp_path):
+    """Edge cases: empty store, count above size, and non-positive count."""
+    storage = HybridStorage(str(tmp_path / "small.db"))
+    assert storage.sample_entries(10) == []
+
+    storage.add_domain("evil.com", "2025-01-01", 9.0, "test")
+    assert storage.sample_entries(0) == []
+    assert storage.sample_entries(10) == ["evil.com"]
 
 
 def test_fail_closed_corrupt_db(tmp_path):
