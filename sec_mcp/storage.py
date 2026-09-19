@@ -61,7 +61,10 @@ class Storage(storage_base.StorageProtocol):
         return False
 
     def is_url_blacklisted(self, url: str) -> bool:
-        """Check if a URL is blacklisted (exact match)."""
+        """Check if a URL is blacklisted (exact match on the canonical form)."""
+        # The table stores normalized URLs, so the lookup must normalize too —
+        # same function the v2 backend applies, giving identical verdicts.
+        url = storage_base.normalize_url(url)
         # Check cache first
         with self._cache_lock:
             if url in self._cache:
@@ -137,7 +140,8 @@ class Storage(storage_base.StorageProtocol):
             conn.commit()
 
     def add_url(self, url: str, date: str, score: float, source: str):
-        """Add a URL to the URL blacklist."""
+        """Add a URL to the URL blacklist (stored in canonical form)."""
+        url = storage_base.normalize_url(url)
         with sqlite3.connect(self.db_path) as conn:
             conn.execute(
                 "INSERT OR IGNORE INTO blacklist_url (url, date, score, source) VALUES (?, ?, ?, ?)",
@@ -173,7 +177,8 @@ class Storage(storage_base.StorageProtocol):
         return None
 
     def get_url_blacklist_source(self, url: str) -> Optional[str]:
-        """Get the source that blacklisted a URL (exact match)."""
+        """Get the source that blacklisted a URL (exact match on the canonical form)."""
+        url = storage_base.normalize_url(url)
         with sqlite3.connect(self.db_path) as conn:
             cursor = conn.execute(
                 "SELECT source FROM blacklist_url WHERE url = ?",
@@ -220,7 +225,11 @@ class Storage(storage_base.StorageProtocol):
             conn.commit()
 
     def add_urls(self, urls: List[Tuple[str, str, float, str]]):
-        """Add multiple URLs to the URL blacklist."""
+        """Add multiple URLs to the URL blacklist (stored in canonical form)."""
+        urls = [
+            (storage_base.normalize_url(url), date, score, source)
+            for url, date, score, source in urls
+        ]
         with sqlite3.connect(self.db_path) as conn:
             conn.executemany(
                 "INSERT OR IGNORE INTO blacklist_url (url, date, score, source) VALUES (?, ?, ?, ?)",
@@ -263,7 +272,9 @@ class Storage(storage_base.StorageProtocol):
                             if validate_input(domain):
                                 domains_to_add.append((domain, date_val, score_val, source))
                         else:
-                            urls_to_add.append((url_val, date_val, score_val, source))
+                            urls_to_add.append(
+                                (storage_base.normalize_url(url_val), date_val, score_val, source)
+                            )
                 except Exception:
                     continue
             if ip_val:
@@ -407,6 +418,9 @@ class Storage(storage_base.StorageProtocol):
 
     def remove_entry(self, value: str) -> bool:
         """Remove a blacklist entry by domain, URL, or IP."""
+        # blacklist_url stores the canonical form — the URL delete must use
+        # the same normalized value the writes and lookups apply.
+        url_normalized = storage_base.normalize_url(value)
         with sqlite3.connect(self.db_path) as conn:
             with conn:
                 removed = (
@@ -416,7 +430,7 @@ class Storage(storage_base.StorageProtocol):
                     ).rowcount
                     + conn.execute(
                         "DELETE FROM blacklist_url WHERE url = ?",
-                        (value,)
+                        (url_normalized,)
                     ).rowcount
                     + conn.execute(
                         "DELETE FROM blacklist_ip WHERE ip = ?",

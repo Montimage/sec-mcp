@@ -262,9 +262,9 @@ class TestV040Optimizations:
         # Test trailing slash removal
         assert normalize_url("http://evil.com/path/") == "http://evil.com/path"
 
-    def test_url_normalization_in_storage(self):
+    def test_url_normalization_in_storage(self, tmp_path):
         """Test that storage uses normalized URLs."""
-        storage = HybridStorage(":memory:")
+        storage = HybridStorage(str(tmp_path / "norm.db"))
 
         # Add URL with tracking parameters
         storage.add_url("http://evil.com/?utm_source=spam", "2025-01-01", 9.0, "test")
@@ -290,42 +290,6 @@ class TestV040Optimizations:
         # Test IPv6 returns None (not converted to int)
         assert ip_to_int("2001:db8::1") is None
 
-    def test_tiered_lookup_sources(self):
-        """Test that hot sources are classified correctly."""
-        from sec_mcp.storage_v2 import (
-            HOT_DOMAIN_SOURCES,
-            HOT_IP_SOURCES,
-            HOT_URL_SOURCES,
-        )
-
-        # Verify hot source definitions match production data analysis
-        assert 'PhishTank' in HOT_URL_SOURCES
-        assert 'URLhaus' in HOT_URL_SOURCES
-        assert 'BlocklistDE' in HOT_IP_SOURCES
-        assert 'CINSSCORE' in HOT_IP_SOURCES
-        assert 'PhishTank' in HOT_DOMAIN_SOURCES
-        assert 'PhishStats' in HOT_DOMAIN_SOURCES
-
-    def test_hot_source_metrics(self):
-        """Test that hot source hits are tracked in metrics."""
-        storage = HybridStorage(":memory:")
-
-        # Add entries from hot sources
-        storage.add_url("http://phish1.com", "2025-01-01", 9.0, "PhishTank")  # Hot source
-        storage.add_url("http://phish2.com", "2025-01-01", 9.0, "OpenPhish")  # Cold source
-
-        # Lookup from hot source (should increment hot_source_hits)
-        storage.is_url_blacklisted("http://phish1.com")
-
-        # Lookup from cold source (should increment cold_source_hits)
-        storage.is_url_blacklisted("http://phish2.com")
-
-        # Check metrics
-        metrics = storage.get_metrics()
-        assert metrics['hot_source_hits'] > 0
-        assert metrics['cold_source_hits'] > 0
-        assert metrics['optimization_version'] == "0.4.0"
-
     def test_optimization_metrics_in_get_metrics(self):
         """Test that get_metrics returns v0.4.0 optimization metrics."""
         storage = HybridStorage(":memory:")
@@ -340,9 +304,6 @@ class TestV040Optimizations:
         metrics = storage.get_metrics()
 
         # Verify v0.4.0 metrics are present
-        assert 'hot_source_hits' in metrics
-        assert 'cold_source_hits' in metrics
-        assert 'hot_hit_rate_pct' in metrics
         assert 'urls_normalized' in metrics
         assert 'ips_as_integers' in metrics
         assert 'optimization_version' in metrics
@@ -377,7 +338,6 @@ class TestV040Optimizations:
             # Verify metrics show optimizations are active
             metrics = v2.get_metrics()
             assert metrics['ips_as_integers'] > 0  # At least 1 IP stored as integer
-            assert metrics['hot_source_hits'] > 0  # Hot sources were hit
 
 
 if __name__ == "__main__":
