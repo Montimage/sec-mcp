@@ -1,0 +1,4 @@
+# sec_mcp/tests is excluded from the installed packages (wheel) via
+# [tool.setuptools.packages.find] exclude, but the suite still ships in the
+# sdist so downstream packagers can run it.
+recursive-include sec_mcp/tests *.py

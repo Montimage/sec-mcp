@@ -56,9 +56,19 @@ Documentation = "https://github.com/Montimage/sec-mcp#readme"
 sec-mcp = "sec_mcp.cli:cli"
 sec-mcp-server = "sec_mcp.start_server:main"
 
+# MANIFEST.in grafts sec_mcp/tests into the sdist only — do not let those
+# files ride into the wheel via the sdist manifest. config.json still ships
+# through the explicit package-data table below.
+[tool.setuptools]
+include-package-data = false
+
 [tool.setuptools.packages.find]
 where = ["."]
 include = ["sec_mcp*"]
+# sec_mcp/tests is a pytest suite, not shipped package code: keep it out of
+# the wheel (pyproject `find` defaults namespaces=true, so it is discovered
+# as a namespace package even without __init__.py).
+exclude = ["sec_mcp.tests*"]
 
 [tool.setuptools.package-data]
 sec_mcp = ["config.json"]
