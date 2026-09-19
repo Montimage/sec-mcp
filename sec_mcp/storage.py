@@ -66,28 +66,10 @@ class Storage(storage_base.StorageProtocol):
     def _connection(self):
         """Yield the connection this call runs on.
 
-        Inside a ``shared_connection()`` block the ambient connection is
-        reused; standalone calls open a fresh one and close it on exit.
-        """
-        ambient = getattr(self._local, "conn", None)
-        if ambient is not None:
-            yield ambient
-            return
-        conn = sqlite3.connect(self.db_path)
-        try:
-            yield conn
-        finally:
-            conn.close()
-
-    @contextlib.contextmanager
-    def shared_connection(self):
-        """Run a sequence of storage calls on a single SQLite connection.
-
-        Calls made on this thread inside the block reuse the ambient
-        connection instead of opening one per call, so a ``SecMCP.check()``
-        costs exactly one ``sqlite3.connect`` no matter how many storage
-        methods it touches. Reentrant: nested blocks share the outer
-        connection.
+        Inside another ``_connection()``/``shared_connection()`` block the
+        ambient connection is reused; the outermost call on this thread
+        opens a fresh one, installs it as ambient for nested calls, and
+        closes it on exit — one ``sqlite3.connect`` per outermost call.
         """
         ambient = getattr(self._local, "conn", None)
         if ambient is not None:
@@ -100,6 +82,19 @@ class Storage(storage_base.StorageProtocol):
         finally:
             self._local.conn = None
             conn.close()
+
+    @contextlib.contextmanager
+    def shared_connection(self):
+        """Run a sequence of storage calls on a single SQLite connection.
+
+        Calls made on this thread inside the block reuse the ambient
+        connection instead of opening one per call, so a ``SecMCP.check()``
+        costs exactly one ``sqlite3.connect`` no matter how many storage
+        methods it touches. Reentrant: nested blocks share the outer
+        connection.
+        """
+        with self._connection() as conn:
+            yield conn
 
     def _cache_get(self, key: str) -> bool:
         """Cache hit check that also refreshes recency for LRU eviction."""
@@ -152,16 +147,16 @@ class Storage(storage_base.StorageProtocol):
 
     def is_domain_blacklisted(self, domain: str) -> bool:
         """Check if a domain or its parent domains are blacklisted."""
-        # Check domain and all parent domains on a single connection — the
-        # loop used to open one sqlite3.connect per level.
+        # Check the domain and all parent domains: the whole cache first —
+        # a fully-cached chain never opens a connection — then the DB on a
+        # single connection (the loop used to open one connect per level).
         domain_parts = domain.lower().split('.')
+        subs = ['.'.join(domain_parts[i:]) for i in range(len(domain_parts) - 1)]
+        for sub in subs:
+            if self._cache_get(sub):
+                return True
         with self._connection() as conn:
-            for i in range(len(domain_parts) - 1):
-                sub = '.'.join(domain_parts[i:])
-                # Check cache first
-                if self._cache_get(sub):
-                    return True
-                # If not in cache, check DB
+            for sub in subs:
                 cursor = conn.execute(
                     "SELECT 1 FROM blacklist_domain WHERE domain = ?",
                     (sub,)
@@ -209,14 +204,15 @@ class Storage(storage_base.StorageProtocol):
                 self._cache_put(ip) # Add exact IP to cache if found
                 return True
 
-        # CIDR membership is matched against the cached in-memory ranges
-        # (_cidr_entries) instead of re-scanning every CIDR row per lookup.
-        # A positive CIDR match means the IP is bad, so it is cached like an
-        # exact hit — remove_entry still clears the whole cache.
-        for network, _source in self._cidr_entries():
-            if addr in network:
-                self._cache_put(ip)
-                return True
+            # CIDR membership is matched against the cached in-memory ranges
+            # (_cidr_entries) instead of re-scanning every CIDR row per lookup;
+            # a cold load reuses this same connection. A positive CIDR match
+            # means the IP is bad, so it is cached like an exact hit —
+            # remove_entry still clears the whole cache.
+            for network, _source in self._cidr_entries():
+                if addr in network:
+                    self._cache_put(ip)
+                    return True
         return False
 
     def add_domain(self, domain: str, date: str, score: float, source: str):
@@ -286,18 +282,18 @@ class Storage(storage_base.StorageProtocol):
                 (ip,)
             )
             result = cursor.fetchone()
-        if result:
-            return result[0]
-        # An IP blacklisted only through a CIDR range still attributes
-        # that range's source — matched in memory against the cached
-        # ranges, not by re-scanning the table.
-        try:
-            addr = ipaddress.ip_address(ip)
-        except ValueError:
-            return None
-        for network, source in self._cidr_entries():
-            if addr in network:
-                return source
+            if result:
+                return result[0]
+            # An IP blacklisted only through a CIDR range still attributes
+            # that range's source — matched in memory against the cached
+            # ranges, not by re-scanning the table.
+            try:
+                addr = ipaddress.ip_address(ip)
+            except ValueError:
+                return None
+            for network, source in self._cidr_entries():
+                if addr in network:
+                    return source
         return None
 
     def add_domains(self, domains: List[Tuple[str, str, float, str]]):
