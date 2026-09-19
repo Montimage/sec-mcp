@@ -31,7 +31,7 @@ const Reveal = ({ children, delay = 0, as: Tag = 'div', className = '', ...rest 
                     observer.unobserve(entry.target);
                 }
             },
-            { threshold: 0.12, rootMargin: '0px 0px -8% 0px' }
+            { threshold: 0.12 }
         );
 
         observer.observe(node);
@@ -44,6 +44,7 @@ const Reveal = ({ children, delay = 0, as: Tag = 'div', className = '', ...rest 
             className={`reveal ${visible ? 'is-visible' : ''} ${className}`}
             style={{ transitionDelay: `${delay}ms` }}
             {...rest}
+            onFocusCapture={() => setVisible(true)}
         >
             {children}
         </Tag>

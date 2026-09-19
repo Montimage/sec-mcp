@@ -61,8 +61,9 @@ const Header = () => {
                     <span>Montimage</span>
                 </a>
 
-                {/* desktop nav */}
-                <nav className="ml-auto hidden md:block" aria-label="Main">
+                {/* desktop nav — lg, not md: at 768 the row (nav + GitHub +
+                    Get started) overflows ~820px. Keep the hamburger until 1024. */}
+                <nav className="ml-auto hidden lg:block" aria-label="Main">
                     <ul className="flex items-center gap-7">
                         {NAV.map((item) => (
                             <li key={item.href}>
@@ -77,12 +78,12 @@ const Header = () => {
                     </ul>
                 </nav>
 
-                <div className="ml-auto flex items-center gap-2 md:ml-0">
+                <div className="ml-auto flex items-center gap-2 lg:ml-0">
                     <a
                         href="https://github.com/montimage/sec-mcp"
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="hidden h-9 items-center gap-2 border border-line px-3 font-mono text-xs tracking-[0.14em] uppercase text-dim transition-colors hover:border-line-2 hover:text-bright sm:flex"
+                        className="hidden h-9 items-center gap-2 border border-mute px-3 font-mono text-xs tracking-[0.14em] uppercase text-dim transition-colors hover:border-bright hover:text-bright sm:flex"
                     >
                         <GitHubIcon />
                         GitHub
@@ -101,7 +102,7 @@ const Header = () => {
                         aria-expanded={open}
                         aria-controls="mobile-nav"
                         aria-label={open ? 'Close menu' : 'Open menu'}
-                        className="flex h-11 w-11 items-center justify-center text-bright md:hidden"
+                        className="flex h-11 w-11 items-center justify-center text-bright lg:hidden"
                     >
                         <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true">
                             {open ? (
@@ -119,7 +120,7 @@ const Header = () => {
                 <nav
                     id="mobile-nav"
                     aria-label="Main"
-                    className="border-t border-line bg-void/95 backdrop-blur-xl md:hidden"
+                    className="border-t border-line bg-void/95 backdrop-blur-xl lg:hidden"
                 >
                     <ul className="mx-auto max-w-[84rem] px-4 py-2 sm:px-6">
                         {NAV.map((item) => (
@@ -145,7 +146,7 @@ const Header = () => {
                                 href="https://github.com/montimage/sec-mcp"
                                 target="_blank"
                                 rel="noopener noreferrer"
-                                className="flex h-11 flex-1 items-center justify-center gap-2 border border-line font-mono text-xs tracking-[0.14em] uppercase text-dim"
+                                className="flex h-11 flex-1 items-center justify-center gap-2 border border-mute font-mono text-xs tracking-[0.14em] uppercase text-dim"
                             >
                                 <GitHubIcon />
                                 GitHub

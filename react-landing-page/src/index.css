@@ -71,7 +71,6 @@ body {
   line-height: 1.6;
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
-  overflow-x: hidden;
 }
 
 ::selection {
@@ -261,7 +260,8 @@ body {
     opacity 0.75s cubic-bezier(0.16, 1, 0.3, 1),
     transform 0.75s cubic-bezier(0.16, 1, 0.3, 1);
 }
-.reveal.is-visible {
+.reveal.is-visible,
+.reveal:focus-within {
   opacity: 1;
   transform: none;
 }

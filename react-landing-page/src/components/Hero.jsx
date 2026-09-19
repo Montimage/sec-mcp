@@ -59,7 +59,7 @@ const Hero = () => (
                         </a>
                         <a
                             href="#api"
-                            className="group flex h-12 w-full items-center justify-center gap-2 border border-line-2 px-7 font-mono sm:w-auto sm:justify-start text-xs tracking-[0.16em] uppercase text-bright transition-colors hover:border-signal hover:text-signal"
+                            className="group flex h-12 w-full items-center justify-center gap-2 border border-mute px-7 font-mono sm:w-auto sm:justify-start text-xs tracking-[0.16em] uppercase text-bright transition-colors hover:border-signal hover:text-signal"
                         >
                             Read the API
                             <span className="transition-transform group-hover:translate-x-1" aria-hidden="true">

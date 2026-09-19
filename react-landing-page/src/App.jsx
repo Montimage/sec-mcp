@@ -18,7 +18,7 @@ const App = () => (
 
         <Header />
 
-        <main id="main">
+        <main id="main" tabIndex={-1}>
             <Hero />
             <Features />
             <Sources />
