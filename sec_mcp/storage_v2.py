@@ -105,9 +105,9 @@ class StorageMetrics:
             import psutil
             process = psutil.Process()
             self.memory_usage_mb = process.memory_info().rss / 1024 / 1024
-        except (ImportError, OSError):
-            # Best-effort metric: psutil missing or the process query failing
-            # (its errors subclass OSError) just reports 0.
+        except Exception:  # noqa: BLE001 — best-effort metric: psutil is lazily
+            # imported, so its errors (psutil.Error — not an OSError) cannot be
+            # named here; any query failure just reports 0.
             self.memory_usage_mb = 0.0
 
         total_lookups = self.total_lookups
