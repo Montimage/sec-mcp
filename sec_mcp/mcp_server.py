@@ -263,6 +263,104 @@ async def update_blacklists(ctx: Context) -> Annotated[CallToolResult, UpdateBla
 # DIAGNOSTICS - Consolidated monitoring and debugging
 # ============================================================================
 
+def _diag_health(core):
+    """Health-check payload: database reachability and scheduler state."""
+    db_ok = True
+    try:
+        core.storage.count_entries()
+    except Exception:
+        db_ok = False
+    scheduler_alive = core.scheduler_alive()
+    last_update = core.get_status().last_update
+    return {
+        "mode": "health",
+        "db_ok": db_ok,
+        "scheduler_alive": scheduler_alive,
+        "last_update": last_update
+    }
+
+
+def _diag_performance(core):
+    """Performance metrics payload (v2 storage only)."""
+    if hasattr(core.storage, 'get_metrics'):
+        metrics = core.storage.get_metrics()
+        return {
+            "mode": "performance",
+            **metrics
+        }
+    return {
+        "mode": "performance",
+        "error": "Metrics not available",
+        "message": "Performance metrics are only available with HybridStorage (v2). Set MCP_USE_V2_STORAGE=true to enable."
+    }
+
+
+def _diag_sample(core, sample_count):
+    """Random-sample payload of blacklist entries."""
+    entries = core.sample(sample_count)
+    return {
+        "mode": "sample",
+        "count": len(entries),
+        "entries": entries
+    }
+
+
+def _diag_full(core):
+    """Full diagnostics payload — stats, health and performance combined."""
+    total = core.storage.count_entries()
+    per_source = core.storage.get_source_counts()
+    last_updates = core.storage.get_last_update_per_source()
+    per_source_detail = core.storage.get_source_type_counts()
+
+    # Health
+    db_ok = True
+    try:
+        core.storage.count_entries()
+    except Exception:
+        db_ok = False
+
+    # Performance (if available)
+    metrics = {}
+    if hasattr(core.storage, 'get_metrics'):
+        metrics = core.storage.get_metrics()
+
+    return {
+        "mode": "full",
+        "total_entries": total,
+        "per_source": per_source,
+        "last_updates": last_updates,
+        "per_source_detail": per_source_detail,
+        "health": {
+            "db_ok": db_ok,
+            "scheduler_alive": core.scheduler_alive()
+        },
+        "performance": metrics if metrics else {"available": False}
+    }
+
+
+def _diag_summary(core):
+    """Summary payload — entry counts, per-source counts, last updates."""
+    total = core.storage.count_entries()
+    per_source = core.storage.get_source_counts()
+    last_updates = core.storage.get_last_update_per_source()
+
+    return {
+        "mode": "summary",
+        "total_entries": total,
+        "per_source": per_source,
+        "last_updates": last_updates
+    }
+
+
+# Modes that take no extra parameter dispatch through this table; "sample"
+# needs sample_count so get_diagnostics handles it directly.
+_DIAG_MODES = {
+    "health": _diag_health,
+    "performance": _diag_performance,
+    "full": _diag_full,
+}
+
+
 @mcp.tool(name="get_diagnostics", title="Get Diagnostics", description="Get diagnostic information. Mode options: 'summary' (default), 'full', 'health', 'performance', 'sample'.",
           annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False, idempotentHint=True, openWorldHint=False),
           structured_output=True)
@@ -288,91 +386,10 @@ async def get_diagnostics(
     """
     try:
         core = get_core()
-
-        if mode == "health":
-            # Health check
-            db_ok = True
-            try:
-                core.storage.count_entries()
-            except Exception:
-                db_ok = False
-            scheduler_alive = core.scheduler_alive()
-            last_update = core.get_status().last_update
-            return {
-                "mode": "health",
-                "db_ok": db_ok,
-                "scheduler_alive": scheduler_alive,
-                "last_update": last_update
-            }
-
-        elif mode == "performance":
-            # Performance metrics (v2 only)
-            if hasattr(core.storage, 'get_metrics'):
-                metrics = core.storage.get_metrics()
-                return {
-                    "mode": "performance",
-                    **metrics
-                }
-            else:
-                return {
-                    "mode": "performance",
-                    "error": "Metrics not available",
-                    "message": "Performance metrics are only available with HybridStorage (v2). Set MCP_USE_V2_STORAGE=true to enable."
-                }
-
-        elif mode == "sample":
-            # Random sample
-            entries = core.sample(sample_count)
-            return {
-                "mode": "sample",
-                "count": len(entries),
-                "entries": entries
-            }
-
-        elif mode == "full":
-            # Full diagnostics - everything
-            total = core.storage.count_entries()
-            per_source = core.storage.get_source_counts()
-            last_updates = core.storage.get_last_update_per_source()
-            per_source_detail = core.storage.get_source_type_counts()
-
-            # Health
-            db_ok = True
-            try:
-                core.storage.count_entries()
-            except Exception:
-                db_ok = False
-
-            # Performance (if available)
-            metrics = {}
-            if hasattr(core.storage, 'get_metrics'):
-                metrics = core.storage.get_metrics()
-
-            return {
-                "mode": "full",
-                "total_entries": total,
-                "per_source": per_source,
-                "last_updates": last_updates,
-                "per_source_detail": per_source_detail,
-                "health": {
-                    "db_ok": db_ok,
-                    "scheduler_alive": core.scheduler_alive()
-                },
-                "performance": metrics if metrics else {"available": False}
-            }
-
-        else:  # mode == "summary" or default
-            # Summary - basic stats
-            total = core.storage.count_entries()
-            per_source = core.storage.get_source_counts()
-            last_updates = core.storage.get_last_update_per_source()
-
-            return {
-                "mode": "summary",
-                "total_entries": total,
-                "per_source": per_source,
-                "last_updates": last_updates
-            }
+        if mode == "sample":
+            return _diag_sample(core, sample_count)
+        handler = _DIAG_MODES.get(mode, _diag_summary)
+        return handler(core)
     except MCPError:
         raise
     except Exception as exc:

@@ -121,6 +121,38 @@ def resolve_db_path(db_path: Optional[str] = None) -> str:
     return db_path
 
 
+# Query parameters stripped by normalize_url so variants of the same page
+# that differ only in tracking share one blacklist key.
+TRACKING_PARAMS = {
+    'utm_source', 'utm_medium', 'utm_campaign', 'utm_term', 'utm_content',
+    'fbclid', 'gclid', 'mc_eid', '_ga', 'ref', 'referrer'
+}
+
+
+def _canonical_parse(lowered: str):
+    """Parse a lowercased URL, reparsing bare hosts under the default scheme."""
+    parsed = urlparse(lowered)
+    # A bare host (optionally with path/query) has no scheme — urlparse
+    # leaves netloc empty and puts everything in path. Reparse with the
+    # default scheme so the host lands in netloc instead of producing
+    # "http:///host" garbage.
+    if not parsed.netloc:
+        parsed = urlparse('http://' + lowered.lstrip('/'))
+    return parsed
+
+
+def _canonical_query_string(query: str) -> str:
+    """Build the canonical query string with tracking parameters removed."""
+    if not query:
+        return ''
+    query_params = parse_qs(query)
+    filtered_params = {
+        k: v for k, v in query_params.items()
+        if k.lower() not in TRACKING_PARAMS
+    }
+    return urlencode(filtered_params, doseq=True)
+
+
 def normalize_url(url: str) -> str:
     """Canonicalize a URL so variants of the same page share one blacklist key.
 
@@ -149,30 +181,8 @@ def normalize_url(url: str) -> str:
     """
     try:
         lowered = url.lower()
-        parsed = urlparse(lowered)
-
-        # A bare host (optionally with path/query) has no scheme — urlparse
-        # leaves netloc empty and puts everything in path. Reparse with the
-        # default scheme so the host lands in netloc instead of producing
-        # "http:///host" garbage.
-        if not parsed.netloc:
-            parsed = urlparse('http://' + lowered.lstrip('/'))
-
-        # Filter out tracking parameters
-        if parsed.query:
-            query_params = parse_qs(parsed.query)
-            # Remove common tracking parameters
-            tracking_params = {
-                'utm_source', 'utm_medium', 'utm_campaign', 'utm_term', 'utm_content',
-                'fbclid', 'gclid', 'mc_eid', '_ga', 'ref', 'referrer'
-            }
-            filtered_params = {
-                k: v for k, v in query_params.items()
-                if k.lower() not in tracking_params
-            }
-            query_string = urlencode(filtered_params, doseq=True)
-        else:
-            query_string = ''
+        parsed = _canonical_parse(lowered)
+        query_string = _canonical_query_string(parsed.query)
 
         # Rebuild URL; an all-slash path ("", "/") collapses to "" so
         # "http://host" and "http://host/" share one canonical form.
