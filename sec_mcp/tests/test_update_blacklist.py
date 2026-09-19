@@ -274,3 +274,172 @@ async def test_dshield_rejects_oversized_ranges(tmp_path, monkeypatch):
     assert not storage.is_ip_blacklisted("1.255.255.255")
     assert storage.is_ip_blacklisted("10.4.255.255")
     assert storage.is_ip_blacklisted("10.4.0.0")
+
+
+async def _parsed_entries(source, url, feed_text):
+    """Feed a recorded sample through ``_update_source``; return parsed entries.
+
+    The download is mocked so no network is touched; ``add_entries`` receives
+    the exact deduplicated ``(url, ip, date, score, source)`` tuples the
+    parser produced, in feed order.
+    """
+    storage = MagicMock(spec=Storage)
+    updater = BlacklistUpdater(storage)
+    await updater._update_source(_stream_client([feed_text.encode()]), source, url)
+    storage.add_entries.assert_called_once()
+    return storage.add_entries.call_args[0][0]
+
+
+@pytest.mark.asyncio
+async def test_parse_phishstats_exact_entries():
+    entries = await _parsed_entries(
+        "PhishStats",
+        "https://phishstats.info/phish_score.csv",
+        "# phish_score.csv — recorded sample\n"
+        "# generated 2025-04-18\n"
+        "url,ip,date,score\n"
+        "http://evil-phish.example/login,203.0.113.10,2025-04-18 10:00:00,9.5\n"
+        "http://second-bad.example/,,,notascore\n",
+    )
+    assert entries == [
+        ("http://evil-phish.example/login", "203.0.113.10", "2025-04-18 10:00:00", 9.5, "PhishStats"),
+        # empty ip → None, empty date → now, unparseable score → default 8.0
+        ("http://second-bad.example/", None, ANY, 8.0, "PhishStats"),
+    ]
+
+
+@pytest.mark.asyncio
+async def test_parse_phishtank_exact_entries():
+    entries = await _parsed_entries(
+        "PhishTank",
+        "https://data.phishtank.com/data/online-valid.csv",
+        "phish_id,url,phish_detail_url,submission_time,verified,verification_time,online,target\n"
+        "9911,http://phish-one.example/aa,http://detail.example/9911,2025-04-18T10:00:00+00:00,yes,2025-04-18T11:00:00+00:00,yes,Example Bank\n"
+        "9922,http://phish-two.example/bb,http://detail.example/9922,2025-04-19T01:02:03+00:00,yes,,yes,Other Corp\n",
+    )
+    assert entries == [
+        ("http://phish-one.example/aa", None, "2025-04-18 10:00:00", 8, "PhishTank"),
+        ("http://phish-two.example/bb", None, "2025-04-19 01:02:03", 8, "PhishTank"),
+    ]
+
+
+@pytest.mark.asyncio
+async def test_parse_spamhausdrop_exact_entries():
+    entries = await _parsed_entries(
+        "SpamhausDROP",
+        "https://www.spamhaus.org/drop/drop.txt",
+        "; Spamhaus DROP list — recorded sample\n"
+        "; do not route or peer\n"
+        "203.0.113.0/24 ; SBL123456\n"
+        "198.51.100.0/25\n",
+    )
+    assert entries == [
+        (None, "203.0.113.0/24", ANY, 8, "SpamhausDROP"),
+        (None, "198.51.100.0/25", ANY, 8, "SpamhausDROP"),
+    ]
+
+
+@pytest.mark.asyncio
+async def test_parse_dshield_exact_entries():
+    entries = await _parsed_entries(
+        "Dshield",
+        "https://www.dshield.org/block.txt",
+        "# DShield.org Recommended Block List\n"
+        "Start\tEnd\tNetmask\tAttacks\tName\tCountry\temail\n"
+        "10.9.9.0\t10.9.9.15\t255.255.255.240\t100\tbad\tXX\tx@y.example\n"
+        "192.0.2.5\t192.0.2.5\t255.255.255.255\t1\tbad\tXX\tx@y.example\n",
+    )
+    assert entries == [
+        # the 16-address range summarizes to a single CIDR block
+        (None, "10.9.9.0/28", ANY, 8, "Dshield"),
+        # a single-address range is stored as the bare IP
+        (None, "192.0.2.5", ANY, 8, "Dshield"),
+    ]
+
+
+@pytest.mark.asyncio
+async def test_parse_cinsscore_exact_entries():
+    entries = await _parsed_entries(
+        "CINSSCORE",
+        "https://cinsscore.com/list/ci-badguys.txt",
+        "# CINS badguys — recorded sample\n"
+        "203.0.113.66\n"
+        "198.51.100.23\n",
+    )
+    assert entries == [
+        (None, "203.0.113.66", ANY, 8, "CINSSCORE"),
+        (None, "198.51.100.23", ANY, 8, "CINSSCORE"),
+    ]
+
+
+@pytest.mark.asyncio
+async def test_parse_emergingthreats_exact_entries():
+    entries = await _parsed_entries(
+        "EmergingThreats",
+        "https://rules.emergingthreats.net/blockrules/compromised-ips.txt",
+        "# compromised IPs — recorded sample\n"
+        "203.0.113.99\n"
+        "bad-host.example\n",
+    )
+    assert entries == [
+        (None, "203.0.113.99", ANY, 8, "EmergingThreats"),
+        # non-IP entries become URLs with an http:// prefix
+        ("http://bad-host.example", None, ANY, 8, "EmergingThreats"),
+    ]
+
+
+@pytest.mark.asyncio
+async def test_parse_feodotracker_exact_entries():
+    entries = await _parsed_entries(
+        "FeodoTracker",
+        "https://feodotracker.abuse.ch/downloads/ipblocklist_recommended.txt",
+        "# Feodo Tracker recommended blocklist — recorded sample\n"
+        "203.0.113.50\n"
+        "203.0.113.51\n",
+    )
+    assert entries == [
+        (None, "203.0.113.50", ANY, 8, "FeodoTracker"),
+        (None, "203.0.113.51", ANY, 8, "FeodoTracker"),
+    ]
+
+
+@pytest.mark.asyncio
+async def test_parse_blocklistde_exact_entries():
+    entries = await _parsed_entries(
+        "BlocklistDE",
+        "https://lists.blocklist.de/lists/all.txt",
+        "203.0.113.77\n",
+    )
+    assert entries == [
+        (None, "203.0.113.77", ANY, 8, "BlocklistDE"),
+    ]
+
+
+@pytest.mark.asyncio
+async def test_parse_openphish_exact_entries():
+    entries = await _parsed_entries(
+        "OpenPhish",
+        "https://raw.githubusercontent.com/openphish/public_feed/refs/heads/main/feed.txt",
+        "http://openphish-bad.example/aa\n"
+        "https://openphish-bad2.example/bb\n",
+    )
+    assert entries == [
+        ("http://openphish-bad.example/aa", None, ANY, 8, "OpenPhish"),
+        ("https://openphish-bad2.example/bb", None, ANY, 8, "OpenPhish"),
+    ]
+
+
+@pytest.mark.asyncio
+async def test_parse_urlhaus_exact_entries():
+    entries = await _parsed_entries(
+        "URLhaus",
+        "https://urlhaus.abuse.ch/downloads/text/",
+        "# URLhaus blocklist — recorded sample\n"
+        "# generated 2025-04-18\n"
+        "http://urlhaus-bad.example/cc\n"
+        "https://urlhaus-bad2.example/dd\n",
+    )
+    assert entries == [
+        ("http://urlhaus-bad.example/cc", None, ANY, 8, "URLhaus"),
+        ("https://urlhaus-bad2.example/dd", None, ANY, 8, "URLhaus"),
+    ]
