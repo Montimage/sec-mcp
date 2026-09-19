@@ -95,9 +95,7 @@ def test_sitemap_is_valid_xml_with_sitemaps_namespace():
 
 
 def test_sitemap_lists_canonical_url():
-    locs = [
-        el.text or "" for el in _sitemap_root().iter(f"{{{SITEMAP_NS}}}loc")
-    ]
+    locs = [el.text or "" for el in _sitemap_root().iter(f"{{{SITEMAP_NS}}}loc")]
     assert f"{SITE_BASE}/" in locs, "sitemap must list the canonical site URL"
     for loc in locs:
         assert loc.startswith(f"{SITE_BASE}/"), (
