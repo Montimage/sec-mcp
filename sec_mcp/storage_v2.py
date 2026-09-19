@@ -23,14 +23,19 @@ import logging
 import os
 import random
 import sqlite3
-import sys
 import threading
 import time
 from dataclasses import dataclass
 from datetime import datetime
-from pathlib import Path
 from typing import Dict, List, Optional, Set, Tuple
 from urllib.parse import parse_qs, urlencode, urlparse, urlunparse
+
+try:
+    from .storage_base import StorageProtocol, init_db, resolve_db_path
+except ImportError:
+    # Direct file load (e.g. benchmark.py's spec_from_file_location) has no
+    # package context for a relative import.
+    from sec_mcp.storage_base import StorageProtocol, init_db, resolve_db_path
 
 # ========== Source Classification ==========
 # Based on production data analysis (449K entries)
@@ -43,15 +48,6 @@ HOT_IP_SOURCES = frozenset(['BlocklistDE', 'CINSSCORE'])
 
 # Hot domain sources (major phishing databases)
 HOT_DOMAIN_SOURCES = frozenset(['PhishTank', 'PhishStats'])
-
-# IP-only sources (92% of IPs from these sources)
-IP_ONLY_SOURCES = frozenset([
-    'BlocklistDE', 'CINSSCORE', 'Dshield',
-    'EmergingThreats', 'SpamhausDROP'
-])
-
-# Domain/URL-only sources (55% of domains from these sources)
-DOMAIN_URL_ONLY_SOURCES = frozenset(['PhishTank', 'OpenPhish'])
 
 
 @dataclass
@@ -197,7 +193,7 @@ def int_to_ip(ip_int: int) -> str:
     ])
 
 
-class HybridStorage:
+class HybridStorage(StorageProtocol):
     """
     High-performance hybrid storage with in-memory lookups and SQLite persistence.
 
@@ -228,11 +224,11 @@ class HybridStorage:
         # Set up logging
         self.logger = logging.getLogger("sec_mcp.storage_v2")
 
-        # Resolve database path
-        if db_path is None:
-            db_path = os.environ.get("MCP_DB_PATH")
-        if db_path is None:
-            db_path = self._get_default_db_path()
+        # Resolve database path (explicit arg -> MCP_DB_PATH -> platform default).
+        # Unlike Storage (v1) this deliberately does not abspath the result:
+        # ":memory:" must stay a real in-memory DSN so construction fails closed
+        # instead of silently creating a file literally named ":memory:".
+        db_path = resolve_db_path(db_path)
 
         # Create directory if needed
         db_dir = os.path.dirname(db_path)
@@ -248,10 +244,12 @@ class HybridStorage:
 
         # ========== In-memory data structures ==========
 
-        # Legacy unified storage (kept for backward compatibility)
+        # Unified storage for domains and URLs (kept for backward compatibility).
+        # Single IPs deliberately have no legacy set here: _ips_int/_ips_str
+        # already hold every address exactly once, so a third mirror only
+        # double-counted entries and duplicated attribution metadata.
         self._domains: Set[str] = set()
         self._urls: Set[str] = set()
-        self._ips: Set[str] = set()
 
         # v0.4.0: Tiered storage for optimized lookup
         self._hot_domains: Set[str] = set()
@@ -302,100 +300,9 @@ class HybridStorage:
                 f"Cannot initialize database at {self.db_path}: {e}. Check directory permissions and disk space."
             ) from e
 
-    def _get_default_db_path(self) -> str:
-        """Get platform-specific default database path."""
-        try:
-            from platformdirs import user_data_dir
-            db_dir = user_data_dir("sec-mcp", "montimage")
-        except ImportError:
-            if os.name == "nt":
-                db_dir = os.path.join(
-                    os.environ.get("APPDATA", str(Path.home() / "AppData" / "Roaming")),
-                    "sec-mcp"
-                )
-            elif os.name == "posix":
-                if sys.platform == "darwin":
-                    db_dir = str(Path.home() / "Library" / "Application Support" / "sec-mcp")
-                else:
-                    db_dir = str(Path.home() / ".local" / "share" / "sec-mcp")
-            else:
-                db_dir = str(Path.home() / ".sec-mcp")
-
-        os.makedirs(db_dir, exist_ok=True)
-        return os.path.join(db_dir, "mcp.db")
-
     def _init_db(self):
-        """Initialize SQLite database with required tables."""
-        with sqlite3.connect(self.db_path) as conn:
-            # Enable optimizations
-            conn.execute("PRAGMA journal_mode=WAL;")
-            conn.execute("PRAGMA synchronous=NORMAL;")
-            conn.execute("PRAGMA cache_size=10000;")
-
-            # Create tables
-            conn.execute("""
-                CREATE TABLE IF NOT EXISTS blacklist_domain (
-                    domain TEXT PRIMARY KEY,
-                    date TEXT,
-                    score REAL,
-                    source TEXT
-                )
-            """)
-            conn.execute("""
-                CREATE INDEX IF NOT EXISTS idx_blacklist_domain ON blacklist_domain(domain);
-            """)
-            conn.execute("""
-                CREATE INDEX IF NOT EXISTS idx_domain_source ON blacklist_domain(source);
-            """)
-
-            conn.execute("""
-                CREATE TABLE IF NOT EXISTS blacklist_url (
-                    url TEXT PRIMARY KEY,
-                    date TEXT,
-                    score REAL,
-                    source TEXT
-                )
-            """)
-            conn.execute("""
-                CREATE INDEX IF NOT EXISTS idx_blacklist_url ON blacklist_url(url);
-            """)
-            conn.execute("""
-                CREATE INDEX IF NOT EXISTS idx_url_source ON blacklist_url(source);
-            """)
-
-            conn.execute("""
-                CREATE TABLE IF NOT EXISTS blacklist_ip (
-                    ip TEXT PRIMARY KEY,
-                    date TEXT,
-                    score REAL,
-                    source TEXT
-                )
-            """)
-            conn.execute("""
-                CREATE INDEX IF NOT EXISTS idx_blacklist_ip ON blacklist_ip(ip);
-            """)
-            conn.execute("""
-                CREATE INDEX IF NOT EXISTS idx_ip_source ON blacklist_ip(source);
-            """)
-
-            # Create updates table
-            conn.execute("""
-                CREATE TABLE IF NOT EXISTS updates (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                    source TEXT NOT NULL,
-                    entry_count INTEGER NOT NULL
-                )
-            """)
-            conn.execute("""
-                CREATE INDEX IF NOT EXISTS idx_updates_source ON updates(source);
-            """)
-            conn.execute("""
-                CREATE INDEX IF NOT EXISTS idx_updates_timestamp ON updates(timestamp);
-            """)
-
-            conn.commit()
-
+        """Initialize the SQLite database with the shared schema and PRAGMAs."""
+        init_db(self.db_path)
         self.logger.info(f"Database initialized at {self.db_path}")
 
     def _init_cidr_trees(self):
@@ -423,7 +330,6 @@ class HybridStorage:
             # Clear existing data
             self._domains.clear()
             self._urls.clear()
-            self._ips.clear()
             self._hot_domains.clear()
             self._cold_domains.clear()
             self._hot_urls.clear()
@@ -454,13 +360,13 @@ class HybridStorage:
             self._load_ips_from_db()
 
         elapsed = time.perf_counter() - start_time
-        total_entries = len(self._domains) + len(self._urls) + len(self._ips) + len(self._ips_int) + len(self._ips_str) + len(self._cidr_metadata)
+        total_entries = len(self._domains) + len(self._urls) + len(self._ips_int) + len(self._ips_str) + len(self._cidr_metadata)
 
         self.logger.info(
             f"Loaded {total_entries} entries in {elapsed:.2f}s "
             f"({len(self._domains)} domains [{len(self._hot_domains)} hot], "
             f"{len(self._urls)} URLs [{len(self._hot_urls)} hot], "
-            f"{len(self._ips) + len(self._ips_int) + len(self._ips_str)} IPs "
+            f"{len(self._ips_int) + len(self._ips_str)} IPs "
             f"[{len(self._hot_ips_int) + len(self._hot_ips_str)} hot, {len(self._ips_int)} as int], "
             f"{len(self._cidr_metadata)} CIDRs)"
         )
@@ -625,11 +531,6 @@ class HybridStorage:
                                 self._hot_ips_str.add(ip)
                             else:
                                 self._cold_ips_str.add(ip)
-
-                        # Also add to legacy storage (backward compatibility)
-                        self._ips.add(ip)
-                        if ip not in self._ip_meta:
-                            self._ip_meta[ip] = metadata
 
                         loaded_ips += 1
 
@@ -1060,11 +961,6 @@ class HybridStorage:
                     else:
                         self._cold_ips_str.add(ip)
 
-                # Also add to legacy storage
-                self._ips.add(ip)
-                if ip not in self._ip_meta:
-                    self._ip_meta[ip] = metadata
-
             # Persist to database
             try:
                 conn = self._get_connection()
@@ -1091,7 +987,6 @@ class HybridStorage:
                         self._ip_meta.pop(ip, None)
                         self._hot_ips_str.discard(ip)
                         self._cold_ips_str.discard(ip)
-                    self._ips.discard(ip)
                 self.logger.error(f"Failed to add IP to database: {e}")
                 raise
 
@@ -1198,10 +1093,6 @@ class HybridStorage:
                         else:
                             self._cold_ips_str.add(ip)
 
-                    self._ips.add(ip)
-                    if ip not in self._ip_meta:
-                        self._ip_meta[ip] = metadata
-
             # Persist to database
             conn = self._get_connection()
             try:
@@ -1259,7 +1150,7 @@ class HybridStorage:
 
     def count_entries(self) -> int:
         """Get total count of all entries (instant from memory)."""
-        return len(self._domains) + len(self._urls) + len(self._ips) + len(self._ips_int) + len(self._ips_str) + len(self._cidr_metadata)
+        return len(self._domains) + len(self._urls) + len(self._ips_int) + len(self._ips_str) + len(self._cidr_metadata)
 
     def get_source_counts(self) -> Dict[str, int]:
         """Count entries per source from memory."""
@@ -1346,7 +1237,6 @@ class HybridStorage:
             pools = itertools.chain(
                 self._domains,
                 self._urls,
-                self._ips,
                 (int_to_ip(ip_int) for ip_int in self._ips_int),
                 self._ips_str,
                 self._cidr_metadata,
@@ -1461,28 +1351,41 @@ class HybridStorage:
                 self._cold_urls.discard(value_normalized)
                 removed = True
 
-            # Try IP as string
-            if value in self._ips or value in self._ips_str:
-                self._ips.discard(value)
+            # Try IP as string (IPv6)
+            if value in self._ips_str:
                 self._ips_str.discard(value)
                 self._ip_meta.pop(value, None)
                 self._hot_ips_str.discard(value)
                 self._cold_ips_str.discard(value)
                 removed = True
 
-            # Try IP as integer
+            # Try IP as integer (IPv4)
             ip_int = ip_to_int(value)
             if ip_int is not None and ip_int in self._ips_int:
                 self._ips_int.discard(ip_int)
                 self._ip_int_meta.pop(ip_int, None)
                 self._hot_ips_int.discard(ip_int)
                 self._cold_ips_int.discard(ip_int)
-                self._ips.discard(value)  # Also remove from legacy
                 removed = True
 
             if value in self._cidr_metadata:
                 self._cidr_metadata.pop(value, None)
-                # Note: pytricia doesn't support removal, will be cleaned on reload
+                # Drop the range from the live matcher too — metadata alone
+                # would leave member IPs blacklisted until the next reload.
+                if self._use_pytricia:
+                    tree = self._ipv6_cidr_tree if ':' in value else self._ipv4_cidr_tree
+                    try:
+                        del tree[value]
+                    except KeyError:
+                        pass
+                else:
+                    try:
+                        removed_net = ipaddress.ip_network(value, strict=False)
+                        self._cidr_ranges = [
+                            (net, meta) for net, meta in self._cidr_ranges if net != removed_net
+                        ]
+                    except ValueError:
+                        pass
                 removed = True
 
             if removed:

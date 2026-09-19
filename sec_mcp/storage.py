@@ -1,103 +1,40 @@
+import ipaddress
 import os
 import random
 import sqlite3
 import sys
 import threading
 from datetime import datetime
-from pathlib import Path
 from typing import Dict, List, Optional, Set, Tuple
 from urllib.parse import urlparse
 
+from . import storage_base
 from .utility import validate_input
 
 
-class Storage:
+class Storage(storage_base.StorageProtocol):
     """SQLite-based storage with in-memory caching for high-throughput blacklist checks."""
-    
+
     def __init__(self, db_path=None):
-        if db_path is None:
-            db_path = os.environ.get("MCP_DB_PATH")
-        if db_path is None:
+        # resolve_db_path covers the explicit/env/default chain; the platform
+        # default is already absolute, so abspath is a no-op for it.
+        db_path = storage_base.resolve_db_path(db_path)
+        db_path = os.path.abspath(db_path)
+        db_dir_from_path = os.path.dirname(db_path)
+        if db_dir_from_path:  # Only attempt to create if dirname is not empty
             try:
-                from platformdirs import user_data_dir
-                db_dir = user_data_dir("sec-mcp", "montimage")
-            except ImportError:
-                if os.name == "nt":
-                    db_dir = os.path.join(os.environ.get("APPDATA", str(Path.home() / "AppData" / "Roaming")), "sec-mcp")
-                elif os.name == "posix":
-                    if sys.platform == "darwin":
-                        db_dir = str(Path.home() / "Library" / "Application Support" / "sec-mcp")
-                    else:
-                        db_dir = str(Path.home() / ".local" / "share" / "sec-mcp")
-                else:
-                    db_dir = str(Path.home() / ".sec-mcp")
-            os.makedirs(db_dir, exist_ok=True)
-            db_path = os.path.join(db_dir, "mcp.db")
-        else:
-            # Ensure db_path is absolute
-            db_path = os.path.abspath(db_path)
-            db_dir_from_path = os.path.dirname(db_path)
-            if db_dir_from_path:  # Only attempt to create if dirname is not empty
-                try:
-                    os.makedirs(db_dir_from_path, exist_ok=True)
-                except OSError as e:
-                    raise RuntimeError(f"Cannot create database directory {db_dir_from_path}: {e}")
+                os.makedirs(db_dir_from_path, exist_ok=True)
+            except OSError as e:
+                raise RuntimeError(f"Cannot create database directory {db_dir_from_path}: {e}")
         self.db_path = db_path
         self._cache: Set[str] = set()  # In-memory cache for faster lookups
         self._cache_lock = threading.Lock()
         self._init_db()
 
     def _init_db(self):
-        """Initialize the SQLite database with required tables and performance PRAGMAs."""
+        """Initialize the SQLite database with the shared schema and performance PRAGMAs."""
         try:
-            with sqlite3.connect(self.db_path) as conn:
-                conn.execute("PRAGMA journal_mode=WAL;")
-                conn.execute("PRAGMA synchronous=NORMAL;")
-                conn.execute("PRAGMA cache_size=10000;")
-                # Create new blacklist tables for domain, url, and ip
-                conn.execute("""
-                    CREATE TABLE IF NOT EXISTS blacklist_domain (
-                        domain TEXT PRIMARY KEY,
-                        date TEXT,
-                        score REAL,
-                        source TEXT
-                    )
-                """)
-                conn.execute("""
-                    CREATE INDEX IF NOT EXISTS idx_blacklist_domain ON blacklist_domain(domain);
-                """)
-                conn.execute("""
-                    CREATE TABLE IF NOT EXISTS blacklist_url (
-                        url TEXT PRIMARY KEY,
-                        date TEXT,
-                        score REAL,
-                        source TEXT
-                    )
-                """)
-                conn.execute("""
-                    CREATE INDEX IF NOT EXISTS idx_blacklist_url ON blacklist_url(url);
-                """)
-                conn.execute("""
-                    CREATE TABLE IF NOT EXISTS blacklist_ip (
-                        ip TEXT PRIMARY KEY,
-                        date TEXT,
-                        score REAL,
-                        source TEXT
-                    )
-                """)
-                conn.execute("""
-                    CREATE INDEX IF NOT EXISTS idx_blacklist_ip ON blacklist_ip(ip);
-                """)
-                # Create updates table (unchanged)
-                conn.execute("""
-                    CREATE TABLE IF NOT EXISTS updates (
-                        id INTEGER PRIMARY KEY AUTOINCREMENT,
-                        timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                        source TEXT NOT NULL,
-                        entry_count INTEGER NOT NULL
-                    )
-                """)
-                conn.commit()
+            storage_base.init_db(self.db_path)
         except sqlite3.OperationalError as e:
             raise RuntimeError(f"Cannot initialize database at {self.db_path}: {e}. Check directory permissions and disk space.")
 
@@ -143,7 +80,6 @@ class Storage:
 
     def is_ip_blacklisted(self, ip: str) -> bool:
         """Check if an IP is blacklisted (either exact match or contained in any network mask)."""
-        import ipaddress
         try:
             ip_obj = ipaddress.ip_address(ip)
         except ValueError:
@@ -221,36 +157,6 @@ class Storage:
         except sqlite3.OperationalError as e:
             raise RuntimeError(f"Cannot write to database at {self.db_path}: {e}. Check directory permissions and that the database was initialized properly.")
 
-    def remove_domain(self, domain: str) -> bool:
-        """Remove a domain from the domain blacklist."""
-        with sqlite3.connect(self.db_path) as conn:
-            cursor = conn.execute(
-                "DELETE FROM blacklist_domain WHERE domain = ?",
-                (domain,)
-            )
-            conn.commit()
-        return cursor.rowcount > 0
-
-    def remove_url(self, url: str) -> bool:
-        """Remove a URL from the URL blacklist."""
-        with sqlite3.connect(self.db_path) as conn:
-            cursor = conn.execute(
-                "DELETE FROM blacklist_url WHERE url = ?",
-                (url,)
-            )
-            conn.commit()
-        return cursor.rowcount > 0
-
-    def remove_ip(self, ip: str) -> bool:
-        """Remove an IP from the IP blacklist."""
-        with sqlite3.connect(self.db_path) as conn:
-            cursor = conn.execute(
-                "DELETE FROM blacklist_ip WHERE ip = ?",
-                (ip,)
-            )
-            conn.commit()
-        return cursor.rowcount > 0
-
     def get_domain_blacklist_source(self, domain: str) -> Optional[str]:
         """Get the source that blacklisted a domain (including parent domains)."""
         domain_parts = domain.lower().split('.')
@@ -277,14 +183,32 @@ class Storage:
             return result[0] if result else None
 
     def get_ip_blacklist_source(self, ip: str) -> Optional[str]:
-        """Get the source that blacklisted an IP (exact match)."""
+        """Get the source that blacklisted an IP (exact match or containing CIDR range)."""
         with sqlite3.connect(self.db_path) as conn:
             cursor = conn.execute(
                 "SELECT source FROM blacklist_ip WHERE ip = ?",
                 (ip,)
             )
             result = cursor.fetchone()
-            return result[0] if result else None
+            if result:
+                return result[0]
+            # An IP blacklisted only through a CIDR range still attributes
+            # that range's source (same scan is_ip_blacklisted performs).
+            try:
+                addr = ipaddress.ip_address(ip)
+            except ValueError:
+                return None
+            cursor = conn.execute(
+                "SELECT ip, source FROM blacklist_ip WHERE INSTR(ip, '/') > 0"
+            )
+            for net_str, source in cursor.fetchall():
+                try:
+                    if addr in ipaddress.ip_network(net_str, strict=False):
+                        return source
+                except ValueError:
+                    # Invalid network string in DB — skip it
+                    continue
+            return None
 
     def add_domains(self, domains: List[Tuple[str, str, float, str]]):
         """Add multiple domains to the domain blacklist."""
@@ -457,11 +381,14 @@ class Storage:
             parts = []
             params = []
             if source:
-                parts.append("source = ?") and params.append(source)
+                parts.append("source = ?")
+                params.append(source)
             if start:
-                parts.append("timestamp >= ?") and params.append(start)
+                parts.append("timestamp >= ?")
+                params.append(start)
             if end:
-                parts.append("timestamp <= ?") and params.append(end)
+                parts.append("timestamp <= ?")
+                params.append(end)
             query = "SELECT timestamp, source, entry_count FROM updates"
             if parts:
                 query += " WHERE " + " AND ".join(parts)
@@ -496,8 +423,12 @@ class Storage:
                         (value,)
                     ).rowcount
                 )
+        # Clear the whole cache: an entry can be cached under a different key
+        # than `value` (e.g. a member IP cached after matching a CIDR, or a
+        # parent domain cached for a subdomain lookup), so discarding `value`
+        # alone would leave stale hits after removal.
         with self._cache_lock:
-            self._cache.discard(value)
+            self._cache.clear()
         return removed > 0
 
 
