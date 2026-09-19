@@ -1,5 +1,7 @@
 # sec-mcp: Security Checking Toolkit
 
+<!-- mcp-name: io.github.montimage/sec-mcp -->
+
 A Python toolkit providing security checks for domains, URLs, IPs, and more. Integrate easily into any Python application, use via terminal CLI, or run as an MCP server to enrich LLM context with real-time threat insights.
 
 Developed by [Montimage](https://www.montimage.eu), a company specializing in cybersecurity and network monitoring solutions.
@@ -153,11 +155,11 @@ sec-mcp can run as an MCP server for AI/LLM integration (e.g., Claude, Windsurf,
 
 #### Setup
 
-1. **Install sec-mcp** in a virtual environment (see Quick Start)
+1. **Install `uv`** (provides `uvx`): see the [uv installation docs](https://docs.astral.sh/uv/getting-started/installation/), or `pip install uv`.
 
 2. **Update the blacklist**:
    ```bash
-   sec-mcp update
+   uvx --from sec-mcp sec-mcp update
    ```
 
 3. **Configure your MCP client** (e.g., `claude_desktop_config.json`):
@@ -165,8 +167,8 @@ sec-mcp can run as an MCP server for AI/LLM integration (e.g., Claude, Windsurf,
    {
      "mcpServers": {
        "sec-mcp": {
-         "command": "/absolute/path/to/.venv/bin/python",
-         "args": ["-m", "sec_mcp.start_server"],
+         "command": "uvx",
+         "args": ["--from", "sec-mcp", "sec-mcp-server"],
          "env": {
            "MCP_USE_V2_STORAGE": "true"
          }
@@ -175,9 +177,10 @@ sec-mcp can run as an MCP server for AI/LLM integration (e.g., Claude, Windsurf,
    }
    ```
 
-   > **Important**: Use the absolute path to your virtual environment's Python executable.
-   > - macOS/Linux: `/path/to/.venv/bin/python`
-   > - Windows: `C:\path\to\.venv\Scripts\python.exe`
+   > **How it works**: `uvx` downloads the `sec-mcp` package from PyPI and runs its
+   > `sec-mcp-server` entry point — no virtual environment or absolute Python path
+   > required. Alternatively, `pip install sec-mcp` into any environment and use
+   > `"command": "sec-mcp-server"` with no `args`.
 
 #### Available MCP Tools
 
