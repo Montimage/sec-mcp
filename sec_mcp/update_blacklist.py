@@ -7,7 +7,6 @@ import threading
 import time
 import traceback
 from datetime import datetime, timedelta
-from urllib.parse import urlparse
 
 import httpx
 import schedule
@@ -37,13 +36,15 @@ class BlacklistUpdater:
 
     def __init__(self, storage: Storage, config_path: str = None):
         self.storage = storage
-        setup_logging()
-        self.logger = logging.getLogger("sec_mcp.update_blacklist")
         # Load blacklist sources from config.json
         if config_path is None:
             config_path = os.path.join(os.path.dirname(__file__), "config.json")
         with open(config_path, "r") as f:
             config = json.load(f)
+        # config.json's "log_level" drives logging; setup_logging falls back
+        # to INFO on an unknown or non-string value.
+        setup_logging(config.get("log_level", "INFO"))
+        self.logger = logging.getLogger("sec_mcp.update_blacklist")
         self.sources = config.get("blacklist_sources", {})
         def _limit(key, default):
             try:
@@ -57,6 +58,14 @@ class BlacklistUpdater:
         # Minimum seconds between forced updates; a second force_update inside
         # the window is refused without starting any download. 0 disables.
         self.min_update_interval = max(0, _limit("min_update_interval_seconds", 300))
+        # Daily scheduled-update time from config.json's "update_time"
+        # (HH:MM[:SS]); anything else falls back to midnight.
+        update_time = str(config.get("update_time", "00:00"))
+        self.update_time = (
+            update_time
+            if re.fullmatch(r"(?:[01]\d|2[0-3]):[0-5]\d(?::[0-5]\d)?", update_time)
+            else "00:00"
+        )
         self._last_force_update = None  # monotonic timestamp of the last attempt
         self._force_update_lock = threading.Lock()
         # Optional sync callable (source, index, total) invoked per source by
@@ -84,7 +93,7 @@ class BlacklistUpdater:
             if cls._scheduler is None:
                 cls._scheduler = schedule.Scheduler()
             if not cls._scheduler.jobs:
-                cls._scheduler.every().day.at("00:00").do(
+                cls._scheduler.every().day.at(self.update_time).do(
                     lambda: asyncio.run(self.update_all())
                 )
             if cls._scheduler_thread is None or not cls._scheduler_thread.is_alive():
@@ -109,7 +118,7 @@ class BlacklistUpdater:
     def _scheduler_tick(cls, scheduler):
         try:
             scheduler.run_pending()
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — the loop thread must survive any job failure
             logging.getLogger("sec_mcp.update_blacklist").error(
                 f"Scheduled update run failed: {e}"
             )
@@ -150,7 +159,7 @@ class BlacklistUpdater:
                 if callback is not None:
                     try:
                         callback(source, index, total)
-                    except Exception:
+                    except Exception:  # noqa: BLE001 — caller-supplied callback must never break the update
                         self.logger.debug(f"Progress callback failed for {source}")
                 tasks.append(self._update_source(client, source, url))
             await asyncio.gather(*tasks)
@@ -181,17 +190,6 @@ class BlacklistUpdater:
         os.makedirs(os.path.dirname(filename), exist_ok=True)
         with open(filename, "w", encoding="utf-8") as f:
             f.write(content)
-
-    def _is_domain_blacklisted(self, url: str) -> bool:
-        """Check if the domain of a URL is blacklisted."""
-        try:
-            domain = urlparse(url).netloc or urlparse('//' + url).netloc
-            if domain and self.storage.is_domain_blacklisted(domain):
-                self.logger.debug(f"Domain {domain} is already blacklisted, skipping URL: {url}")
-                return True
-        except Exception as e:
-            self.logger.warning(f"Failed to parse URL {url}: {e}")
-        return False
 
     async def _update_source(self, client: httpx.AsyncClient, source: str, url: str):
         """Update blacklist from a single source."""
@@ -231,7 +229,7 @@ class BlacklistUpdater:
             await asyncio.to_thread(self.storage.log_update, source, len(deduped_entries))
             self.logger.info(f"Updated {source}: {len(deduped_entries)} entries.")
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — one source's failure must not abort the remaining updates
             self.logger.error(f"Failed to update {source}: {e}")
             self.logger.debug(traceback.format_exc())
 

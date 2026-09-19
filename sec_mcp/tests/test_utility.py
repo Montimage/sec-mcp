@@ -22,6 +22,24 @@ def test_validate_ip():
     assert not validate_input("256.256.256.256")
     assert not validate_input("192.168.1")
 
+def test_validate_ipv6():
+    """IPv6 literals validate — compressed, full and bracketed URI forms."""
+    assert validate_input("::1")
+    assert validate_input("2001:db8::1")
+    assert validate_input("2001:0db8:0000:0000:0000:ff00:0042:8329")
+    assert validate_input("[::1]")
+    assert validate_input("[2001:db8::1]")
+    assert not validate_input("[::1")  # unbalanced bracket
+    assert not validate_input("2001:db8:::1")
+
+def test_validate_ip_literal_url():
+    """URLs whose host is an IP literal — bare IPv4 or bracketed IPv6."""
+    assert validate_input("http://[::1]:8080/path")
+    assert validate_input("https://[2001:db8::1]/")
+    assert validate_input("http://192.168.1.1/admin")
+    assert not validate_input("http://[::1")
+    assert not validate_input("http://999.1.1.1/")
+
 def test_validate_domain():
     """Test domain validation."""
     assert validate_input("example.com")

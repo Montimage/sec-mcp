@@ -8,6 +8,7 @@ half stays small enough to read.
 """
 
 import ipaddress
+import sqlite3
 from typing import List, Optional, Tuple
 from urllib.parse import urlparse
 
@@ -39,7 +40,8 @@ def _bucket_feed_entries(entries):
             # Determine if it's a domain-only URL or a full URL
             try:
                 parsed = urlparse(url_val)
-            except Exception:
+            except (ValueError, TypeError):
+                # urlparse rejects malformed URLs; the row is skipped.
                 continue
             domain = parsed.netloc
             is_domain_entry = not parsed.path or parsed.path == '/'
@@ -78,7 +80,7 @@ class DualWriteMixin:
             # Persist to database
             try:
                 self._db.upsert_domain(domain, date, score, source)
-            except Exception as e:
+            except (OSError, sqlite3.Error) as e:
                 # Rollback memory changes on DB failure
                 self._index.discard_domain(domain_lower)
                 self.logger.error(f"Failed to add domain to database: {e}")
@@ -97,7 +99,7 @@ class DualWriteMixin:
             # Persist the canonical form so v1's exact-match lookups agree
             try:
                 self._db.upsert_url(url_normalized, date, score, source)
-            except Exception as e:
+            except (OSError, sqlite3.Error) as e:
                 # Rollback
                 self._index.discard_url(url_normalized)
                 self.logger.error(f"Failed to add URL to database: {e}")
@@ -129,7 +131,7 @@ class DualWriteMixin:
             # Persist to database
             try:
                 self._db.upsert_ip(ip, date, score, source)
-            except Exception as e:
+            except (OSError, sqlite3.Error) as e:
                 # Rollback
                 self._index.discard_ip(ip, is_cidr, ip_int)
                 self.logger.error(f"Failed to add IP to database: {e}")
@@ -144,7 +146,7 @@ class DualWriteMixin:
             # Persist to database in transaction
             try:
                 self._db.upsert_domains(domains)
-            except Exception as e:
+            except (OSError, sqlite3.Error) as e:
                 self.logger.error(f"Failed to add domains batch: {e}")
                 # Reload from DB to ensure consistency
                 self._load_domains_from_db()
@@ -160,7 +162,7 @@ class DualWriteMixin:
             # Persist the canonical forms so v1's exact-match lookups agree
             try:
                 self._db.upsert_urls(normalized_rows)
-            except Exception as e:
+            except (OSError, sqlite3.Error) as e:
                 self.logger.error(f"Failed to add URLs batch: {e}")
                 self._load_urls_from_db()
                 raise
@@ -175,7 +177,7 @@ class DualWriteMixin:
             # Persist to database
             try:
                 self._db.upsert_ips(persist)
-            except Exception as e:
+            except (OSError, sqlite3.Error) as e:
                 self.logger.error(f"Failed to add IPs batch: {e}")
                 self._load_ips_from_db()
                 raise

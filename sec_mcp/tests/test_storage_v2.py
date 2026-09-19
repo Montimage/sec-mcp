@@ -575,6 +575,32 @@ class TestV2StateConsistency:
         assert storage.is_ip_blacklisted("10.1.2.3") is False
         assert storage.get_ip_blacklist_source("10.1.2.3") is None
 
+    @pytest.mark.parametrize("use_pytricia", [True, False], ids=["pytricia", "fallback"])
+    def test_v2_cidr_add_ip_rollback_drops_matcher_entry(
+        self, tmp_path, monkeypatch, use_pytricia
+    ):
+        """A failed DB write must roll the CIDR out of the live matcher too.
+
+        Regression test: the rollback path dropped only the range's
+        metadata, leaving the radix-tree (or fallback-list) entry matching
+        member IPs — a phantom blacklist hit surviving until the next reload.
+        """
+        if not use_pytricia:
+            # Force the _cidr_ranges fallback path even where pytricia exists.
+            monkeypatch.setitem(sys.modules, "pytricia", None)
+        storage = HybridStorage(str(tmp_path / "rollback.db"))
+
+        def _fail(*args, **kwargs):
+            raise sqlite3.OperationalError("disk full")
+
+        monkeypatch.setattr(storage._db, "upsert_ip", _fail)
+
+        with pytest.raises(sqlite3.OperationalError):
+            storage.add_ip("10.0.0.0/8", "2025-01-01", 8.0, "test")
+
+        assert storage.is_ip_blacklisted("10.1.2.3") is False
+        assert storage.get_ip_blacklist_source("10.1.2.3") is None
+
     def test_v2_reload_lookup_never_returns_false_for_present_entry(self, tmp_path):
         """Concurrent lookups observe a complete snapshot during reload().
 

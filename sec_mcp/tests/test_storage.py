@@ -23,8 +23,8 @@ def storage():
             # Close connection if possible before removing, to avoid issues on some OS
             if hasattr(storage_instance, 'conn') and storage_instance.conn:
                 storage_instance.conn.close()
-        except Exception:
-            pass # Ignore errors during cleanup
+        except Exception:  # noqa: BLE001 — ignore any error during cleanup
+            pass
         os.remove(db_path)
 
 def test_add_and_check_entries(storage):

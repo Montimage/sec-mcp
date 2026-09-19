@@ -42,7 +42,8 @@ def _classify_feed_entries(entries):
                         urls_to_add.append(
                             (storage_base.normalize_url(url_val), date_val, score_val, source)
                         )
-            except Exception:
+            except (ValueError, TypeError):
+                # urlparse rejects malformed URLs; the row is skipped.
                 continue
         if ip_val:
             ips_to_add.append((ip_val, date_val, score_val, source))
@@ -286,14 +287,16 @@ class StorageQueryMixin:
     def remove_entry(self, value: str) -> bool:
         """Remove a blacklist entry by domain, URL, or IP."""
         # blacklist_url stores the canonical form — the URL delete must use
-        # the same normalized value the writes and lookups apply.
+        # the same normalized value the writes and lookups apply. Domain
+        # lookups lowercase the query, so the delete matches case-insensitively:
+        # "EVIL.COM" must remove the stored "evil.com" row.
         url_normalized = storage_base.normalize_url(value)
         with self._connection() as conn:
             with conn:
                 removed = (
                     conn.execute(
-                        "DELETE FROM blacklist_domain WHERE domain = ?",
-                        (value,)
+                        "DELETE FROM blacklist_domain WHERE LOWER(domain) = ?",
+                        (value.lower(),)
                     ).rowcount
                     + conn.execute(
                         "DELETE FROM blacklist_url WHERE url = ?",

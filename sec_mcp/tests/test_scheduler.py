@@ -93,7 +93,7 @@ def test_stop_blocks_ensure_until_transition_finishes(tmp_path, monkeypatch):
     def run_ensure():
         try:
             updater._ensure_scheduler()
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — capture whatever the call raises to assert below
             ensure_errors.append(e)
         finally:
             ensure_done.set()

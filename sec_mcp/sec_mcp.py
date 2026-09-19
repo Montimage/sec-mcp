@@ -32,15 +32,8 @@ class StatusInfo:
             "server_status": self.server_status
         }
 
-import json
-import os
-
-
 class SecMCP:
     def __init__(self, db_path=None):
-        config_path = os.path.join(os.path.dirname(__file__), "config.json")
-        with open(config_path) as f:
-            config = json.load(f)
         self.storage = create_storage(db_path=db_path)
         self.updater = BlacklistUpdater(self.storage)
 
@@ -133,7 +126,7 @@ class SecMCP:
         try:
             ipaddress.ip_address(value)
             return True
-        except Exception:
+        except ValueError:
             return False
 
     @staticmethod
@@ -153,20 +146,17 @@ class SecMCP:
         url = url.split('/', 1)[0].split(':')[0]
         return url if '.' in url else None
 
-    def check_batch(self, values: List[str]) -> List[CheckResult]:
-        """Check multiple values against the blacklist."""
-        # shared_connection is reentrant — the batch runs on one connection.
-        with self.storage.shared_connection():
-            return [self.check(value) for value in values]
-
     def get_status(self) -> StatusInfo:
         """Get current status of the blacklist service."""
-        return StatusInfo(
-            entry_count=self.storage.count_entries(),
-            last_update=self.storage.get_last_update(),
-            sources=self.storage.get_active_sources(),
-            server_status="Running (STDIO)"
-        )
+        # One shared connection for the whole status read: the three storage
+        # calls below reuse it instead of paying one sqlite3.connect each.
+        with self.storage.shared_connection():
+            return StatusInfo(
+                entry_count=self.storage.count_entries(),
+                last_update=self.storage.get_last_update(),
+                sources=self.storage.get_active_sources(),
+                server_status="Running (STDIO)"
+            )
 
     def update(self) -> dict:
         """Force an immediate update of all blacklists.
