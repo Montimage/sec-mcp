@@ -93,10 +93,10 @@ const MCPServer = () => {
                                     <tbody>
                                         {mcpTools.map((tool, index) => (
                                             <tr key={index} className={index % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
-                                                <td className="py-2 px-4 border-b">
+                                                <td className="py-2 px-4 border-b border-gray-200">
                                                     <code className="font-mono bg-slate-100 px-2 py-0.5 rounded text-purple-600">{tool.name}</code>
                                                 </td>
-                                                <td className="py-2 px-4 border-b text-sm text-gray-700">
+                                                <td className="py-2 px-4 border-b border-gray-200 text-sm text-gray-700">
                                                     {tool.description}
                                                 </td>
                                             </tr>

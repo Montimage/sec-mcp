@@ -5,7 +5,7 @@ import montimageIconSvg from '../assets/montimage-logo.svg';
 
 const Hero = () => {
     return (
-        <section id="hero" className="bg-gradient-to-b from-slate-800 to-slate-700 text-white py-24">
+        <section id="hero" className="bg-linear-to-b from-slate-800 to-slate-700 text-white py-24">
             <div className="container mx-auto px-4 flex flex-col lg:flex-row items-center">
                 <div className="lg:w-1/2 mb-8 lg:mb-0">
                     <div className="flex items-center mb-6">

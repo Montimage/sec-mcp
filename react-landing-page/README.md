@@ -56,7 +56,7 @@ You can manually trigger the deployment workflow by:
 
 ### Colors and Styling
 
-The site uses TailwindCSS for styling. You can customize the colors, fonts, and other design elements by editing the `tailwind.config.js` file.
+The site uses Tailwind CSS v4 for styling. You can customize the colors, fonts, and other design elements with CSS-first configuration in `src/index.css` (e.g. via `@theme`).
 
 ### Content
 
