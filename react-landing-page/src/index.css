@@ -79,11 +79,14 @@ body {
 }
 
 /* Visible, consistent keyboard focus everywhere. Green ring reads clearly
-   against every surface on the page. */
+   against every surface on the page. Exclude outline-color from inherited
+   transition-colors so filled (text-void) CTAs do not interpolate a black
+   ring for 150ms before the signal outline appears. */
 :focus-visible {
   outline: 2px solid var(--color-signal);
   outline-offset: 3px;
   border-radius: 2px;
+  transition-property: color, background-color, border-color;
 }
 
 /* Skip link — first tab stop, hidden until focused. */
