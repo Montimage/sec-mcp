@@ -89,8 +89,14 @@ const Hero = () => (
                 style={step(6)}
             >
                 {STATS.map((stat) => (
-                    <div key={stat.note} className="bg-void px-5 py-7 md:px-7 md:py-8">
-                        <dd className="font-display text-4xl font-light md:text-5xl">
+                    <div
+                        key={stat.note}
+                        className="flex flex-col bg-void px-5 py-7 md:px-7 md:py-8"
+                    >
+                        <dt className="order-2 mt-2 font-mono text-[0.6875rem] tracking-[0.16em] uppercase text-dim">
+                            {stat.note}
+                        </dt>
+                        <dd className="order-1 font-display text-4xl font-light md:text-5xl">
                             {stat.value}
                             {stat.unit && (
                                 <span className="ml-1.5 font-mono text-sm font-normal text-faint">
@@ -98,9 +104,6 @@ const Hero = () => (
                                 </span>
                             )}
                         </dd>
-                        <dt className="mt-2 font-mono text-[0.6875rem] tracking-[0.16em] uppercase text-dim">
-                            {stat.note}
-                        </dt>
                     </div>
                 ))}
             </dl>

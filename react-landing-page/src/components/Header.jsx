@@ -48,22 +48,23 @@ const Header = () => {
                     <span className="font-mono text-sm font-medium tracking-tight">sec-mcp</span>
                 </a>
 
-                <span className="hidden h-4 w-px bg-line-2 lg:block" aria-hidden="true" />
+                <span className="hidden h-4 w-px bg-line-2 xl:block" aria-hidden="true" />
 
                 <a
                     href="https://www.montimage.eu"
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="hidden items-center gap-2 text-xs text-dim transition-colors hover:text-bright lg:flex"
+                    className="hidden items-center gap-2 text-xs text-dim transition-colors hover:text-bright xl:flex"
                 >
                     <span className="font-mono tracking-[0.14em] uppercase">by</span>
                     <img src={montimageIconSvg} alt="Montimage" className="h-4 w-auto" />
                     <span>Montimage</span>
                 </a>
 
-                {/* desktop nav — lg, not md: at 768 the row (nav + GitHub +
-                    Get started) overflows ~820px. Keep the hamburger until 1024. */}
-                <nav className="ml-auto hidden lg:block" aria-label="Main">
+                {/* desktop nav — xl, not lg: at 1024 the full nowrap row
+                    (logo + Montimage + five labels + GitHub + Get started)
+                    exceeds the padded content box. Keep the hamburger until 1280. */}
+                <nav className="ml-auto hidden xl:block" aria-label="Main">
                     <ul className="flex items-center gap-7">
                         {NAV.map((item) => (
                             <li key={item.href}>
@@ -78,7 +79,7 @@ const Header = () => {
                     </ul>
                 </nav>
 
-                <div className="ml-auto flex items-center gap-2 lg:ml-0">
+                <div className="ml-auto flex items-center gap-2 xl:ml-0">
                     <a
                         href="https://github.com/montimage/sec-mcp"
                         target="_blank"
@@ -102,7 +103,7 @@ const Header = () => {
                         aria-expanded={open}
                         aria-controls="mobile-nav"
                         aria-label={open ? 'Close menu' : 'Open menu'}
-                        className="flex h-11 w-11 items-center justify-center text-bright lg:hidden"
+                        className="flex h-11 w-11 items-center justify-center text-bright xl:hidden"
                     >
                         <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true">
                             {open ? (
@@ -120,7 +121,7 @@ const Header = () => {
                 <nav
                     id="mobile-nav"
                     aria-label="Main"
-                    className="border-t border-line bg-void/95 backdrop-blur-xl lg:hidden"
+                    className="border-t border-line bg-void/95 backdrop-blur-xl xl:hidden"
                 >
                     <ul className="mx-auto max-w-[84rem] px-4 py-2 sm:px-6">
                         {NAV.map((item) => (
