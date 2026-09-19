@@ -9,14 +9,32 @@ import anyio
 from mcp.server.mcpserver import MCPServer
 from mcp.shared.exceptions import MCPError
 from mcp.types import CallToolResult, TextContent, ToolAnnotations
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
 # import SecMCP for server logic
 from .sec_mcp import SecMCP
-from .utility import validate_input
+from .utility import package_version, validate_input
 
-# Initialize MCP server (SDK v2: FastMCP was renamed to MCPServer)
-mcp = MCPServer(name="mcp-blacklist")
+# Initialize MCP server (SDK v2: FastMCP was renamed to MCPServer).
+# The identity fields feed `serverInfo` (initialize + the `server/discover`
+# `_meta` stamp) and `instructions` on both handshake paths.
+mcp = MCPServer(
+    name="sec-mcp",
+    version=package_version(),
+    title="sec-mcp — Security Blacklist Checker",
+    description=(
+        "MCP server that checks domains, URLs and IPs against security "
+        "blacklists backed by SQLite."
+    ),
+    website_url="https://github.com/Montimage/sec-mcp",
+    instructions=(
+        "Use check_batch to screen domains, URLs or IPs against the security "
+        "blacklists. get_status reports blacklist freshness and per-source "
+        "counts; update_blacklists forces a feed refresh; get_diagnostics "
+        "exposes health, performance and sampling modes; add_entry and "
+        "remove_entry manage manual entries."
+    ),
+)
 
 # Shared SecMCP instance for the MCP server, created lazily on first use:
 # importing this module must stay side-effect free — constructing SecMCP
@@ -137,7 +155,9 @@ def _error_result(exc: Exception) -> CallToolResult:
 @mcp.tool(name="check_batch", title="Check Batch", description="Check multiple domains/URLs/IPs in one call. Returns list of {value, is_safe, verdict, explanation}.",
           annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False, idempotentHint=True, openWorldHint=False),
           structured_output=True)
-async def check_batch(values: List[str]) -> Annotated[CallToolResult, List[CheckBatchItem]]:
+async def check_batch(
+    values: Annotated[List[str], Field(description="Domains, URLs or IP addresses to check against the blacklists.")],
+) -> Annotated[CallToolResult, List[CheckBatchItem]]:
     """Check multiple values against the blacklist in a single call."""
     try:
         core = get_core()
@@ -207,7 +227,16 @@ async def update_blacklists() -> Annotated[CallToolResult, UpdateBlacklistsResul
 @mcp.tool(name="get_diagnostics", title="Get Diagnostics", description="Get diagnostic information. Mode options: 'summary' (default), 'full', 'health', 'performance', 'sample'.",
           annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False, idempotentHint=True, openWorldHint=False),
           structured_output=True)
-async def get_diagnostics(mode: str = "summary", sample_count: int = 10) -> Annotated[CallToolResult, GetDiagnosticsResult]:
+async def get_diagnostics(
+    mode: Annotated[
+        Literal["summary", "full", "health", "performance", "sample"],
+        Field(description="Diagnostic mode: 'summary' (default), 'full', 'health', 'performance' or 'sample'."),
+    ] = "summary",
+    sample_count: Annotated[
+        int,
+        Field(ge=1, le=100, description="Number of entries to return in 'sample' mode (1-100)."),
+    ] = 10,
+) -> Annotated[CallToolResult, GetDiagnosticsResult]:
     """
     Get diagnostic information about the blacklist system.
 
@@ -321,7 +350,13 @@ _MANUAL_SOURCE = "manual"
 @mcp.tool(name="add_entry", title="Add Entry", description="Add a manual blacklist entry.",
           annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=False, idempotentHint=True, openWorldHint=False),
           structured_output=True)
-async def add_entry(url: Optional[str] = None, ip: Optional[str] = None, date: Optional[str] = None, score: float = 8.0, source: str = _MANUAL_SOURCE) -> Annotated[CallToolResult, AddEntryResult]:
+async def add_entry(
+    url: Annotated[Optional[str], Field(description="URL or domain to blacklist (scheme added if missing).")] = None,
+    ip: Annotated[Optional[str], Field(description="IPv4 or IPv6 address to blacklist.")] = None,
+    date: Annotated[Optional[str], Field(description="Entry timestamp; defaults to the current time.")] = None,
+    score: Annotated[float, Field(ge=0, le=10, description="Threat score between 0 and 10.")] = 8.0,
+    source: Annotated[str, Field(description="Entry source label; always stored as 'manual'.")] = _MANUAL_SOURCE,
+) -> Annotated[CallToolResult, AddEntryResult]:
     """Add a manual blacklist entry."""
     try:
         if not url and not ip:
@@ -354,7 +389,9 @@ async def add_entry(url: Optional[str] = None, ip: Optional[str] = None, date: O
 @mcp.tool(name="remove_entry", title="Remove Entry", description="Remove a blacklist entry by URL or IP.",
           annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=True, idempotentHint=True, openWorldHint=False),
           structured_output=True)
-async def remove_entry(value: str) -> Annotated[CallToolResult, RemoveEntryResult]:
+async def remove_entry(
+    value: Annotated[str, Field(description="Domain, URL or IP address to remove from the blacklist.")],
+) -> Annotated[CallToolResult, RemoveEntryResult]:
     """Remove a blacklist entry by URL or IP."""
     try:
         success = get_core().storage.remove_entry(value)
