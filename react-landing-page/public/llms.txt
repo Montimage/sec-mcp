@@ -1,0 +1,15 @@
+# sec-mcp
+
+> sec-mcp is a Python toolkit that checks domains, URLs and IP addresses against ten live blacklist feeds — in process, in microseconds, with no API key and no request leaving the machine. It works as a Python library, a CLI, and an MCP server for LLM workflows. MIT licensed, built by Montimage.
+
+## Project
+
+- [Landing page](https://montimage.github.io/sec-mcp/): Feature overview, recorded CLI demo, install and API reference
+- [GitHub repository](https://github.com/montimage/sec-mcp): Source code, README and issue tracker
+- [PyPI package](https://pypi.org/project/sec-mcp/): pip install sec-mcp
+
+## Optional
+
+- [MCP documentation](https://modelcontextprotocol.io/examples): The Model Context Protocol that sec-mcp implements
+- [Download stats](https://pepy.tech/projects/sec-mcp): PyPI download counters
+- [Montimage](https://www.montimage.eu): Company behind the project

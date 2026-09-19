@@ -5,7 +5,10 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
     <title>sec-mcp — Blacklist checks for domains, URLs and IPs</title>
-    <meta name="description" content="A Python toolkit that checks domains, URLs and IP addresses against ten live blacklist feeds — in process, in microseconds. Use it as a library, a CLI, or an MCP server for LLM workflows.">
+    <meta name="description" content="Check domains, URLs and IPs against ten live blacklist feeds — in process, in microseconds. Python library, CLI and MCP server.">
+
+    <link rel="canonical" href="https://montimage.github.io/sec-mcp/" />
+    <link rel="describedby" href="/sec-mcp/llms.txt" />
 
     <link rel="icon" type="image/svg+xml" href="favicon.svg" />
     <link rel="apple-touch-icon" href="apple-touch-icon.svg" />
@@ -17,7 +20,16 @@
     <meta property="og:title" content="sec-mcp — Know what you're talking to" />
     <meta property="og:description" content="Check domains, URLs and IPs against ten live blacklist feeds from Python, the terminal, or an MCP server." />
     <meta property="og:url" content="https://montimage.github.io/sec-mcp/" />
-    <meta name="twitter:card" content="summary" />
+    <meta property="og:site_name" content="sec-mcp" />
+    <meta property="og:image" content="https://montimage.github.io/sec-mcp/og-image.png" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="sec-mcp — Know what you're talking to" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="sec-mcp — Know what you're talking to" />
+    <meta name="twitter:description" content="Check domains, URLs and IPs against ten live blacklist feeds from Python, the terminal, or an MCP server." />
+    <meta name="twitter:image" content="https://montimage.github.io/sec-mcp/og-image.png" />
+    <meta name="twitter:image:alt" content="sec-mcp — Know what you're talking to" />
 
     <!-- Newsreader carries the display voice; IBM Plex Sans and Mono do the
          technical work. Preconnect so the two-hop font fetch starts early. -->
@@ -26,6 +38,39 @@
     <link
         href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&family=Newsreader:ital,opsz,wght@0,6..72,200..600;1,6..72,200..500&display=swap"
         rel="stylesheet">
+
+    <script type="application/ld+json">
+    {
+        "@context": "https://schema.org",
+        "@graph": [
+            {
+                "@type": "SoftwareApplication",
+                "name": "sec-mcp",
+                "description": "Python toolkit that checks domains, URLs and IP addresses against ten live blacklist feeds — usable as a library, a CLI, or an MCP server.",
+                "applicationCategory": "SecurityApplication",
+                "operatingSystem": "Any (Python 3.11+)",
+                "programmingLanguage": "Python",
+                "license": "https://opensource.org/licenses/MIT",
+                "url": "https://montimage.github.io/sec-mcp/",
+                "codeRepository": "https://github.com/montimage/sec-mcp",
+                "downloadUrl": "https://pypi.org/project/sec-mcp/",
+                "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" },
+                "author": { "@id": "https://www.montimage.eu/#org" }
+            },
+            {
+                "@type": "Organization",
+                "@id": "https://www.montimage.eu/#org",
+                "name": "Montimage",
+                "url": "https://www.montimage.eu",
+                "sameAs": ["https://github.com/montimage"]
+            }
+        ]
+    }
+    </script>
+
+    <!-- The scroll-reveal class waits on IntersectionObserver; without JS the
+         prerendered markup must not stay hidden. -->
+    <noscript><style>.reveal{opacity:1 !important;transform:none !important}</style></noscript>
 </head>
 <body>
     <div id="root"></div>

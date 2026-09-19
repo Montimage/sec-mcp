@@ -3,9 +3,10 @@
   "version": "1.0.0",
   "description": "A landing page built with React, Vite, and Tailwind CSS.",
   "main": "src/main.jsx",
+  "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "vite build",
+    "build": "vite build && vite build --ssr src/entry-server.jsx --outDir dist-ssr && node scripts/prerender.mjs",
     "serve": "vite preview"
   },
   "dependencies": {

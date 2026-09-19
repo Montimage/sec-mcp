@@ -163,7 +163,7 @@ const Footer = () => (
                         rel="noopener noreferrer"
                         className="inline-flex items-center gap-2 text-bright transition-opacity hover:opacity-70"
                     >
-                        <img src={montimageIconSvg} alt="" className="h-5 w-auto" />
+                        <img src={montimageIconSvg} alt="" width="44" height="20" className="h-5 w-auto" />
                         Montimage
                     </a>
                     <span className="text-faint">&middot; cybersecurity &amp; network monitoring</span>

@@ -57,7 +57,7 @@ const Header = () => {
                     className="hidden items-center gap-2 text-xs text-dim transition-colors hover:text-bright xl:flex"
                 >
                     <span className="font-mono tracking-[0.14em] uppercase">by</span>
-                    <img src={montimageIconSvg} alt="Montimage" className="h-4 w-auto" />
+                    <img src={montimageIconSvg} alt="Montimage" width="35" height="16" className="h-4 w-auto" />
                     <span>Montimage</span>
                 </a>
 

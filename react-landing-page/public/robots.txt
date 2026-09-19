@@ -1,0 +1,27 @@
+# sec-mcp landing page — open-source project; all crawlers welcome.
+User-agent: *
+Allow: /
+
+# AI crawlers explicitly welcome: training, AI-search and on-demand fetchers.
+# robots.txt only controls access — it cannot express usage policy.
+User-agent: GPTBot
+User-agent: OAI-SearchBot
+User-agent: ChatGPT-User
+User-agent: ClaudeBot
+User-agent: Claude-SearchBot
+User-agent: Claude-User
+User-agent: Google-Extended
+User-agent: PerplexityBot
+User-agent: Perplexity-User
+User-agent: CCBot
+User-agent: Bytespider
+User-agent: Meta-ExternalAgent
+User-agent: Applebot-Extended
+User-agent: Amazonbot
+User-agent: DuckAssistBot
+User-agent: MistralAI-User
+User-agent: DeepSeekBot
+User-agent: cohere-training-data-crawler
+Allow: /
+
+Sitemap: https://montimage.github.io/sec-mcp/sitemap.xml
