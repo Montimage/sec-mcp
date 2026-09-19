@@ -3,12 +3,29 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Security Checking Toolkit for LLMs</title>
-    <meta name="description" content="A Python toolkit providing security checks for domains, URLs, IPs, and more. Integrate easily into any Python application, use via terminal CLI, or run as an MCP server for LLMs.">
+
+    <title>sec-mcp — Blacklist checks for domains, URLs and IPs</title>
+    <meta name="description" content="A Python toolkit that checks domains, URLs and IP addresses against ten live blacklist feeds — in process, in microseconds. Use it as a library, a CLI, or an MCP server for LLM workflows.">
+
     <link rel="icon" type="image/svg+xml" href="favicon.svg" />
     <link rel="apple-touch-icon" href="apple-touch-icon.svg" />
     <link rel="manifest" href="manifest.json" />
-    <meta name="theme-color" content="#2563EB" />
+    <meta name="color-scheme" content="dark" />
+    <meta name="theme-color" content="#000000" />
+
+    <meta property="og:type" content="website" />
+    <meta property="og:title" content="sec-mcp — Know what you're talking to" />
+    <meta property="og:description" content="Check domains, URLs and IPs against ten live blacklist feeds from Python, the terminal, or an MCP server." />
+    <meta property="og:url" content="https://montimage.github.io/sec-mcp/" />
+    <meta name="twitter:card" content="summary" />
+
+    <!-- Newsreader carries the display voice; IBM Plex Sans and Mono do the
+         technical work. Preconnect so the two-hop font fetch starts early. -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link
+        href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&family=Newsreader:ital,opsz,wght@0,6..72,200..600;1,6..72,200..500&display=swap"
+        rel="stylesheet">
 </head>
 <body>
     <div id="root"></div>

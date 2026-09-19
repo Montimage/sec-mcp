@@ -1,7 +1,7 @@
 {
-  "name": "sec-mcp Security Checking Toolkit",
+  "name": "sec-mcp — blacklist checks for domains, URLs and IPs",
   "short_name": "sec-mcp",
-  "description": "A Python toolkit providing security checks for domains, URLs, IPs, and more.",
+  "description": "Check domains, URLs and IP addresses against ten live blacklist feeds from Python, the terminal, or an MCP server.",
   "icons": [
     {
       "src": "/sec-mcp/favicon.svg",
@@ -14,8 +14,8 @@
       "type": "image/svg+xml"
     }
   ],
-  "theme_color": "#2563EB",
-  "background_color": "#F8FAFC",
+  "theme_color": "#000000",
+  "background_color": "#000000",
   "display": "standalone",
   "start_url": "/sec-mcp/"
 }

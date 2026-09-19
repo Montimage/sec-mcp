@@ -1,129 +1,167 @@
 import React from 'react';
 import CodeBlock from './CodeBlock';
+import SectionHeading from './SectionHeading';
+import Reveal from './Reveal';
 
-const Installation = () => {
-    return (
-        <section id="installation" className="py-16 bg-gray-50">
-            <div className="container mx-auto px-4">
-                <h2 className="text-3xl font-bold text-center mb-4">Installation Guide</h2>                
-                <p className="text-gray-600 text-center mb-12 max-w-3xl mx-auto">
-                    Follow these simple steps to install and configure sec-mcp for your environment.
-                </p>
-
-                <div className="max-w-4xl mx-auto">
-                    <div className="bg-white rounded-lg shadow-lg overflow-hidden mb-8">
-                        <div className="bg-blue-600 text-white py-3 px-6">
-                            <h3 className="text-xl font-semibold">Basic Installation</h3>
-                        </div>
-                        <div className="p-6">
-                            <div className="mb-6">
-                                <h4 className="text-lg font-medium mb-2">1. Create a virtual environment (recommended)</h4>
-                                <div className="bg-slate-900 rounded-lg p-4 border border-slate-700">
-                                    <CodeBlock>
-{`# Python 3.11+ is required
-python3 -m venv .venv
-source .venv/bin/activate  # On Windows: .venv\\Scripts\\activate`}
-                                    </CodeBlock>
-                                </div>
-                            </div>
-
-                            <div className="mb-6">
-                                <h4 className="text-lg font-medium mb-2">2. Install the package</h4>
-                                <div className="bg-slate-900 rounded-lg p-4 border border-slate-700">
-                                    <CodeBlock>
-{`pip install sec-mcp
+const STEPS = [
+    {
+        title: 'Create a virtual environment',
+        note: 'Python 3.11 or newer. The MCP config later needs this path, so keep it somewhere stable.',
+        language: 'bash',
+        code: `python3 -m venv .venv
+source .venv/bin/activate  # Windows: .venv\\Scripts\\activate`,
+    },
+    {
+        title: 'Install the package',
+        note: null,
+        language: 'bash',
+        code: `pip install sec-mcp
 
 # Verify installation
-sec-mcp --version`}
-                                    </CodeBlock>
-                                </div>
-                            </div>
-
-                            <div className="mb-6">
-                                <h4 className="text-lg font-medium mb-2">3. Initialize and update the database</h4>
-                                <div className="bg-slate-900 rounded-lg p-4 border border-slate-700">
-                                    <CodeBlock>
-{`# This will download and process blacklists
+sec-mcp --version`,
+    },
+    {
+        title: 'Populate the database',
+        note: 'The first download pulls all ten feeds and takes a few minutes. After that a scheduler refreshes them daily at 00:00.',
+        language: 'bash',
+        code: `# Download and index every configured feed
 sec-mcp update
 
-# Check status
-sec-mcp status`}
+# Entry counts, last update, per-source breakdown
+sec-mcp status`,
+    },
+    {
+        title: 'Run a check',
+        note: 'Prints "Status: Safe" or "Status: Blacklisted" with an explanation. Add --json for machine-readable output.',
+        language: 'bash',
+        code: `sec-mcp check example.com
+sec-mcp check 8.8.8.8
+sec-mcp check https://example.com/path --json`,
+    },
+];
+
+const Installation = () => (
+    <section id="install" className="field relative py-24 md:py-32">
+        <div className="mx-auto max-w-[84rem] px-4 sm:px-6 lg:px-10">
+            <SectionHeading
+                index="05"
+                label="Install"
+                meta="~5 minutes"
+                title="From pip install to a first verdict."
+                lede="Four commands to a working install. The only part people trip on is step three — the database is empty until you populate it."
+            />
+
+            <div className="grid gap-14 lg:grid-cols-12 lg:gap-16">
+                {/* --- CLI timeline ---------------------------------------- */}
+                <div className="min-w-0 lg:col-span-7">
+                    <ol>
+                        {STEPS.map((step, i) => (
+                            <Reveal
+                                as="li"
+                                key={step.title}
+                                delay={i * 60}
+                                className="relative pb-10 pl-12 last:pb-0 sm:pl-16"
+                            >
+                                {/* connector: a hairline running through the numbers */}
+                                {i < STEPS.length - 1 && (
+                                    <span
+                                        className="absolute left-[15px] top-9 bottom-0 w-px bg-line sm:left-[19px]"
+                                        aria-hidden="true"
+                                    />
+                                )}
+                                <span
+                                    className="absolute left-0 top-0 flex h-8 w-8 items-center justify-center border border-line-2 bg-void font-mono text-xs text-signal sm:h-10 sm:w-10 sm:text-sm"
+                                    aria-hidden="true"
+                                >
+                                    {i + 1}
+                                </span>
+
+                                <h3 className="font-display text-2xl font-light leading-tight">
+                                    {step.title}
+                                </h3>
+                                {step.note && (
+                                    <p className="mt-2 text-sm leading-relaxed text-dim text-pretty">
+                                        {step.note}
+                                    </p>
+                                )}
+                                <div className="mt-4">
+                                    <CodeBlock language={step.language} label={`step ${i + 1}`}>
+                                        {step.code}
                                     </CodeBlock>
                                 </div>
-                                <p className="text-gray-500 text-sm mt-2">Initial download may take a few minutes. The database will update automatically every 12 hours by default.</p>
-                            </div>
+                            </Reveal>
+                        ))}
+                    </ol>
+                </div>
 
-                            <div>
-                                <h4 className="text-lg font-medium mb-2">4. Test the installation</h4>
-                                <div className="bg-slate-900 rounded-lg p-4 border border-slate-700">
-                                    <CodeBlock>
-{`# Check a domain
-sec-mcp check example.com
+                {/* --- Python quickstart ----------------------------------- */}
+                <div className="min-w-0 lg:col-span-5">
+                    <div className="lg:sticky lg:top-28">
+                        <Reveal>
+                            <h3 className="font-mono text-xs tracking-[0.18em] uppercase text-dim">
+                                Or import it
+                            </h3>
+                            <p className="mt-4 text-[0.9375rem] leading-relaxed text-dim text-pretty">
+                                Constructing{' '}
+                                <code className="font-mono text-bright">SecMCP()</code> is what
+                                creates the database and starts the scheduler &mdash; importing the
+                                package on its own does nothing.
+                            </p>
+                        </Reveal>
 
-# Check an IP address
-sec-mcp check 8.8.8.8`}
-                                    </CodeBlock>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div className="bg-white rounded-lg shadow-lg overflow-hidden">
-                        <div className="bg-blue-600 text-white py-3 px-6">
-                            <h3 className="text-xl font-semibold">Python API Integration</h3>
-                        </div>
-                        <div className="p-6">
-                            <div className="mb-6">
-                                <h4 className="text-lg font-medium mb-2">Import and initialize</h4>
-                                <div className="bg-slate-900 rounded-lg p-4 border border-slate-700">
-                                    <CodeBlock language="python" label="PYTHON">
+                        <Reveal delay={80} className="mt-6">
+                            <CodeBlock language="python" label="python">
 {`from sec_mcp import SecMCP
 
-# Initialize the client
+# Default database location
 client = SecMCP()
 
-# Optional: Custom configuration
-client = SecMCP(
-    db_path="/path/to/custom/database.db",
-    update_interval=24,  # hours
-    log_level="INFO"
-)`}
-                                    </CodeBlock>
-                                </div>
-                            </div>
+# Or point it at your own file
+client = SecMCP(db_path="/srv/sec-mcp/blacklist.db")
 
-                            <div>
-                                <h4 className="text-lg font-medium mb-2">Basic usage examples</h4>
-                                <div className="bg-slate-900 rounded-lg p-4 border border-slate-700">
-                                    <CodeBlock language="python" label="PYTHON">
-{`# Check a URL
-result = client.check("https://example.com/path")
-print(f"Is blacklisted: {result.is_blacklisted}")
-print(f"Match found in: {result.source if result.is_blacklisted else 'None'}")
+result = client.check("https://example.com/login")
 
-# Check multiple values
-results = client.check_batch([
+if result.blacklisted:
+    # e.g. "Blacklisted URL by OpenPhish"
+    print(f"Blocked: {result.explanation}")
+else:
+    print("Clean")`}
+                            </CodeBlock>
+                        </Reveal>
+
+                        <Reveal delay={130} className="mt-6">
+                            <CodeBlock language="python" label="batch">
+{`values = [
     "example.com",
     "192.168.1.1",
-    "https://suspicious-site.com/path"
-])
+    "https://example.org/login",
+]
 
-# Process results
-for result in results:
-    if result.is_blacklisted:
-        print(f"⚠️ {result.value} is blacklisted in {result.source}")
-    else:
-        print(f"✅ {result.value} is not blacklisted")`}
-                                    </CodeBlock>
-                                </div>
-                                <p className="text-gray-500 text-sm mt-2">See the <a href="#api" className="text-blue-600 hover:underline">API Reference</a> for more advanced usage examples.</p>
-                            </div>
-                        </div>
+# Results come back in input order; CheckResult carries
+# the verdict, so zip it against the values you sent.
+for value, result in zip(values, client.check_batch(values)):
+    verdict = "BLACKLISTED" if result.blacklisted else "clean"
+    print(f"{value:<28} {verdict:<12} {result.explanation}")`}
+                            </CodeBlock>
+                        </Reveal>
+
+                        <Reveal delay={170}>
+                            <p className="mt-6 text-sm text-dim">
+                                Every method is listed in the{' '}
+                                <a
+                                    href="#api"
+                                    className="text-signal underline decoration-line-signal underline-offset-4 transition-colors hover:decoration-signal"
+                                >
+                                    API reference
+                                </a>
+                                .
+                            </p>
+                        </Reveal>
                     </div>
                 </div>
             </div>
-        </section>
-    );
-};
+        </div>
+    </section>
+);
 
 export default Installation;
