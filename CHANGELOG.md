@@ -7,7 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-Post-0.4.0 modernization work on `main`, not yet released.
+## [0.5.0] - 2026-09-19
+
+Post-0.4.0 modernization work: MCP SDK 2.x migration, MCP Registry metadata,
+storage refactors and a landing-page redesign. Publishing is tag-driven —
+pushing `v0.5.0` runs `.github/workflows/pypi-publish.yml`.
 
 ### Changed
 - `mcp[cli]` migrated to the 2.x SDK (`>=2.2,<3`): `FastMCP` renamed to

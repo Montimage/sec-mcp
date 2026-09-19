@@ -3,7 +3,7 @@
   "name": "io.github.montimage/sec-mcp",
   "description": "Check domains, URLs and IPs against security blacklists backed by SQLite.",
   "title": "sec-mcp",
-  "version": "0.4.0",
+  "version": "0.5.0",
   "websiteUrl": "https://github.com/Montimage/sec-mcp#readme",
   "repository": {
     "url": "https://github.com/Montimage/sec-mcp",
@@ -14,7 +14,7 @@
       "registryType": "pypi",
       "registryBaseUrl": "https://pypi.org",
       "identifier": "sec-mcp",
-      "version": "0.4.0",
+      "version": "0.5.0",
       "runtimeHint": "uvx",
       "transport": {
         "type": "stdio"
