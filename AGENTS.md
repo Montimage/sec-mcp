@@ -40,7 +40,7 @@ scheduler thread (see `docs/agent-env.md`).
 
 ## Read when needed
 - Environment, env vars, probe isolation → `docs/agent-env.md`
-- Product requirements / task plan → `docs/prd.md`, `docs/tasks.md`
+- Historical (archived) PRD / task plan → `docs/archive/`
 
 ## Token Efficiency
 - Never re-read files you just wrote or edited. You know the contents.

@@ -5,12 +5,63 @@ All notable changes to sec-mcp are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [0.4.0] — pending release
+## [Unreleased]
+
+Post-0.4.0 modernization work on `main`, not yet released.
+
+### Security
+- `mcp[cli]` migrated to the 2.x SDK (`>=2.2,<3`): `FastMCP` renamed to
+  `MCPServer`, tool declarations carry keyword constructors, typed return
+  models and annotations.
+
+### Changed
+- v2 storage keeps one in-memory index per entry type instead of tiered
+  hot/cold indexes; snapshot swap on reload keeps reads consistent.
+- `storage_base.normalize_url` is the single canonicalizer shared by both
+  backends — identical verdicts for every URL variant.
+- Storage layer split: `storage_base` (shared schema, DB-path resolution,
+  `StorageProtocol`), `storage_v2_db` (`SQLiteStore`, all v2 SQLite access),
+  `storage_v2_index`, `storage_v2_writes`, `storage_v2_stats`, and the v1
+  query half `storage_queries`.
+- Feed ingestion split into `feed_parsers` — one parser per source, no
+  function-local imports.
+- `SecMCP.get_status`/`check_batch` and the MCP `get_status` tool run their
+  reads on one shared connection; entry sampling and caches are bounded.
+- MCP tools declare annotations, structured `outputSchema`/`isError`
+  semantics, server identity and enriched input schemas; `server.json`
+  ships MCP Registry metadata with a `uvx` client config.
+- No blocking I/O on the MCP event loop.
+- `react-landing-page`: tailwindcss 3→4, content synced with the real
+  server, nav fixes.
+- Test suite fully green (400 passed — the earlier 32/64 known-RED
+  `:memory:` failures were retargeted to real databases); CI enforces
+  `--cov-fail-under=98` and tests are excluded from the wheel.
+
+### Fixed
+- `update_blacklists` is rate limited to one forced update per
+  `min_update_interval_seconds` (default 300): a second call inside the
+  window returns `{"updated": false, "reason": ...}` and starts no downloads.
+  With a progress token the tool emits one `notifications/progress` per source.
+- `scheduler_alive` in `get_status` and `get_diagnostics` now reports the real
+  scheduler thread state instead of a hardcoded `true`.
+- `validate_input` accepts IPv6 literals — bare, bracketed (`[::1]`) and as
+  `http://` URL hosts — not just IPv4.
+- Domain removal is case-insensitive in both storages (v1 `remove_entry`,
+  v2 `SQLiteStore.delete_entry`), matching the lowercase lookup index.
+- v2 `add_ip` persistence failure rolls back the in-memory CIDR matcher
+  entry too, so a failed write can't keep matching member IPs.
+- `update_time` and `log_level` from `config.json` now drive the daily
+  scheduled update and startup logging; unused `db_path` key removed.
+- Dead code removed: duplicate `SecMCP.check_batch`, unused
+  `BlacklistUpdater._is_domain_blacklisted`, unused config load in
+  `SecMCP.__init__`. `E722`/`BLE001`/`F811` are enabled and clean.
+
+## [0.4.0] - 2026-09-19
 
 First 0.x release carrying the modernization sprint. Publishing is tag-driven:
 pushing `v0.4.0` runs `.github/workflows/pypi-publish.yml`, which verifies the
 tag matches `pyproject.toml`, builds, lints, gates on the test baseline, then
-publishes to PyPI via trusted OIDC publishing.
+publishes to PyPI (token auth via `PYPI_API_TOKEN`).
 
 ### Security
 - Pin `mcp[cli]>=1.28.1,<2` — bounds the previously unbounded
@@ -37,34 +88,14 @@ publishes to PyPI via trusted OIDC publishing.
   the landing page.
 
 ### Fixed
-- `update_blacklists` is rate limited to one forced update per
-  `min_update_interval_seconds` (default 300): a second call inside the
-  window returns `{"updated": false, "reason": ...}` and starts no downloads.
-  With a progress token the tool emits one `notifications/progress` per source.
-- `scheduler_alive` in `get_status` and `get_diagnostics` now reports the real
-  scheduler thread state instead of a hardcoded `true`.
 - MCP admin tool input validation; v1 `remove_entry` repaired against real
   tables; single owned scheduler job with awaited updates and idempotent
   stop; valid JSON for `--json` CLI checks; platformdirs log/cache dirs with
   a single owned handler; Dshield ranges stored as CIDR networks.
-- `validate_input` accepts IPv6 literals — bare, bracketed (`[::1]`) and as
-  `http://` URL hosts — not just IPv4.
-- Domain removal is case-insensitive in both storages (v1 `remove_entry`,
-  v2 `SQLiteStore.delete_entry`), matching the lowercase lookup index.
-- v2 `add_ip` persistence failure rolls back the in-memory CIDR matcher
-  entry too, so a failed write can't keep matching member IPs.
-- `update_time` and `log_level` from `config.json` now drive the daily
-  scheduled update and startup logging; unused `db_path` key removed.
-- `SecMCP.get_status`/`check_batch` and the MCP `get_status` tool run their
-  reads on one shared connection.
-- Dead code removed: duplicate `SecMCP.check_batch`, unused
-  `BlacklistUpdater._is_domain_blacklisted`, unused config load in
-  `SecMCP.__init__`. `E722`/`BLE001`/`F811` are enabled and clean.
 
 ### Added
-- One in-memory index per entry type, shared URL normalization,
-  integer-based IPv4 storage and enhanced metrics (v2 storage,
-  `MCP_USE_V2_STORAGE=true`).
+- Tiered hot/cold lookup system, URL normalization, integer-based IPv4
+  storage and enhanced metrics (v2 storage, `MCP_USE_V2_STORAGE=true`).
 - Hermetic test suite with recorded baseline (`R = 32/64`,
   `scripts/check_test_baseline.sh`) and characterization tests for all six
   MCP tools.

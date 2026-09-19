@@ -1,3 +1,8 @@
+> **Archived — September 2026.** Checklist for the April 2025 MVP sprint
+> (see `tasks.md`/`prd.md` in this directory). All items are long done; the
+> file predates the modernization epic (issue #3) and is kept for history
+> only.
+
 # MCP Client Development To-Do List
 
 ## Sprint 1: MVP
