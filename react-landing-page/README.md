@@ -56,19 +56,37 @@ You can manually trigger the deployment workflow by:
 
 ### Colors and Styling
 
-The site uses Tailwind CSS v4 for styling. You can customize the colors, fonts, and other design elements with CSS-first configuration in `src/index.css` (e.g. via `@theme`).
+The site uses Tailwind CSS v4. All design tokens — colours, fonts and fluid type
+scale — live in the `@theme` block at the top of `src/index.css`; there is no
+`tailwind.config.js` and one would be ignored.
+
+The palette is deliberately four colours: black, white, gray and signal green
+(`#22C55E`). Green is only ever used for text, hairlines, borders and focus
+rings, never as a background fill. Note that the base gray `#6B7280` measures
+4.34:1 on black and so **fails WCAG AA for text** — it is reserved for rules and
+borders, while `--color-dim` and `--color-faint` carry secondary and label text.
+Keep that split if you add new styles.
 
 ### Content
 
 The content is divided into components in the `src/components/` directory:
 
-- `Header.jsx` - Navigation bar
-- `Hero.jsx` - Main hero section
-- `Features.jsx` - Features showcase
-- `Installation.jsx` - Installation instructions
-- `APIReference.jsx` - API documentation
-- `MCPServer.jsx` - MCP server integration details
-- `Footer.jsx` - Page footer
+- `Header.jsx` - Fixed navigation bar with mobile menu
+- `Hero.jsx` - Hero section and the headline stat strip
+- `Terminal.jsx` - Self-typing CLI session shown in the hero
+- `Features.jsx` - Capability grid
+- `Sources.jsx` - The ten blacklist feeds (keep in sync with `sec_mcp/config.json`)
+- `MCPServer.jsx` - MCP server config and exposed tools
+- `Installation.jsx` - Install timeline and Python quickstart
+- `APIReference.jsx` - Python API methods and return types
+- `Footer.jsx` - Closing call to action, link columns and colophon
+
+Shared primitives:
+
+- `SectionHeading.jsx` - The numbered section header used by every section
+- `CodeBlock.jsx` - Syntax-highlighted code with a copy button
+- `Reveal.jsx` - IntersectionObserver scroll reveal (honours `prefers-reduced-motion`)
+- `Logo.jsx` - The sec-mcp mark
 
 Edit these files to update the content of the landing page.
 

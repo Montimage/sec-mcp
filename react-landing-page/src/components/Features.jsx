@@ -1,86 +1,124 @@
 import React from 'react';
+import SectionHeading from './SectionHeading';
+import Reveal from './Reveal';
 
-const Features = () => {
-    const featuresList = [
-        {
-            title: 'Comprehensive Security Checks',
-            description: 'Security verification for domains, URLs, IPs, and more against multiple blacklist feeds.',
-            icon: (
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-10 w-10 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
-                </svg>
-            )
-        },
-        {
-            title: 'Multiple Integration Options',
-            description: 'Use as a Python API, CLI tool, or MCP server for AI/LLM integrations over JSON/STDIO.',
-            icon: (
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-10 w-10 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 4a2 2 0 114 0v1a1 1 0 001 1h3a1 1 0 011 1v3a1 1 0 01-1 1h-1a2 2 0 100 4h1a1 1 0 011 1v3a1 1 0 01-1 1h-3a1 1 0 01-1-1v-1a2 2 0 10-4 0v1a1 1 0 01-1 1H7a1 1 0 01-1-1v-3a1 1 0 00-1-1H4a2 2 0 110-4h1a1 1 0 001-1V7a1 1 0 011-1h3a1 1 0 001-1V4z" />
-                </svg>
-            )
-        },
-        {
-            title: 'High-Performance Storage',
-            description: 'Thread-safe SQLite storage with in-memory caching for ultra-fast lookups and responses.',
-            icon: (
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-10 w-10 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 12h14M5 12a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v4a2 2 0 01-2 2M5 12a2 2 0 00-2 2v4a2 2 0 002 2h14a2 2 0 002-2v-4a2 2 0 00-2-2m-2-4h.01M17 16h.01" />
-                </svg>
-            )
-        },
-        {
-            title: 'MCP Server for LLMs',
-            description: 'Enrich AI workflows with real-time security checks using the Model Context Protocol (MCP).',
-            icon: (
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-10 w-10 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
-                </svg>
-            )
-        },
-        {
-            title: 'Automatic Updates',
-            description: 'On-demand updates from OpenPhish, PhishStats, URLhaus and custom sources.',
-            icon: (
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-10 w-10 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                </svg>
-            )
-        },
-        {
-            title: 'Extensive API',
-            description: 'Rich set of functions for checking URLs, domains, IPs with detailed response information.',
-            icon: (
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-10 w-10 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4" />
-                </svg>
-            )
-        }
-    ];
-
-    return (
-        <section id="features" className="py-16 bg-gray-50">
-            <div className="container mx-auto px-4">
-                <h2 className="text-3xl font-bold text-center mb-4">Key Features</h2>
-                <p className="text-gray-600 text-center mb-12 max-w-3xl mx-auto">
-                    sec-mcp provides powerful tools for security verification with multiple integration options
-                    and high-performance capabilities.
-                </p>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-                    {featuresList.map((feature, index) => (
-                        <div key={index} className="bg-white p-6 rounded-lg shadow-md hover:shadow-lg transition-shadow duration-300 flex flex-col items-center text-center">
-                            <div className="mb-4">
-                                {feature.icon}
-                            </div>
-                            <h3 className="text-xl font-semibold mb-3">{feature.title}</h3>
-                            <p className="text-gray-600">{feature.description}</p>
-                        </div>
-                    ))}
-                </div>
-            </div>
-        </section>
-    );
+/* Thin line-art icons, stroke 1.25 — drawn to sit at the same optical weight
+   as the hairline rules so nothing in the grid shouts. */
+const icon = 'h-6 w-6';
+const stroke = {
+    className: icon,
+    viewBox: '0 0 24 24',
+    fill: 'none',
+    stroke: 'currentColor',
+    strokeWidth: 1.25,
+    'aria-hidden': true,
 };
+
+const FEATURES = [
+    {
+        title: 'Ten feeds, one index',
+        body: 'OpenPhish, PhishTank, PhishStats, URLhaus, Spamhaus DROP, DShield, CINS, Emerging Threats, Feodo Tracker and Blocklist.de — merged into a single lookup.',
+        icon: (
+            <svg {...stroke}>
+                <path d="M3 7h18M3 12h18M3 17h18" strokeLinecap="round" />
+                <circle cx="8" cy="7" r="1.6" />
+                <circle cx="15" cy="12" r="1.6" />
+                <circle cx="6" cy="17" r="1.6" />
+            </svg>
+        ),
+    },
+    {
+        title: 'Microsecond lookups',
+        body: 'One O(1) in-memory index per entry type. A domain resolves in 0.006 ms and a URL in 0.0007 ms once in-memory storage is enabled.',
+        icon: (
+            <svg {...stroke}>
+                <path d="M13 3 4.5 13.5H11L10 21l8.5-10.5H12L13 3Z" strokeLinejoin="round" />
+            </svg>
+        ),
+    },
+    {
+        title: 'Three ways in',
+        body: 'Import it as a Python library, drive it from the terminal, or run it as an MCP server so an assistant can check a link before it recommends one.',
+        icon: (
+            <svg {...stroke}>
+                <path d="M4 5h16v14H4z" />
+                <path d="M7.5 9.5 10 12l-2.5 2.5M12.5 14.5H17" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+        ),
+    },
+    {
+        title: 'CIDR-aware IP matching',
+        body: 'IPv4 addresses are stored as integers and matched against whole networks, not just literal addresses — so a single range covers what it should.',
+        icon: (
+            <svg {...stroke}>
+                <circle cx="12" cy="12" r="8.5" />
+                <path d="M3.5 12h17M12 3.5c4 4.5 4 12.5 0 17M12 3.5c-4 4.5-4 12.5 0 17" />
+            </svg>
+        ),
+    },
+    {
+        title: 'Refreshed on a schedule',
+        body: 'Feeds update daily at 00:00 from a background scheduler, and sec-mcp update forces a refresh whenever you need one.',
+        icon: (
+            <svg {...stroke}>
+                <path d="M20.5 12a8.5 8.5 0 1 1-2.5-6" strokeLinecap="round" />
+                <path d="M20.5 3.5V6H18" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+        ),
+    },
+    {
+        title: 'Safe under concurrency',
+        body: 'SQLite in WAL mode behind an in-memory cache, so parallel checks from threads or a busy MCP client stay consistent.',
+        icon: (
+            <svg {...stroke}>
+                <rect x="4.5" y="10.5" width="15" height="9.5" rx="1" />
+                <path d="M8 10.5V7.5a4 4 0 0 1 8 0v3" strokeLinecap="round" />
+            </svg>
+        ),
+    },
+];
+
+const Features = () => (
+    <section id="features" className="field relative py-24 md:py-32">
+        <div className="mx-auto max-w-[84rem] px-4 sm:px-6 lg:px-10">
+            <SectionHeading
+                index="02"
+                label="Capabilities"
+                meta="Six things it does well"
+                title="A blacklist engine that behaves like a local function call."
+                lede="No hosted service sits between you and an answer. The feeds are downloaded, normalised and indexed on your machine, and every check after that is a memory read."
+            />
+
+            {/* Exactly six cells: 3 × 2 on desktop, 2 × 3 on tablet, 1 column on
+                phones — never ragged, so the shared hairlines always close. */}
+            <div className="grid gap-px border border-line bg-line sm:grid-cols-2 lg:grid-cols-3">
+                {FEATURES.map((feature, i) => (
+                    <Reveal
+                        key={feature.title}
+                        delay={i * 70}
+                        className="group relative bg-void p-8 transition-colors duration-300 hover:bg-raise md:p-10"
+                    >
+                        {/* green rule that draws in on hover — accent as a line, never a fill */}
+                        <span className="absolute inset-x-0 top-0 h-px origin-left scale-x-0 bg-signal transition-transform duration-500 group-hover:scale-x-100" aria-hidden="true" />
+
+                        <div className="flex items-start justify-between">
+                            <span className="text-faint transition-colors duration-300 group-hover:text-signal">
+                                {feature.icon}
+                            </span>
+                            <span className="font-mono text-[0.6875rem] tracking-[0.16em] text-faint">
+                                {String(i + 1).padStart(2, '0')}
+                            </span>
+                        </div>
+
+                        <h3 className="mt-8 font-display text-2xl font-light">{feature.title}</h3>
+                        <p className="mt-3 text-[0.9375rem] leading-relaxed text-dim text-pretty">
+                            {feature.body}
+                        </p>
+                    </Reveal>
+                ))}
+            </div>
+        </div>
+    </section>
+);
 
 export default Features;

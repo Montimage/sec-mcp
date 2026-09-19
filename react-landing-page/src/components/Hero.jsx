@@ -1,47 +1,114 @@
 import React from 'react';
-import CodeBlock from './CodeBlock';
-import logoSvg from '../assets/logo.svg';
-import montimageIconSvg from '../assets/montimage-logo.svg';
+import Terminal from './Terminal';
 
-const Hero = () => {
-    return (
-        <section id="hero" className="bg-linear-to-b from-slate-800 to-slate-700 text-white py-24">
-            <div className="container mx-auto px-4 flex flex-col lg:flex-row items-center">
-                <div className="lg:w-1/2 mb-8 lg:mb-0">
-                    <div className="flex items-center mb-6">
-                        <img src={logoSvg} alt="sec-mcp logo" className="w-16 h-16 mr-4" />
-                        <h1 className="text-4xl lg:text-5xl font-bold">sec-mcp: Security Checking Toolkit</h1>
-                    </div>
-                    <p className="text-xl mb-6 text-slate-200">
-                        A Python toolkit providing security checks for domains, URLs, IPs, and more.
-                        Integrate easily into any Python application, use via terminal CLI, or run as an MCP server
-                        to enrich LLM context with real-time threat insights.
+/** Load-in cascade: each element rises 90ms after the one above it. */
+const step = (i) => ({ animationDelay: `${120 + i * 90}ms` });
+
+const STATS = [
+    { value: '10', unit: 'feeds', note: 'Threat sources' },
+    { value: '0.006', unit: 'ms', note: 'Domain lookup' },
+    { value: '~45', unit: 'MB', note: '450K entries in memory' },
+    { value: 'MIT', unit: '', note: 'Open source' },
+];
+
+const Hero = () => (
+    <section id="top" className="field relative overflow-hidden pt-32 pb-20 md:pt-44 md:pb-28">
+        {/* the signature: one green hairline sweeps the hero, once, on load */}
+        <span className="scanline" style={{ '--scan-distance': '100vh' }} aria-hidden="true" />
+
+        <div className="mx-auto max-w-[84rem] px-4 sm:px-6 lg:px-10">
+            <div className="grid items-start gap-14 lg:grid-cols-12 lg:gap-12">
+                {/* --- copy ---------------------------------------------- */}
+                <div className="min-w-0 lg:col-span-6">
+                    <p
+                        className="enter font-mono text-xs tracking-[0.22em] uppercase text-dim"
+                        style={step(0)}
+                    >
+                        <span className="text-signal">01</span>
+                        <span className="mx-2.5 text-faint" aria-hidden="true">/</span>
+                        Threat intelligence for Python
                     </p>
-                    <div className="flex flex-wrap gap-4">
-                        <a href="#installation" className="bg-blue-600 hover:bg-blue-700 text-white font-semibold px-6 py-3 rounded-lg transition-colors">
-                            Get Started
+
+                    <h1
+                        className="enter font-display text-display mt-8 font-light text-balance"
+                        style={step(1)}
+                    >
+                        Know what you&rsquo;re{' '}
+                        <em className="font-normal italic text-signal">talking to.</em>
+                    </h1>
+
+                    <div className="enter rule-signal mt-9 max-w-md" style={step(2)} />
+
+                    <p
+                        className="enter mt-8 max-w-xl text-lg leading-relaxed text-dim text-pretty"
+                        style={step(3)}
+                    >
+                        sec-mcp checks domains, URLs and IP addresses against ten live blacklist
+                        feeds &mdash; in process, in microseconds, with no API key and no request
+                        leaving your machine.
+                    </p>
+
+                    {/* primary CTA is a solid white slab: unmistakably clickable on black.
+                        Green stays an accent and is never used as a fill. */}
+                    <div className="enter mt-10 flex flex-wrap items-center gap-3" style={step(4)}>
+                        <a
+                            href="#install"
+                            className="flex h-12 w-full items-center justify-center bg-bright px-7 font-mono sm:w-auto sm:justify-start text-xs font-medium tracking-[0.16em] uppercase text-void transition-colors hover:bg-dim"
+                        >
+                            Get started
                         </a>
-                        <a href="#api" className="border border-white hover:bg-white hover:text-slate-800 text-white font-semibold px-6 py-3 rounded-lg transition-colors">
-                            View Documentation
+                        <a
+                            href="#api"
+                            className="group flex h-12 w-full items-center justify-center gap-2 border border-mute px-7 font-mono sm:w-auto sm:justify-start text-xs tracking-[0.16em] uppercase text-bright transition-colors hover:border-signal hover:text-signal"
+                        >
+                            Read the API
+                            <span className="transition-transform group-hover:translate-x-1" aria-hidden="true">
+                                &rarr;
+                            </span>
                         </a>
                     </div>
+
+                    <p className="enter mt-8 font-mono text-xs text-faint" style={step(5)}>
+                        <span className="text-dim">Python 3.11+</span>
+                        <span className="mx-2" aria-hidden="true">&middot;</span>
+                        <span className="text-dim">Library, CLI and MCP server</span>
+                    </p>
                 </div>
-                <div className="lg:w-1/2 flex justify-center">
-                    <div className="bg-slate-900 p-6 rounded-lg shadow-2xl w-full max-w-2xl border border-slate-700">
-                        <div className="flex items-center mb-4">
-                            <div className="w-3 h-3 rounded-full bg-red-500 mr-2"></div>
-                            <div className="w-3 h-3 rounded-full bg-yellow-500 mr-2"></div>
-                            <div className="w-3 h-3 rounded-full bg-green-500"></div>
-                            <span className="ml-4 text-slate-400 text-sm">code example</span>
-                        </div>
-                        <CodeBlock>
-{`sec-mcp check example.com`}
-                        </CodeBlock>
-                    </div>
+
+                {/* --- terminal ------------------------------------------ */}
+                <div className="enter min-w-0 lg:col-span-6" style={step(3)}>
+                    <Terminal />
                 </div>
             </div>
-        </section>
-    );
-};
+
+            {/* --- stat strip -------------------------------------------- */}
+            {/* gap-px over a hairline-coloured backdrop draws the dividers for
+                us — correct at 2 columns and at 4, with no per-cell edge cases. */}
+            <dl
+                className="enter mt-20 grid grid-cols-2 gap-px border-y border-line bg-line md:mt-28 md:grid-cols-4"
+                style={step(6)}
+            >
+                {STATS.map((stat) => (
+                    <div
+                        key={stat.note}
+                        className="flex flex-col bg-void px-5 py-7 md:px-7 md:py-8"
+                    >
+                        <dt className="order-2 mt-2 font-mono text-[0.6875rem] tracking-[0.16em] uppercase text-dim">
+                            {stat.note}
+                        </dt>
+                        <dd className="order-1 font-display text-4xl font-light md:text-5xl">
+                            {stat.value}
+                            {stat.unit && (
+                                <span className="ml-1.5 font-mono text-sm font-normal text-faint">
+                                    {stat.unit}
+                                </span>
+                            )}
+                        </dd>
+                    </div>
+                ))}
+            </dl>
+        </div>
+    </section>
+);
 
 export default Hero;

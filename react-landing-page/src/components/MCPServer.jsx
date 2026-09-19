@@ -1,5 +1,7 @@
 import React from 'react';
 import CodeBlock from './CodeBlock';
+import SectionHeading from './SectionHeading';
+import Reveal from './Reveal';
 
 const MCPServer = () => {
     // Keep in sync with the tools registered in sec_mcp/mcp_server.py (tools/list).
@@ -13,41 +15,31 @@ const MCPServer = () => {
     ];
 
     return (
-        <section id="mcp" className="py-16 bg-white">
-            <div className="container mx-auto px-4">
-                <h2 className="text-3xl font-bold text-center mb-4">MCP Server for LLMs</h2>
-                <p className="text-gray-600 text-center mb-12 max-w-3xl mx-auto">
-                    Use sec-mcp as a Model Context Protocol (MCP) server to provide real-time security checks in LLM workflows.
-                </p>
+        <section id="mcp" className="field relative py-24 md:py-32">
+            <div className="mx-auto max-w-[84rem] px-4 sm:px-6 lg:px-10">
+                <SectionHeading
+                    index="04"
+                    label="Model Context Protocol"
+                    meta="stdio · JSON-RPC"
+                    title="Give your assistant a way to check before it recommends."
+                    lede="Run sec-mcp as an MCP server and six tools appear in your client. The model can verify a link mid-conversation instead of guessing at it."
+                />
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-8 max-w-6xl mx-auto">
-                    <div className="bg-slate-50 p-6 rounded-lg shadow-md">
-                        <h3 className="text-xl font-semibold mb-4">MCP Server Setup</h3>
+                <div className="grid gap-12 lg:grid-cols-12 lg:gap-14">
+                    {/* --- configure --------------------------------------- */}
+                    <div className="min-w-0 lg:col-span-5">
+                        <Reveal>
+                            <h3 className="font-mono text-xs tracking-[0.18em] uppercase text-dim">
+                                Client configuration
+                            </h3>
+                            <p className="mt-4 text-[0.9375rem] leading-relaxed text-dim text-pretty">
+                                Point your MCP client at the interpreter inside the virtual
+                                environment where sec-mcp is installed.
+                            </p>
+                        </Reveal>
 
-                        <div className="space-y-6">
-                            {/* Step summary card */}
-                            <div className="bg-blue-50 p-4 rounded-md border border-blue-200">
-                                <h4 className="font-semibold text-blue-700 mb-2">Complete Setup Process</h4>
-                                <ol className="list-decimal list-inside space-y-1 text-gray-700">
-                                    <li>Create a virtual environment: <code className="bg-slate-900 text-yellow-400 px-2 py-0.5 rounded">python3 -m venv .venv</code></li>
-                                    <li>Activate the environment: <code className="bg-slate-900 text-yellow-400 px-2 py-0.5 rounded">source .venv/bin/activate</code></li>
-                                    <li>Install sec-mcp: <code className="bg-slate-900 text-yellow-400 px-2 py-0.5 rounded">pip install sec-mcp</code></li>
-                                    <li>Verify status: <code className="bg-slate-900 text-yellow-400 px-2 py-0.5 rounded">sec-mcp status</code></li>
-                                    <li>Update database: <code className="bg-slate-900 text-yellow-400 px-2 py-0.5 rounded">sec-mcp update</code></li>
-                                    <li>Verify database: <code className="bg-slate-900 text-yellow-400 px-2 py-0.5 rounded">sec-mcp status</code></li>
-                                    <li>Configure MCP client with command and args</li>
-                                    <li>Use sec-mcp tools in your MCP client</li>
-                                </ol>
-                                <p className="mt-3 text-sm text-blue-800">
-                                    For detailed instructions, see the <a href="#installation" className="underline hover:text-blue-600">Installation Guide</a>.
-                                </p>
-                            </div>
-
-                            {/* MCP Client Config */}
-                            <div>
-                                <h4 className="font-semibold mb-2">MCP Client Configuration</h4>
-                                <div className="bg-slate-900 rounded-lg p-4 border border-slate-700">
-                                    <CodeBlock language="json" label="JSON">
+                        <Reveal delay={90} className="mt-6">
+                            <CodeBlock language="json" label="mcp config">
 {`{
   "mcpServers": {
     "sec-mcp": {
@@ -56,56 +48,79 @@ const MCPServer = () => {
     }
   }
 }`}
-                                    </CodeBlock>
-                                </div>
-                                <div className="mt-2 text-gray-600 text-sm">
-                                    <p><strong>Important:</strong> Use the absolute path to the Python executable in your virtual environment.</p>
-                                </div>
-                            </div>
-                        </div>
+                            </CodeBlock>
+                        </Reveal>
 
-                        <div className="mt-6 p-4 bg-amber-50 border border-amber-100 rounded-md">
-                            <h4 className="font-semibold text-amber-700 mb-2">Integration Tips</h4>
-                            <ul className="list-disc list-inside text-gray-600 space-y-1">
-                                <li>For virtual environments, always use the <strong>absolute path</strong> to the Python executable</li>
-                                <li>Check that the database is populated before using the MCP client</li>
-                                <li>If the database update fails, check your internet connection</li>
-                                <li>The MCP server will automatically start when your MCP client runs</li>
+                        {/* The one thing people get wrong — called out, not buried. */}
+                        <Reveal delay={140} className="mt-6 border-l border-signal bg-raise p-5">
+                            <p className="font-mono text-xs tracking-[0.16em] uppercase text-signal">
+                                Before you start
+                            </p>
+                            <ul className="mt-3 space-y-2 text-sm leading-relaxed text-dim">
+                                <li>
+                                    Use the <strong className="font-medium text-bright">absolute path</strong>{' '}
+                                    to the venv&rsquo;s Python. A bare{' '}
+                                    <code className="font-mono text-bright">python</code> will start
+                                    the wrong interpreter.
+                                </li>
+                                <li>
+                                    Run <code className="font-mono text-bright">sec-mcp update</code>{' '}
+                                    once first, then{' '}
+                                    <code className="font-mono text-bright">sec-mcp status</code> to
+                                    confirm the database is populated.
+                                </li>
+                                <li>The server starts and stops with your MCP client.</li>
                             </ul>
-                        </div>
+                            <p className="mt-4 text-sm text-dim">
+                                Full steps in the{' '}
+                                <a
+                                    href="#install"
+                                    className="text-signal underline decoration-line-signal underline-offset-4 transition-colors hover:decoration-signal"
+                                >
+                                    install guide
+                                </a>
+                                .
+                            </p>
+                        </Reveal>
                     </div>
 
-                    <div>
-                        <h3 className="text-xl font-semibold mb-4">Available MCP Tools</h3>
-                        <div className="bg-white rounded-lg shadow overflow-hidden">
-                            <div className="overflow-x-auto">
-                                <table className="min-w-full">
-                                    <thead>
-                                        <tr className="bg-slate-700 text-white">
-                                            <th className="py-3 px-4 text-left">Tool Name</th>
-                                            <th className="py-3 px-4 text-left">Description</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        {mcpTools.map((tool, index) => (
-                                            <tr key={index} className={index % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
-                                                <td className="py-2 px-4 border-b border-gray-200">
-                                                    <code className="font-mono bg-slate-100 px-2 py-0.5 rounded text-purple-600">{tool.name}</code>
-                                                </td>
-                                                <td className="py-2 px-4 border-b border-gray-200 text-sm text-gray-700">
-                                                    {tool.description}
-                                                </td>
-                                            </tr>
-                                        ))}
-                                    </tbody>
-                                </table>
-                            </div>
-                        </div>
+                    {/* --- tools ------------------------------------------- */}
+                    <div className="min-w-0 lg:col-span-7">
+                        <Reveal>
+                            <h3 className="font-mono text-xs tracking-[0.18em] uppercase text-dim">
+                                Exposed tools
+                                <span className="ml-3 text-faint">({mcpTools.length})</span>
+                            </h3>
+                        </Reveal>
 
-                        <div className="mt-6">
-                            <h4 className="font-semibold mb-3">Example LLM Integration</h4>
-                            <div className="bg-slate-900 rounded-lg p-4 border border-slate-700">
-                                <CodeBlock language="markdown" label="Chat">
+                        <dl className="mt-6 border-t border-line">
+                            {mcpTools.map((tool, i) => (
+                                <Reveal
+                                    key={tool.name}
+                                    delay={i * 55}
+                                    className="group border-b border-line py-5 transition-colors hover:bg-raise"
+                                >
+                                    <dt className="flex flex-wrap items-baseline gap-x-3">
+                                        <code className="font-mono text-[0.9375rem] text-signal">
+                                            {tool.name}
+                                        </code>
+                                        <code className="min-w-0 break-all font-mono text-xs text-faint">
+                                            {tool.signature}
+                                        </code>
+                                    </dt>
+                                    <dd className="mt-2 text-sm leading-relaxed text-dim text-pretty">
+                                        {tool.description}
+                                    </dd>
+                                </Reveal>
+                            ))}
+                        </dl>
+
+                        <Reveal delay={120} className="mt-10">
+                            <h3 className="font-mono text-xs tracking-[0.18em] uppercase text-dim">
+                                In conversation
+                            </h3>
+                            <div className="mt-4">
+                                <CodeBlock language="markdown" label="transcript">
 {`User: "Is example.com safe to visit?"
 
 AI: Let me check that URL for you.
@@ -116,7 +131,7 @@ The domain is not found in any blacklists and
 appears to be safe to visit.`}
                                 </CodeBlock>
                             </div>
-                        </div>
+                        </Reveal>
                     </div>
                 </div>
             </div>
