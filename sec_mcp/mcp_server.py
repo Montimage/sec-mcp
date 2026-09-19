@@ -6,7 +6,7 @@ from typing import Annotated, Any, Dict, List, Literal, Optional
 from urllib.parse import urlparse
 
 import anyio
-from mcp.server.mcpserver import MCPServer
+from mcp.server.mcpserver import Context, MCPServer
 from mcp.shared.exceptions import MCPError
 from mcp.types import CallToolResult, TextContent, ToolAnnotations
 from pydantic import BaseModel, ConfigDict, Field
@@ -88,10 +88,17 @@ class GetStatusResult(BaseModel):
     sources: List[str]
     server_status: str
     source_counts: Dict[str, int]
+    scheduler_alive: bool
 
 
 class UpdateBlacklistsResult(BaseModel):
-    """Acknowledgement returned by ``update_blacklists``."""
+    """Acknowledgement returned by ``update_blacklists``.
+
+    ``extra="allow"`` lets the rate-limit refusal carry a ``reason`` key while
+    the success payload stays exactly ``{"updated": True}``.
+    """
+
+    model_config = ConfigDict(extra="allow")
 
     updated: bool
 
@@ -182,7 +189,7 @@ async def check_batch(
         return _error_result(exc)
 
 
-@mcp.tool(name="get_status", title="Get Status", description="Get blacklist status including entry counts and sources. Returns JSON: {entry_count, last_update, sources, server_status, source_counts}.",
+@mcp.tool(name="get_status", title="Get Status", description="Get blacklist status including entry counts and sources. Returns JSON: {entry_count, last_update, sources, server_status, source_counts, scheduler_alive}.",
           annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False, idempotentHint=True, openWorldHint=False),
           structured_output=True)
 async def get_status() -> Annotated[CallToolResult, GetStatusResult]:
@@ -196,7 +203,8 @@ async def get_status() -> Annotated[CallToolResult, GetStatusResult]:
             "last_update": status.last_update,
             "sources": status.sources,
             "server_status": status.server_status,
-            "source_counts": source_counts
+            "source_counts": source_counts,
+            "scheduler_alive": core.scheduler_alive()
         }
     except MCPError:
         raise
@@ -204,16 +212,44 @@ async def get_status() -> Annotated[CallToolResult, GetStatusResult]:
         return _error_result(exc)
 
 
-@mcp.tool(title="Update Blacklists", description="Force immediate update of all blacklists. Returns JSON: {updated: bool}.",
+@mcp.tool(title="Update Blacklists", description="Force immediate update of all blacklists. Rate limited to one update per min_update_interval_seconds. Returns JSON: {updated: bool, reason?: str}.",
           annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=False, idempotentHint=True, openWorldHint=True),
           structured_output=True)
-async def update_blacklists() -> Annotated[CallToolResult, UpdateBlacklistsResult]:
-    """Trigger an immediate blacklist refresh."""
+async def update_blacklists(ctx: Context) -> Annotated[CallToolResult, UpdateBlacklistsResult]:
+    """Trigger an immediate blacklist refresh.
+
+    Reports one ``notifications/progress`` per source when the caller supplied
+    a progress token; refused calls return ``{"updated": False, "reason": ...}``
+    without starting any download.
+    """
     try:
         core = get_core()
-        # Offload to thread to avoid nested event loops
-        await anyio.to_thread.run_sync(core.update)
-        return {"updated": True}
+        updater = core.updater
+
+        def _on_source(source: str, index: int, count: int) -> None:
+            # Bridge back onto the server loop: the update runs inside
+            # anyio.to_thread's worker, so hop with anyio.from_thread.run.
+            # report_progress is a no-op when the caller sent no token.
+            try:
+                anyio.from_thread.run(
+                    ctx.report_progress, index, count, f"Updating {source}"
+                )
+            except RuntimeError:
+                # Not on an anyio worker thread (e.g. a scheduled update firing
+                # while the callback is installed) — progress is best effort.
+                pass
+
+        updater.progress_callback = _on_source
+        try:
+            # Offload to thread to avoid nested event loops
+            result = await anyio.to_thread.run_sync(core.update)
+        finally:
+            # Only clear our own callback — a concurrent call's must survive.
+            if updater.progress_callback is _on_source:
+                updater.progress_callback = None
+        # core.update() returns the updater's ack; a monkeypatched or legacy
+        # None return still means the update ran.
+        return result or {"updated": True}
     except MCPError:
         raise
     except Exception as exc:
@@ -257,7 +293,7 @@ async def get_diagnostics(
                 core.storage.count_entries()
             except Exception:
                 db_ok = False
-            scheduler_alive = True
+            scheduler_alive = core.scheduler_alive()
             last_update = core.get_status().last_update
             return {
                 "mode": "health",
@@ -317,7 +353,7 @@ async def get_diagnostics(
                 "per_source_detail": per_source_detail,
                 "health": {
                     "db_ok": db_ok,
-                    "scheduler_alive": True
+                    "scheduler_alive": core.scheduler_alive()
                 },
                 "performance": metrics if metrics else {"available": False}
             }

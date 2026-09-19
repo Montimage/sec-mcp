@@ -5,6 +5,7 @@ import logging
 import os
 import re
 import threading
+import time
 
 import httpx
 import schedule
@@ -45,6 +46,14 @@ class BlacklistUpdater:
         self.min_feed_entries = max(0, _limit("min_feed_entries", 1))
         self.max_feed_entries = max(self.min_feed_entries, _limit("max_feed_entries", 500000))
         self.max_range_addresses = max(1, _limit("max_range_addresses", 1 << 16))
+        # Minimum seconds between forced updates; a second force_update inside
+        # the window is refused without starting any download. 0 disables.
+        self.min_update_interval = max(0, _limit("min_update_interval_seconds", 300))
+        self._last_force_update = None  # monotonic timestamp of the last attempt
+        self._force_update_lock = threading.Lock()
+        # Optional sync callable (source, index, total) invoked per source by
+        # update_all; the MCP layer uses it to forward progress notifications.
+        self.progress_callback = None
         if os.environ.get("MCP_DISABLE_SCHEDULER") != "1":
             self._ensure_scheduler()
 
@@ -113,12 +122,25 @@ class BlacklistUpdater:
             cls._scheduler_thread = None
             cls._scheduler_stop = None
 
+    @classmethod
+    def scheduler_alive(cls) -> bool:
+        """Whether the shared scheduler loop thread is actually running."""
+        thread = cls._scheduler_thread
+        return bool(thread is not None and thread.is_alive())
+
     async def update_all(self):
         """Update blacklists from all sources."""
         # Use follow_redirects to allow redirect handling
         async with httpx.AsyncClient(timeout=30.0, follow_redirects=True) as client:
             tasks = []
-            for source, url in self.sources.items():
+            total = len(self.sources)
+            for index, (source, url) in enumerate(self.sources.items(), 1):
+                callback = self.progress_callback
+                if callback is not None:
+                    try:
+                        callback(source, index, total)
+                    except Exception:
+                        self.logger.debug(f"Progress callback failed for {source}")
                 tasks.append(self._update_source(client, source, url))
             await asyncio.gather(*tasks)
 
@@ -455,5 +477,26 @@ class BlacklistUpdater:
             self.logger.debug(traceback.format_exc())
 
     def force_update(self):
-        """Force an immediate update of all blacklists."""
+        """Force an immediate update of all blacklists.
+
+        Rate limited: a second call within ``min_update_interval`` seconds of
+        the previous attempt is refused before any download starts, returning
+        ``{"updated": False, "reason": ...}``. A successful dispatch returns
+        ``{"updated": True}``.
+        """
+        now = time.monotonic()
+        with self._force_update_lock:
+            last = self._last_force_update
+            if last is not None and now - last < self.min_update_interval:
+                remaining = self.min_update_interval - (now - last)
+                return {
+                    "updated": False,
+                    "reason": (
+                        f"rate limited: last update started "
+                        f"{now - last:.0f}s ago; retry in {remaining:.0f}s "
+                        f"(min interval {self.min_update_interval}s)"
+                    ),
+                }
+            self._last_force_update = now
         asyncio.run(self.update_all())
+        return {"updated": True}
