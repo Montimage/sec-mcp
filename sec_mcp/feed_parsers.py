@@ -118,7 +118,7 @@ class FeedParser:
                 continue
             # Extract the network mask (before the first ';')
             netmask = line.split(';')[0].strip()
-            if not netmask:
+            if not netmask:  # pragma: no cover — ';'-leading lines are already skipped above
                 continue
             ip_val = netmask
             url_val = None

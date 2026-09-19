@@ -13,6 +13,18 @@ from sec_mcp.storage import create_storage
 from sec_mcp.storage_v2 import HybridStorage
 
 
+@pytest.fixture(autouse=True)
+def _v2_db_file(request, tmp_path):
+    """Give every class-based test a real temp DB path at ``self._db_file``.
+
+    ``:memory:`` is fail-closed since #49 — each connection sees a fresh
+    schema-less database — so tests that need a working v2 store must build
+    it on a real file.
+    """
+    if request.instance is not None:
+        request.instance._db_file = str(tmp_path / "test.db")
+
+
 class TestHybridStorageInitialization:
     """Test storage initialization and setup."""
 
@@ -33,7 +45,7 @@ class TestHybridStorageInitialization:
 
     def test_database_tables_created(self):
         """Test that all required tables are created."""
-        storage = HybridStorage(":memory:")
+        storage = HybridStorage(self._db_file)
         conn = sqlite3.connect(storage.db_path)
         cursor = conn.execute(
             "SELECT name FROM sqlite_master WHERE type='table'"
@@ -53,7 +65,7 @@ class TestDomainLookups:
 
     def test_exact_domain_match(self):
         """Test exact domain match."""
-        storage = HybridStorage(":memory:")
+        storage = HybridStorage(self._db_file)
         storage.add_domain("evil.com", "2025-01-01", 9.0, "test")
 
         assert storage.is_domain_blacklisted("evil.com") is True
@@ -61,7 +73,7 @@ class TestDomainLookups:
 
     def test_parent_domain_match(self):
         """Test parent domain matching."""
-        storage = HybridStorage(":memory:")
+        storage = HybridStorage(self._db_file)
         storage.add_domain("evil.com", "2025-01-01", 9.0, "test")
 
         # Subdomains should match parent domain
@@ -70,7 +82,7 @@ class TestDomainLookups:
 
     def test_case_insensitive_domain(self):
         """Test case-insensitive domain matching."""
-        storage = HybridStorage(":memory:")
+        storage = HybridStorage(self._db_file)
         storage.add_domain("Evil.Com", "2025-01-01", 9.0, "test")
 
         assert storage.is_domain_blacklisted("evil.com") is True
@@ -79,7 +91,7 @@ class TestDomainLookups:
 
     def test_domain_source_retrieval(self):
         """Test retrieving source of blacklisted domain."""
-        storage = HybridStorage(":memory:")
+        storage = HybridStorage(self._db_file)
         storage.add_domain("evil.com", "2025-01-01", 9.0, "TestSource")
 
         source = storage.get_domain_blacklist_source("evil.com")
@@ -97,7 +109,7 @@ class TestURLLookups:
 
     def test_exact_url_match(self):
         """Test exact URL matching."""
-        storage = HybridStorage(":memory:")
+        storage = HybridStorage(self._db_file)
         storage.add_url("http://example.com/malware", "2025-01-01", 8.5, "test")
 
         assert storage.is_url_blacklisted("http://example.com/malware") is True
@@ -106,7 +118,7 @@ class TestURLLookups:
 
     def test_url_source_retrieval(self):
         """Test retrieving source of blacklisted URL."""
-        storage = HybridStorage(":memory:")
+        storage = HybridStorage(self._db_file)
         storage.add_url("http://phishing.example.com/login", "2025-01-01", 9.0, "PhishTank")
 
         source = storage.get_url_blacklist_source("http://phishing.example.com/login")
@@ -121,7 +133,7 @@ class TestIPLookups:
 
     def test_exact_ip_match(self):
         """Test exact IP matching."""
-        storage = HybridStorage(":memory:")
+        storage = HybridStorage(self._db_file)
         storage.add_ip("192.168.1.100", "2025-01-01", 7.0, "test")
 
         assert storage.is_ip_blacklisted("192.168.1.100") is True
@@ -129,7 +141,7 @@ class TestIPLookups:
 
     def test_cidr_range_match(self):
         """Test CIDR range matching."""
-        storage = HybridStorage(":memory:")
+        storage = HybridStorage(self._db_file)
         storage.add_ip("10.0.0.0/8", "2025-01-01", 8.0, "test")
 
         # IPs in the range should match
@@ -142,7 +154,7 @@ class TestIPLookups:
 
     def test_ipv6_support(self):
         """Test IPv6 address support."""
-        storage = HybridStorage(":memory:")
+        storage = HybridStorage(self._db_file)
         storage.add_ip("2001:db8::1", "2025-01-01", 8.0, "test")
 
         assert storage.is_ip_blacklisted("2001:db8::1") is True
@@ -150,7 +162,7 @@ class TestIPLookups:
 
     def test_ip_source_retrieval(self):
         """Test retrieving source of blacklisted IP."""
-        storage = HybridStorage(":memory:")
+        storage = HybridStorage(self._db_file)
         storage.add_ip("203.0.113.42", "2025-01-01", 9.0, "SpamhausDROP")
 
         source = storage.get_ip_blacklist_source("203.0.113.42")
@@ -165,7 +177,7 @@ class TestBatchOperations:
 
     def test_add_domains_batch(self):
         """Test adding multiple domains at once."""
-        storage = HybridStorage(":memory:")
+        storage = HybridStorage(self._db_file)
 
         domains = [
             ("evil1.com", "2025-01-01", 9.0, "test"),
@@ -182,7 +194,7 @@ class TestBatchOperations:
 
     def test_add_urls_batch(self):
         """Test adding multiple URLs at once."""
-        storage = HybridStorage(":memory:")
+        storage = HybridStorage(self._db_file)
 
         urls = [
             ("http://phishing1.com/login", "2025-01-01", 9.0, "test"),
@@ -197,7 +209,7 @@ class TestBatchOperations:
 
     def test_add_ips_batch(self):
         """Test adding multiple IPs at once."""
-        storage = HybridStorage(":memory:")
+        storage = HybridStorage(self._db_file)
 
         ips = [
             ("192.168.1.1", "2025-01-01", 7.0, "test"),
@@ -217,7 +229,7 @@ class TestStatistics:
 
     def test_count_entries(self):
         """Test total entry count."""
-        storage = HybridStorage(":memory:")
+        storage = HybridStorage(self._db_file)
 
         storage.add_domain("evil.com", "2025-01-01", 9.0, "test")
         storage.add_url("http://phishing.com/login", "2025-01-01", 8.5, "test")
@@ -227,7 +239,7 @@ class TestStatistics:
 
     def test_get_source_counts(self):
         """Test getting counts per source."""
-        storage = HybridStorage(":memory:")
+        storage = HybridStorage(self._db_file)
 
         storage.add_domain("evil1.com", "2025-01-01", 9.0, "Source1")
         storage.add_domain("evil2.com", "2025-01-01", 9.0, "Source1")
@@ -241,7 +253,7 @@ class TestStatistics:
 
     def test_get_active_sources(self):
         """Test getting list of active sources."""
-        storage = HybridStorage(":memory:")
+        storage = HybridStorage(self._db_file)
 
         storage.add_domain("evil.com", "2025-01-01", 9.0, "OpenPhish")
         storage.add_url("http://phishing.com/login", "2025-01-01", 8.5, "PhishTank")
@@ -254,7 +266,7 @@ class TestStatistics:
 
     def test_sample_entries(self):
         """Test sampling random entries."""
-        storage = HybridStorage(":memory:")
+        storage = HybridStorage(self._db_file)
 
         # Add some entries
         for i in range(20):
@@ -296,7 +308,7 @@ class TestRemoval:
 
     def test_remove_domain(self):
         """Test removing a domain."""
-        storage = HybridStorage(":memory:")
+        storage = HybridStorage(self._db_file)
         storage.add_domain("evil.com", "2025-01-01", 9.0, "test")
 
         assert storage.is_domain_blacklisted("evil.com") is True
@@ -307,7 +319,7 @@ class TestRemoval:
 
     def test_remove_url(self):
         """Test removing a URL."""
-        storage = HybridStorage(":memory:")
+        storage = HybridStorage(self._db_file)
         storage.add_url("http://phishing.com/login", "2025-01-01", 8.5, "test")
 
         assert storage.is_url_blacklisted("http://phishing.com/login") is True
@@ -318,7 +330,7 @@ class TestRemoval:
 
     def test_remove_ip(self):
         """Test removing an IP."""
-        storage = HybridStorage(":memory:")
+        storage = HybridStorage(self._db_file)
         storage.add_ip("192.168.1.100", "2025-01-01", 7.0, "test")
 
         assert storage.is_ip_blacklisted("192.168.1.100") is True
@@ -362,7 +374,7 @@ class TestMetrics:
 
     def test_metrics_tracking(self):
         """Test that metrics are tracked correctly."""
-        storage = HybridStorage(":memory:")
+        storage = HybridStorage(self._db_file)
         storage.add_domain("evil.com", "2025-01-01", 9.0, "test")
 
         # Perform some lookups
@@ -385,7 +397,7 @@ class TestUpdateHistory:
 
     def test_log_update(self):
         """Test logging updates."""
-        storage = HybridStorage(":memory:")
+        storage = HybridStorage(self._db_file)
 
         storage.log_update("OpenPhish", 1000)
         storage.log_update("PhishTank", 2000)
@@ -400,7 +412,7 @@ class TestUpdateHistory:
 
     def test_filtered_update_history(self):
         """Test filtering update history."""
-        storage = HybridStorage(":memory:")
+        storage = HybridStorage(self._db_file)
 
         storage.log_update("OpenPhish", 1000)
         storage.log_update("PhishTank", 2000)

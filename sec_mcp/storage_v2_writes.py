@@ -148,7 +148,11 @@ class DualWriteMixin:
                 self._db.upsert_domains(domains)
             except (OSError, sqlite3.Error) as e:
                 self.logger.error(f"Failed to add domains batch: {e}")
-                # Reload from DB to ensure consistency
+                # Roll back the memory inserts — the re-merge is additive and
+                # alone would leave phantom entries the DB never stored.
+                for domain, *_ in domains:
+                    self._index.discard_domain(domain.lower())
+                # Re-merge DB truth so rows that pre-existed are restored.
                 self._load_domains_from_db()
                 raise
 
@@ -164,6 +168,11 @@ class DualWriteMixin:
                 self._db.upsert_urls(normalized_rows)
             except (OSError, sqlite3.Error) as e:
                 self.logger.error(f"Failed to add URLs batch: {e}")
+                # Roll back the memory inserts — the re-merge is additive and
+                # alone would leave phantom entries the DB never stored.
+                for url_normalized, *_ in normalized_rows:
+                    self._index.discard_url(url_normalized)
+                # Re-merge DB truth so rows that pre-existed are restored.
                 self._load_urls_from_db()
                 raise
 
@@ -179,6 +188,13 @@ class DualWriteMixin:
                 self._db.upsert_ips(persist)
             except (OSError, sqlite3.Error) as e:
                 self.logger.error(f"Failed to add IPs batch: {e}")
+                # Roll back the memory inserts — the re-merge is additive and
+                # alone would leave phantom entries the DB never stored.
+                for ip, *_ in persist:
+                    is_cidr = '/' in ip
+                    ip_int = None if is_cidr else ip_to_int(ip)
+                    self._index.discard_ip(ip, is_cidr, ip_int)
+                # Re-merge DB truth so rows that pre-existed are restored.
                 self._load_ips_from_db()
                 raise
 
