@@ -6,14 +6,14 @@ from typing import List, Optional
 from urllib.parse import urlparse
 
 import anyio
-from mcp.server.fastmcp import FastMCP
+from mcp.server.mcpserver import MCPServer
 
 # import SecMCP for server logic
 from .sec_mcp import SecMCP
 from .utility import validate_input
 
-# Initialize FastMCP server
-mcp = FastMCP("mcp-blacklist")
+# Initialize MCP server (SDK v2: FastMCP was renamed to MCPServer)
+mcp = MCPServer(name="mcp-blacklist")
 
 # Shared SecMCP instance for the MCP server, created lazily on first use:
 # importing this module must stay side-effect free — constructing SecMCP

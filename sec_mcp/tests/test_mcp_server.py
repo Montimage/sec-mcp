@@ -8,9 +8,11 @@ schemas and result shapes — the safety net for the SDK major upgrade.
 
 import json
 import sqlite3
+import sys
 
 import pytest
-from mcp.shared.memory import create_connected_server_and_client_session
+from mcp import StdioServerParameters
+from mcp.client import Client
 
 from sec_mcp import mcp_server
 from sec_mcp.storage import Storage
@@ -44,8 +46,13 @@ def backend_storage(request, tmp_path, monkeypatch):
 
 
 def _client_session():
-    """In-memory MCP client session wired to the real FastMCP server."""
-    return create_connected_server_and_client_session(mcp_server.mcp)
+    """In-memory MCP client wired to the real MCPServer.
+
+    SDK v2 removed ``create_connected_server_and_client_session``; ``Client``
+    accepts an ``MCPServer`` directly. ``mode="legacy"`` keeps the v1-style
+    in-memory JSON-RPC transport plus the initialize handshake.
+    """
+    return Client(mcp_server.mcp, mode="legacy")
 
 
 def _json_blocks(result):
@@ -178,7 +185,7 @@ async def test_tool_catalog_names_and_argument_schemas(backend_storage):
     tools = {t.name: t for t in listed.tools}
     assert set(tools) == set(EXPECTED_TOOLS)
     for name, (required, properties) in EXPECTED_TOOLS.items():
-        schema = tools[name].inputSchema
+        schema = tools[name].input_schema
         assert schema.get("type") == "object", name
         assert set(schema.get("properties", {})) == properties, name
         assert sorted(schema.get("required") or []) == required, name
@@ -191,7 +198,7 @@ async def test_call_check_batch_result_shape(backend_storage):
             "check_batch", {"values": ["example.com", "9.9.9.9"]}
         )
 
-    assert result.isError is False
+    assert result.is_error is False
     items = _json_blocks(result)
     assert [item["value"] for item in items] == ["example.com", "9.9.9.9"]
     for item in items:
@@ -205,7 +212,7 @@ async def test_call_get_status_result_shape(backend_storage):
     async with _client_session() as session:
         result = await session.call_tool("get_status", {})
 
-    assert result.isError is False
+    assert result.is_error is False
     (payload,) = _json_blocks(result)
     assert {
         "entry_count",
@@ -225,7 +232,7 @@ async def test_call_update_blacklists_result_shape(backend_storage, monkeypatch)
     async with _client_session() as session:
         result = await session.call_tool("update_blacklists", {})
 
-    assert result.isError is False
+    assert result.is_error is False
     (payload,) = _json_blocks(result)
     assert payload == {"updated": True}
 
@@ -235,7 +242,7 @@ async def test_call_get_diagnostics_summary_result_shape(backend_storage):
     async with _client_session() as session:
         result = await session.call_tool("get_diagnostics", {"mode": "summary"})
 
-    assert result.isError is False
+    assert result.is_error is False
     (payload,) = _json_blocks(result)
     assert payload["mode"] == "summary"
     assert {"total_entries", "per_source", "last_updates"} <= set(payload)
@@ -250,7 +257,7 @@ async def test_call_add_entry_result_shape(backend_storage):
             "add_entry", {"url": "evil.example", "score": 7.5}
         )
 
-    assert result.isError is False
+    assert result.is_error is False
     (payload,) = _json_blocks(result)
     assert payload == {"success": True}
     assert backend_storage.is_domain_blacklisted("evil.example")
@@ -262,7 +269,75 @@ async def test_call_remove_entry_result_shape(backend_storage):
         await session.call_tool("add_entry", {"url": "evil.example"})
         result = await session.call_tool("remove_entry", {"value": "evil.example"})
 
-    assert result.isError is False
+    assert result.is_error is False
     (payload,) = _json_blocks(result)
     assert payload == {"success": True}
     assert not backend_storage.is_domain_blacklisted("evil.example")
+
+
+# ============================================================================
+# Wire-level acceptance tests — real stdio transport (issue #34)
+# ============================================================================
+
+# tools/list contract: same six tool names, in registration order.
+EXPECTED_TOOL_ORDER = [
+    "check_batch",
+    "get_status",
+    "update_blacklists",
+    "get_diagnostics",
+    "add_entry",
+    "remove_entry",
+]
+
+# Versions the legacy initialize handshake can negotiate (all pre-2026).
+LEGACY_PROTOCOL_VERSIONS = {
+    "2024-11-05",
+    "2025-03-26",
+    "2025-06-18",
+    "2025-11-25",
+}
+
+
+def _stdio_params() -> StdioServerParameters:
+    """Server parameters that spawn the real stdio entry point.
+
+    ``env=None`` inherits this process's environment, so the hermetic
+    ``MCP_*`` paths conftest installed are honored by the subprocess too.
+    """
+    return StdioServerParameters(
+        command=sys.executable,
+        args=["-c", "from sec_mcp.start_server import main; main()"],
+    )
+
+
+@pytest.mark.asyncio
+async def test_stdio_discover_reports_2026_07_28():
+    """A server/discover request over stdio lists 2026-07-28 support."""
+    async with Client(_stdio_params(), mode="auto") as client:
+        # mode="auto" lands on 2026-07-28 only when server/discover answers.
+        assert client.protocol_version == "2026-07-28"
+        result = client.session.discover_result
+        assert result is not None
+        assert "2026-07-28" in result.supported_versions
+
+
+@pytest.mark.asyncio
+async def test_stdio_initialize_legacy_handshake():
+    """A legacy initialize handshake over stdio still succeeds."""
+    async with Client(_stdio_params(), mode="legacy") as client:
+        # The initialize handshake completed and negotiated a pre-2026 version.
+        assert client.protocol_version in LEGACY_PROTOCOL_VERSIONS
+        assert client.session.initialize_result is not None
+        tools = await client.list_tools()
+        assert [t.name for t in tools.tools] == EXPECTED_TOOL_ORDER
+
+
+@pytest.mark.asyncio
+async def test_stdio_tools_list_order_stable():
+    """tools/list returns the same 6 names in identical order across 3 calls."""
+    async with Client(_stdio_params(), mode="auto") as client:
+        orders = []
+        for _ in range(3):
+            listed = await client.list_tools()
+            orders.append([t.name for t in listed.tools])
+    assert orders[0] == orders[1] == orders[2] == EXPECTED_TOOL_ORDER
