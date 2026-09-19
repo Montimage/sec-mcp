@@ -2,18 +2,14 @@ import React from 'react';
 import CodeBlock from './CodeBlock';
 
 const MCPServer = () => {
+    // Keep in sync with the tools registered in sec_mcp/mcp_server.py (tools/list).
     const mcpTools = [
-        { name: 'check_blacklist', signature: 'check_blacklist(value: str)', description: 'Check a single value (domain, URL, or IP) against the blacklist.' },
-        { name: 'check_batch', signature: 'check_batch(values: List[str])', description: 'Bulk check multiple domains/URLs/IPs in one call.' },
-        { name: 'get_blacklist_status', signature: 'get_blacklist_status()', description: 'Get status of the blacklist, including entry counts and per-source breakdown.' },
-        { name: 'sample_blacklist', signature: 'sample_blacklist(count: int)', description: 'Return a random sample of blacklist entries.' },
-        { name: 'get_source_stats', signature: 'get_source_stats()', description: 'Retrieve detailed stats: total entries, per-source counts, last update timestamps.' },
-        { name: 'get_update_history', signature: 'get_update_history(...)', description: 'Fetch update history records, optionally filtered by source and time range.' },
-        { name: 'flush_cache', signature: 'flush_cache()', description: 'Clear the in-memory URL/IP cache.' },
-        { name: 'add_entry', signature: 'add_entry(url, ip, ...)', description: 'Manually add a blacklist entry.' },
-        { name: 'remove_entry', signature: 'remove_entry(value: str)', description: 'Remove a blacklist entry by URL or IP address.' },
-        { name: 'update_blacklists', signature: 'update_blacklists()', description: 'Force immediate update of all blacklists.' },
-        { name: 'health_check', signature: 'health_check()', description: 'Perform a health check of the database and scheduler.' }
+        { name: 'check_batch', signature: 'check_batch(values: List[str])', description: 'Check multiple domains/URLs/IPs in one call. Returns list of {value, is_safe, explanation}.' },
+        { name: 'get_status', signature: 'get_status()', description: 'Get blacklist status including entry counts and sources. Returns {entry_count, last_update, sources, server_status, source_counts}.' },
+        { name: 'update_blacklists', signature: 'update_blacklists()', description: 'Force immediate update of all blacklists. Returns {updated: bool}.' },
+        { name: 'get_diagnostics', signature: 'get_diagnostics(mode: str = "summary", sample_count: int = 10)', description: "Get diagnostic information. Mode options: 'summary' (default), 'full', 'health', 'performance', 'sample'." },
+        { name: 'add_entry', signature: 'add_entry(url, ip, date, score, source)', description: 'Add a manual blacklist entry.' },
+        { name: 'remove_entry', signature: 'remove_entry(value: str)', description: 'Remove a blacklist entry by URL or IP.' }
     ];
 
     return (
@@ -33,7 +29,7 @@ const MCPServer = () => {
                             <div className="bg-blue-50 p-4 rounded-md border border-blue-200">
                                 <h4 className="font-semibold text-blue-700 mb-2">Complete Setup Process</h4>
                                 <ol className="list-decimal list-inside space-y-1 text-gray-700">
-                                    <li>Create a virtual environment: <code className="bg-slate-900 text-yellow-400 px-2 py-0.5 rounded">python3.12 -m venv .venv</code></li>
+                                    <li>Create a virtual environment: <code className="bg-slate-900 text-yellow-400 px-2 py-0.5 rounded">python3 -m venv .venv</code></li>
                                     <li>Activate the environment: <code className="bg-slate-900 text-yellow-400 px-2 py-0.5 rounded">source .venv/bin/activate</code></li>
                                     <li>Install sec-mcp: <code className="bg-slate-900 text-yellow-400 px-2 py-0.5 rounded">pip install sec-mcp</code></li>
                                     <li>Verify status: <code className="bg-slate-900 text-yellow-400 px-2 py-0.5 rounded">sec-mcp status</code></li>
@@ -113,7 +109,7 @@ const MCPServer = () => {
 {`User: "Is example.com safe to visit?"
 
 AI: Let me check that URL for you.
-[Uses sec-mcp.check_blacklist tool]
+[Uses sec-mcp check_batch tool]
 
 I've checked example.com against our security database.
 The domain is not found in any blacklists and

@@ -35,18 +35,7 @@ const Hero = () => {
                             <span className="ml-4 text-slate-400 text-sm">code example</span>
                         </div>
                         <CodeBlock>
-{`# Step 3: Install the package
-pip install sec-mcp
-
-# Step 7: Configure MCP client (Claude, etc.)
-{
-  "mcpServers": {
-    "sec-mcp": {
-      "command": "/path/to/.venv/bin/python3",
-      "args": ["-m", "sec_mcp.start_server"]
-    }
-  }
-}`}
+{`sec-mcp check example.com`}
                         </CodeBlock>
                     </div>
                 </div>
