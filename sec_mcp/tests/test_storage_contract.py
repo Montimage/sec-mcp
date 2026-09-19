@@ -163,6 +163,15 @@ class TestContractRemovalThenLookup:
         assert storage.is_domain_blacklisted("evil.com") is False
         assert storage.get_domain_blacklist_source("evil.com") is None
 
+    def test_contract_remove_domain_case_insensitive(self, storage):
+        """remove_entry deletes the stored domain whatever case the caller passes."""
+        storage.add_domain("evil.com", "2025-01-01", 9.0, "test")
+        assert storage.is_domain_blacklisted("evil.com") is True
+
+        assert storage.remove_entry("EVIL.COM") is True
+        assert storage.is_domain_blacklisted("evil.com") is False
+        assert storage.get_domain_blacklist_source("evil.com") is None
+
     def test_contract_remove_url_then_lookup(self, storage):
         storage.add_url("http://phishing.com/login", "2025-01-01", 8.5, "test")
         assert storage.is_url_blacklisted("http://phishing.com/login") is True

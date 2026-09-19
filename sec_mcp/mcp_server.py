@@ -1,5 +1,6 @@
 import ipaddress
 import math
+import sqlite3
 import threading
 from datetime import datetime
 from typing import Annotated, Any, Dict, List, Literal, Optional
@@ -188,7 +189,7 @@ async def check_batch(
         # Protocol-level errors must keep raising so they surface as JSON-RPC
         # errors rather than tool results.
         raise
-    except Exception as exc:
+    except Exception as exc:  # noqa: BLE001 — tool boundary: any domain failure becomes an isError result
         return _error_result(exc)
 
 
@@ -199,8 +200,10 @@ async def get_status() -> Annotated[CallToolResult, GetStatusResult]:
     """Return current blacklist status, including per-source entry counts."""
     try:
         core = get_core()
-        status = core.get_status()
-        source_counts = core.storage.get_source_counts()
+        # One shared connection covers the status read and the source counts.
+        with core.storage.shared_connection():
+            status = core.get_status()
+            source_counts = core.storage.get_source_counts()
         return {
             "entry_count": status.entry_count,
             "last_update": status.last_update,
@@ -211,7 +214,7 @@ async def get_status() -> Annotated[CallToolResult, GetStatusResult]:
         }
     except MCPError:
         raise
-    except Exception as exc:
+    except Exception as exc:  # noqa: BLE001 — tool boundary: any domain failure becomes an isError result
         return _error_result(exc)
 
 
@@ -255,7 +258,7 @@ async def update_blacklists(ctx: Context) -> Annotated[CallToolResult, UpdateBla
         return result or {"updated": True}
     except MCPError:
         raise
-    except Exception as exc:
+    except Exception as exc:  # noqa: BLE001 — tool boundary: any domain failure becomes an isError result
         return _error_result(exc)
 
 
@@ -268,7 +271,8 @@ def _diag_health(core):
     db_ok = True
     try:
         core.storage.count_entries()
-    except Exception:
+    except (OSError, RuntimeError, sqlite3.Error):
+        # A health probe reports the failure rather than erroring out.
         db_ok = False
     scheduler_alive = core.scheduler_alive()
     last_update = core.get_status().last_update
@@ -316,7 +320,8 @@ def _diag_full(core):
     db_ok = True
     try:
         core.storage.count_entries()
-    except Exception:
+    except (OSError, RuntimeError, sqlite3.Error):
+        # A health probe reports the failure rather than erroring out.
         db_ok = False
 
     # Performance (if available)
@@ -392,7 +397,7 @@ async def get_diagnostics(
         return handler(core)
     except MCPError:
         raise
-    except Exception as exc:
+    except Exception as exc:  # noqa: BLE001 — tool boundary: any domain failure becomes an isError result
         return _error_result(exc)
 
 
@@ -438,7 +443,7 @@ async def add_entry(
         return {"success": True}
     except MCPError:
         raise
-    except Exception as exc:
+    except Exception as exc:  # noqa: BLE001 — tool boundary: any domain failure becomes an isError result
         return _error_result(exc)
 
 
@@ -454,5 +459,5 @@ async def remove_entry(
         return {"success": success}
     except MCPError:
         raise
-    except Exception as exc:
+    except Exception as exc:  # noqa: BLE001 — tool boundary: any domain failure becomes an isError result
         return _error_result(exc)

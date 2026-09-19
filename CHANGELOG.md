@@ -47,6 +47,19 @@ publishes to PyPI via trusted OIDC publishing.
   tables; single owned scheduler job with awaited updates and idempotent
   stop; valid JSON for `--json` CLI checks; platformdirs log/cache dirs with
   a single owned handler; Dshield ranges stored as CIDR networks.
+- `validate_input` accepts IPv6 literals — bare, bracketed (`[::1]`) and as
+  `http://` URL hosts — not just IPv4.
+- Domain removal is case-insensitive in both storages (v1 `remove_entry`,
+  v2 `SQLiteStore.delete_entry`), matching the lowercase lookup index.
+- v2 `add_ip` persistence failure rolls back the in-memory CIDR matcher
+  entry too, so a failed write can't keep matching member IPs.
+- `update_time` and `log_level` from `config.json` now drive the daily
+  scheduled update and startup logging; unused `db_path` key removed.
+- `SecMCP.get_status`/`check_batch` and the MCP `get_status` tool run their
+  reads on one shared connection.
+- Dead code removed: duplicate `SecMCP.check_batch`, unused
+  `BlacklistUpdater._is_domain_blacklisted`, unused config load in
+  `SecMCP.__init__`. `E722`/`BLE001`/`F811` are enabled and clean.
 
 ### Added
 - One in-memory index per entry type, shared URL normalization,

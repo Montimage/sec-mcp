@@ -265,8 +265,13 @@ class CidrIndex:
                 pass
 
     def discard(self, value: str) -> None:
-        """Rollback-side removal — metadata only, matching add()'s undo."""
-        self._cidr_metadata.pop(value, None)
+        """Rollback-side removal — undo ``add()`` in full.
+
+        ``add()`` inserts into the live matcher *and* the metadata map, so
+        the rollback must drop both: metadata alone would leave the range
+        matching member IPs until the next reload.
+        """
+        self.remove(value)
 
     def count(self) -> int:
         return len(self._cidr_metadata)
@@ -535,7 +540,8 @@ class EntryIndex(IndexMutationMixin, IndexAggregatesMixin):
                 self._domains.add(domain_lower)
                 self._domain_meta[domain_lower] = EntryMetadata(source, date, score)
                 loaded += 1
-            except Exception as e:
+            except (ValueError, SystemError) as e:
+                # Malformed rows and radix-tree rejects skip, never abort the load.
                 logger.warning(f"Skipping invalid domain entry: {e}")
                 errors += 1
         if errors > 0:
@@ -560,7 +566,8 @@ class EntryIndex(IndexMutationMixin, IndexAggregatesMixin):
                 self._urls.add(url_normalized)
                 self._url_meta[url_normalized] = EntryMetadata(source, date, score)
                 loaded += 1
-            except Exception as e:
+            except (ValueError, SystemError) as e:
+                # Malformed rows and radix-tree rejects skip, never abort the load.
                 logger.warning(f"Skipping invalid URL entry: {e}")
                 errors += 1
         if errors > 0:
@@ -587,7 +594,8 @@ class EntryIndex(IndexMutationMixin, IndexAggregatesMixin):
                     # Single IP - v0.4.0: Store IPv4 as integer
                     ips_as_int += self._load_single_ip(ip, EntryMetadata(source, date, score))
                     loaded_ips += 1
-            except Exception as e:
+            except (ValueError, SystemError) as e:
+                # Malformed rows and radix-tree rejects skip, never abort the load.
                 logger.warning(f"Skipping invalid IP entry: {e}")
                 errors += 1
         if errors > 0:

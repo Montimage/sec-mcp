@@ -156,12 +156,14 @@ class SQLiteStore:
         """Delete an entry from every blacklist table in one transaction.
 
         ``blacklist_url`` holds canonical forms, so the URL delete uses the
-        normalized value while domain/IP delete the raw one — matching the
-        shapes each table was written with.
+        normalized value. The domain delete matches case-insensitively:
+        the memory side indexes domains lowercased, so removing "EVIL.COM"
+        must also drop the stored "evil.com" row or it would resurrect on
+        the next reload.
         """
         conn = self.connect()
         try:
-            conn.execute("DELETE FROM blacklist_domain WHERE domain = ?", (value,))
+            conn.execute("DELETE FROM blacklist_domain WHERE LOWER(domain) = ?", (value.lower(),))
             conn.execute("DELETE FROM blacklist_url WHERE url = ?", (url_normalized,))
             conn.execute("DELETE FROM blacklist_ip WHERE ip = ?", (value,))
             conn.commit()

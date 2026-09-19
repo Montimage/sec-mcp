@@ -78,13 +78,13 @@ def import_storage_v2():
 
 try:
     StorageV1 = import_storage_v1()
-except Exception as e:
+except Exception as e:  # noqa: BLE001 — module init can fail any way; that backend is simply skipped
     print(f"Warning: Could not import v1 storage: {e}")
     StorageV1 = None
 
 try:
     StorageV2 = import_storage_v2()
-except Exception as e:
+except Exception as e:  # noqa: BLE001 — module init can fail any way; that backend is simply skipped
     print(f"Warning: Could not import v2 storage: {e}")
     StorageV2 = None
 
@@ -468,9 +468,9 @@ def run_benchmark(args):
                     for ext in ['', '-shm', '-wal']:
                         try:
                             os.unlink(tmp_path + ext)
-                        except:
+                        except OSError:
                             pass
-                except:
+                except OSError:
                     pass
 
     # Benchmark v0.3.0 (hybrid storage)
@@ -504,9 +504,9 @@ def run_benchmark(args):
                     for ext in ['', '-shm', '-wal']:
                         try:
                             os.unlink(tmp_path + ext)
-                        except:
+                        except OSError:
                             pass
-                except:
+                except OSError:
                     pass
 
     # Benchmark v0.4.0 (optimized hybrid storage)
@@ -540,9 +540,9 @@ def run_benchmark(args):
                     for ext in ['', '-shm', '-wal']:
                         try:
                             os.unlink(tmp_path + ext)
-                        except:
+                        except OSError:
                             pass
-                except:
+                except OSError:
                     pass
 
     # Print comparison

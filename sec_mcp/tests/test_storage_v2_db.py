@@ -49,6 +49,14 @@ class TestSchema:
         finally:
             conn.close()
 
+    def test_init_schema_marks_canonicalization_done(self, tmp_path):
+        """init_db stamps ``PRAGMA user_version`` so re-opens skip the URL rescan."""
+        db_path = str(tmp_path / "versioned.db")
+        SQLiteStore(db_path).init_schema()
+
+        (version,) = _rows(db_path, "PRAGMA user_version")[0]
+        assert version >= 1
+
 
 class TestRowReadsAndWrites:
     def test_domain_roundtrip(self, store):
@@ -108,6 +116,14 @@ class TestDeleteEntry:
         assert list(store.iter_url_rows()) == [
             ("http://evil.com/x", "test", "2025-01-01", 8.5)
         ]
+
+    def test_delete_entry_domain_case_insensitive(self, store):
+        """The domain delete matches the stored row regardless of caller case."""
+        store.upsert_domain("evil.com", "2025-01-01", 9.0, "test")
+
+        store.delete_entry("EVIL.COM", "http://evil.com")
+
+        assert list(store.iter_domain_rows()) == []
 
     def test_delete_entry_removes_canonical_url(self, store):
         store.upsert_url("http://evil.com", "2025-01-01", 8.5, "test")

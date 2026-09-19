@@ -39,7 +39,7 @@ class FeedParser:
         parser = self._PARSERS.get(source, FeedParser._parse_generic)
         try:
             return parser(self, source, content)
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — a failed parser must abort this source, never the whole update
             self.logger.error(f"Parsing error for {source}: {e}. Raw content head: {content[:300]}")
             return None
 
@@ -230,7 +230,7 @@ class FeedParser:
                 date_val = parts[2] if len(parts) > 2 and parts[2] else now_str
                 try:
                     score_val = float(parts[3]) if len(parts) > 3 and parts[3] else 8
-                except Exception:
+                except (ValueError, TypeError):
                     score_val = 8
             else:
                 # Determine if the single value is an IP address or URL

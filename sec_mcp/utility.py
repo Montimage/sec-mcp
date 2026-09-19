@@ -34,7 +34,11 @@ def package_version() -> str:
 def setup_logging(log_level: str = "INFO") -> None:
     """Configure logging for the MCP client and server."""
     global _file_handler
-    level = getattr(logging, log_level)
+    # Unknown or non-string levels fall back to INFO rather than crashing —
+    # the value can come straight from config.json's "log_level". Level
+    # names are ints on the logging module; anything else is not a level.
+    _level = getattr(logging, str(log_level).upper(), None)
+    level = _level if isinstance(_level, int) else logging.INFO
     with _logging_lock:
         # Configure console output
         logging.basicConfig(
@@ -82,11 +86,27 @@ def validate_input(value: str) -> bool:
         r'(?:/?|[/?]\S+)$', re.IGNORECASE)
     if url_pattern.match(value):
         return True
-    # IP address validation (strict)
-    try:
-        ip = ipaddress.ip_address(value)
-        if ip.version == 4:
+    # URLs whose host is an IP literal — bare IPv4 or bracketed IPv6 —
+    # fail the domain-TLD pattern above but are still valid URLs.
+    url_host = re.match(r'^https?://([^/?#]+)', value, re.IGNORECASE)
+    if url_host:
+        literal = url_host.group(1).rsplit('@', 1)[-1]  # drop any userinfo
+        if literal.startswith('['):
+            # Bracketed IPv6 host; an unbalanced bracket is not an IP literal.
+            literal = literal[1:literal.index(']')] if ']' in literal else ''
+        else:
+            literal = literal.split(':', 1)[0]  # drop any :port
+        try:
+            ipaddress.ip_address(literal)
             return True
+        except ValueError:
+            pass
+    # IP address validation (strict) — IPv4 and IPv6; URIs spell IPv6
+    # literals bracketed ("[::1]"), so accept that form as well.
+    candidate = value[1:-1] if value.startswith('[') and value.endswith(']') else value
+    try:
+        ipaddress.ip_address(candidate)
+        return True
     except ValueError:
         pass
     # Domain validation (must have at least one dot and valid TLD)

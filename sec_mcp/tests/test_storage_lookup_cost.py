@@ -160,7 +160,7 @@ def test_lookup_cost_cidr_load_cannot_overwrite_invalidation(tmp_path, monkeypat
     def load():
         try:
             storage._cidr_entries()
-        except Exception as exc:  # surfaced below, not lost in the thread
+        except Exception as exc:  # noqa: BLE001 — surfaced below, not lost in the thread
             loader_errors.append(exc)
 
     loader = threading.Thread(target=load)

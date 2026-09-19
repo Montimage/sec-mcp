@@ -196,8 +196,9 @@ def normalize_url(url: str) -> str:
         ))
 
         return normalized
-    except Exception:
-        # If normalization fails, return original lowercase
+    except ValueError:
+        # urlparse rejects some malformed hosts (e.g. bad IPv6 brackets) —
+        # return the original lowercase so the lookup simply misses.
         return url.lower()
 
 
@@ -224,8 +225,15 @@ def _canonicalize_url_rows(conn: sqlite3.Connection) -> None:
             )
 
 
+# ``PRAGMA user_version`` marks one-shot migrations already applied so
+# re-opening a database skips them. Version 1 = ``blacklist_url`` rows
+# canonicalized to ``normalize_url`` form.
+SCHEMA_VERSION = 1
+
+
 def init_db(db_path: str) -> None:
-    """Apply the shared PRAGMAs and create the schema in the database at ``db_path``."""
+    """Apply the shared PRAGMAs, create the schema and run pending one-shot
+    migrations in the database at ``db_path``."""
     with sqlite3.connect(db_path) as conn:
         for pragma in DB_PRAGMAS:
             conn.execute(pragma)
@@ -233,7 +241,11 @@ def init_db(db_path: str) -> None:
             conn.execute(statement)
         for statement in LEGACY_PK_DUPLICATE_INDEXES:
             conn.execute(statement)
-        _canonicalize_url_rows(conn)
+        # _canonicalize_url_rows rewrites every stored URL — too expensive
+        # to re-run on every open, so it runs once and stamps user_version.
+        if conn.execute("PRAGMA user_version").fetchone()[0] < 1:
+            _canonicalize_url_rows(conn)
+            conn.execute(f"PRAGMA user_version = {SCHEMA_VERSION}")
         conn.commit()
 
 

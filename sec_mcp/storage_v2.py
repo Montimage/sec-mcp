@@ -105,7 +105,9 @@ class StorageMetrics:
             import psutil
             process = psutil.Process()
             self.memory_usage_mb = process.memory_info().rss / 1024 / 1024
-        except (ImportError, Exception):
+        except (ImportError, OSError):
+            # Best-effort metric: psutil missing or the process query failing
+            # (its errors subclass OSError) just reports 0.
             self.memory_usage_mb = 0.0
 
         total_lookups = self.total_lookups
@@ -226,7 +228,7 @@ class HybridStorage(DualWriteMixin, StorageStatsMixin, StorageProtocol):
             self._init_db()
             self._load_all_data()
             self._loading.set()
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — fail-closed: any init failure releases waiters and surfaces as RuntimeError
             self._loading.set()
             raise RuntimeError(
                 f"Cannot initialize database at {self.db_path}: {e}. Check directory permissions and disk space."
@@ -439,7 +441,7 @@ class HybridStorage(DualWriteMixin, StorageStatsMixin, StorageProtocol):
         try:
             self._load_all_data()
             return True
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — the flush contract reports any reload failure as False
             self.logger.error(f"Failed to flush cache: {e}")
             return False
 
