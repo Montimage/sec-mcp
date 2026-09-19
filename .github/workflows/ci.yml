@@ -48,12 +48,12 @@ jobs:
       - name: Test suite (baseline gate)
         run: ./scripts/check_test_baseline.sh
 
-      - name: Coverage report (informational)
-        # Reports the `pytest --cov=sec_mcp` number for the M3 milestone; it
-        # is not a gate. The suite is known-RED (baseline-gated above), so
-        # pytest exits 1 — `|| true` keeps this step informational. A real
-        # suite crash is already caught by the baseline gate step.
-        run: uv run pytest --cov=sec_mcp --cov-report=term -q -p no:cacheprovider || true
+      - name: Coverage gate (M3 target: 98%)
+        # The M3 coverage bound recorded in
+        # docs/decisions/2026-09-19-coverage-m3-target.md is 98% — enforced
+        # here now that the suite is fully green (the known-RED :memory:
+        # failures were fixed under #55).
+        run: uv run pytest --cov=sec_mcp --cov-report=term --cov-fail-under=98 -q -p no:cacheprovider
 
   landing:
     name: Landing page build

@@ -34,8 +34,8 @@ scheduler thread (see `docs/agent-env.md`).
 
 ## Done when
 - Build + suite green using the commands in `docs/agent-env.md` — the suite is
-  a known-RED baseline right now; a change is done when it adds no new failures
-  vs baseline
+  fully green since #55; a change is done when it keeps it green and holds the
+  `--cov-fail-under=98` CI coverage gate
 - New behavior has a test
 
 ## Read when needed

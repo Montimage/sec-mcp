@@ -122,10 +122,10 @@ class TestAPICompatibility:
         assert hasattr(v2, 'get_update_history')
         assert hasattr(v2, 'get_source_type_counts')
 
-    def test_same_method_signatures(self):
+    def test_same_method_signatures(self, tmp_path):
         """Test that methods have compatible signatures."""
         v1 = Storage(":memory:")
-        v2 = HybridStorage(":memory:")
+        v2 = HybridStorage(str(tmp_path / "v2.db"))
 
         # Add domain
         v1.add_domain("evil1.com", "2025-01-01", 9.0, "test")
@@ -290,9 +290,9 @@ class TestV040Optimizations:
         # Test IPv6 returns None (not converted to int)
         assert ip_to_int("2001:db8::1") is None
 
-    def test_optimization_metrics_in_get_metrics(self):
+    def test_optimization_metrics_in_get_metrics(self, tmp_path):
         """Test that get_metrics returns v0.4.0 optimization metrics."""
-        storage = HybridStorage(":memory:")
+        storage = HybridStorage(str(tmp_path / "opt.db"))
 
         storage.add_url("http://evil.com/?utm_source=test", "2025-01-01", 9.0, "PhishTank")
         storage.add_ip("192.168.1.1", "2025-01-01", 8.0, "BlocklistDE")

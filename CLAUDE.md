@@ -8,4 +8,4 @@
 
 ## Claude-only
 - Before running Python, check for an existing venv (`.venv/`, `venv/`) and activate it — or use `uv run`; never install into the system Python.
-- Test baseline `R`: **32/64 passed** (`uv run pytest -q -p no:cacheprovider`). The remaining failures are pre-existing bugs tracked by later issues — a change is done when it does not reduce `R`.
+- Test baseline `R`: **32/64 passed** — the suite is fully green since #55 (the known-RED `:memory:` tests were retargeted to real DBs); the `scripts/check_test_baseline.sh` floor stays 32/64 so a change is still done when it does not regress below `R`.

@@ -23,5 +23,5 @@ def main():
     print("Starting MCP server with STDIO transport...", file=sys.stderr)
     mcp.run(transport='stdio')
 
-if __name__ == "__main__":
+if __name__ == "__main__":  # pragma: no cover — entrypoint guard
     main()
