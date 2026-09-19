@@ -50,30 +50,33 @@ class SecMCP:
         - If a URL is blacklisted, its domain is NOT considered blacklisted.
         """
         value = value.strip()
-        if self.is_ip(value):
-            if self.storage.is_ip_blacklisted(value):
-                src = self.storage.get_ip_blacklist_source(value)
-                return CheckResult(True, f"Blacklisted IP by {src}")
-            return CheckResult(False, "Not blacklisted")
-        elif self.is_url(value):
-            # 1. If the URL itself is blacklisted, return blacklisted (do NOT check domain as blacklisted by URL)
-            if self.storage.is_url_blacklisted(value):
-                src = self.storage.get_url_blacklist_source(value)
-                return CheckResult(True, f"Blacklisted URL by {src}")
-            # 2. If the domain or any parent domain is blacklisted, the URL is also blacklisted
-            domain = self.extract_domain(value)
-            if domain and self.storage.is_domain_blacklisted(domain):
-                src = self.storage.get_domain_blacklist_source(domain)
-                return CheckResult(True, f"Blacklisted domain by {src}")
-            return CheckResult(False, "Not blacklisted")
-        elif self.is_domain(value):
-            # Only consider domain entries, not URLs
-            if self.storage.is_domain_blacklisted(value):
-                src = self.storage.get_domain_blacklist_source(value)
-                return CheckResult(True, f"Blacklisted domain by {src}")
-            return CheckResult(False, "Not blacklisted")
-        else:
-            return CheckResult(False, "Invalid input type")
+        # One shared connection for the whole check: the storage calls below
+        # reuse it instead of paying one sqlite3.connect each.
+        with self.storage.shared_connection():
+            if self.is_ip(value):
+                if self.storage.is_ip_blacklisted(value):
+                    src = self.storage.get_ip_blacklist_source(value)
+                    return CheckResult(True, f"Blacklisted IP by {src}")
+                return CheckResult(False, "Not blacklisted")
+            elif self.is_url(value):
+                # 1. If the URL itself is blacklisted, return blacklisted (do NOT check domain as blacklisted by URL)
+                if self.storage.is_url_blacklisted(value):
+                    src = self.storage.get_url_blacklist_source(value)
+                    return CheckResult(True, f"Blacklisted URL by {src}")
+                # 2. If the domain or any parent domain is blacklisted, the URL is also blacklisted
+                domain = self.extract_domain(value)
+                if domain and self.storage.is_domain_blacklisted(domain):
+                    src = self.storage.get_domain_blacklist_source(domain)
+                    return CheckResult(True, f"Blacklisted domain by {src}")
+                return CheckResult(False, "Not blacklisted")
+            elif self.is_domain(value):
+                # Only consider domain entries, not URLs
+                if self.storage.is_domain_blacklisted(value):
+                    src = self.storage.get_domain_blacklist_source(value)
+                    return CheckResult(True, f"Blacklisted domain by {src}")
+                return CheckResult(False, "Not blacklisted")
+            else:
+                return CheckResult(False, "Invalid input type")
 
     # Note: When adding, only add a domain if it is explicitly blacklisted as a domain; do not add a domain just because a URL is blacklisted.
 
@@ -81,10 +84,11 @@ class SecMCP:
         """Check a domain (and parent domains) against the domain blacklist.
         - Do NOT consider URLs from this domain as evidence of blacklisting the domain.
         """
-        if self.storage.is_domain_blacklisted(domain):
-            src = self.storage.get_domain_blacklist_source(domain)
-            return CheckResult(True, f"Blacklisted domain by {src}")
-        return CheckResult(False, "Not blacklisted")
+        with self.storage.shared_connection():
+            if self.storage.is_domain_blacklisted(domain):
+                src = self.storage.get_domain_blacklist_source(domain)
+                return CheckResult(True, f"Blacklisted domain by {src}")
+            return CheckResult(False, "Not blacklisted")
 
     def check_url(self, url: str) -> CheckResult:
         """Check a URL against the URL and domain blacklist, following rules:
@@ -92,27 +96,31 @@ class SecMCP:
         - If the domain or any parent domain is blacklisted, the URL is blacklisted.
         - If only the URL is blacklisted, do NOT consider the domain blacklisted.
         """
-        if self.storage.is_url_blacklisted(url):
-            src = self.storage.get_url_blacklist_source(url)
-            return CheckResult(True, f"Blacklisted URL by {src}")
-        domain = self.extract_domain(url)
-        if domain and self.storage.is_domain_blacklisted(domain):
-            src = self.storage.get_domain_blacklist_source(domain)
-            return CheckResult(True, f"Blacklisted domain by {src}")
-        return CheckResult(False, "Not blacklisted")
+        with self.storage.shared_connection():
+            if self.storage.is_url_blacklisted(url):
+                src = self.storage.get_url_blacklist_source(url)
+                return CheckResult(True, f"Blacklisted URL by {src}")
+            domain = self.extract_domain(url)
+            if domain and self.storage.is_domain_blacklisted(domain):
+                src = self.storage.get_domain_blacklist_source(domain)
+                return CheckResult(True, f"Blacklisted domain by {src}")
+            return CheckResult(False, "Not blacklisted")
 
     # Note: When adding, only add a domain if it is explicitly blacklisted as a domain; do not add a domain just because a URL is blacklisted.
 
     def check_ip(self, ip: str) -> CheckResult:
         """Check an IP against the IP blacklist."""
-        if self.storage.is_ip_blacklisted(ip):
-            src = self.storage.get_ip_blacklist_source(ip)
-            return CheckResult(True, f"Blacklisted IP by {src}")
-        return CheckResult(False, "Not blacklisted")
+        with self.storage.shared_connection():
+            if self.storage.is_ip_blacklisted(ip):
+                src = self.storage.get_ip_blacklist_source(ip)
+                return CheckResult(True, f"Blacklisted IP by {src}")
+            return CheckResult(False, "Not blacklisted")
 
     def check_batch(self, values: List[str]) -> List[CheckResult]:
         """Check multiple values against the blacklist."""
-        return [self.check(value) for value in values]
+        # shared_connection is reentrant — the batch runs on one connection.
+        with self.storage.shared_connection():
+            return [self.check(value) for value in values]
 
     @staticmethod
     def is_url(value: str) -> bool:
@@ -147,7 +155,9 @@ class SecMCP:
 
     def check_batch(self, values: List[str]) -> List[CheckResult]:
         """Check multiple values against the blacklist."""
-        return [self.check(value) for value in values]
+        # shared_connection is reentrant — the batch runs on one connection.
+        with self.storage.shared_connection():
+            return [self.check(value) for value in values]
 
     def get_status(self) -> StatusInfo:
         """Get current status of the blacklist service."""

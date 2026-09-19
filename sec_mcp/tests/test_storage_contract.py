@@ -56,6 +56,7 @@ class TestStorageProtocolConformance:
             "get_update_history",
             "log_update",
             "flush_cache",
+            "shared_connection",
         ):
             assert callable(getattr(storage, method, None)), method
 
