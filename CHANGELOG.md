@@ -9,12 +9,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 Post-0.4.0 modernization work on `main`, not yet released.
 
-### Security
+### Changed
 - `mcp[cli]` migrated to the 2.x SDK (`>=2.2,<3`): `FastMCP` renamed to
   `MCPServer`, tool declarations carry keyword constructors, typed return
   models and annotations.
-
-### Changed
 - v2 storage keeps one in-memory index per entry type instead of tiered
   hot/cold indexes; snapshot swap on reload keeps reads consistent.
 - `storage_base.normalize_url` is the single canonicalizer shared by both

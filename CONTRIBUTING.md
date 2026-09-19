@@ -75,8 +75,8 @@ Full env-var reference: `docs/agent-env.md`.
   `BLE001`; see `pyproject.toml`).
 - New behavior gets a test. Minimal diffs — don't refactor outside the
   issue's scope.
-- CI runs the suite on Python 3.11, 3.12, 3.13 and 3.14; it also builds the
-  landing page on PRs that touch `react-landing-page/`.
+- CI runs the suite on Python 3.11, 3.12, 3.13 and 3.14, and builds the
+  `react-landing-page/` Vite site on every PR.
 
 ## Branch and commit conventions
 
