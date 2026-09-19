@@ -98,5 +98,6 @@ target-version = "py311"
 #   F811 — duplicate definitions (sec_mcp.check_batch, inner re-imports)
 #   F841 — unused locals needing a human decision
 # Other families (E/W/UP/B/…) are out of scope for this pass and unselected.
-select = ["F", "I"]
+# ASYNC (adopted for issue #58): no blocking I/O on the event loop.
+select = ["F", "I", "ASYNC"]
 ignore = ["F811", "F841"]

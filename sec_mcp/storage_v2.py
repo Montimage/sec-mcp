@@ -18,6 +18,7 @@ Optimizations:
 """
 
 import ipaddress
+import itertools
 import logging
 import os
 import random
@@ -1331,21 +1332,34 @@ class HybridStorage:
         return list(sources)
 
     def sample_entries(self, count: int = 10) -> List[str]:
-        """Return a random sample of entries."""
-        all_entries = (
-            list(self._domains) +
-            list(self._urls) +
-            list(self._ips) +
-            [int_to_ip(ip_int) for ip_int in self._ips_int] +
-            list(self._ips_str) +
-            list(self._cidr_metadata.keys())
-        )
+        """Return a random sample of entries.
 
-        if not all_entries:
+        Reservoir sampling over the in-memory pools: uniform selection with
+        O(count) extra space, so sampling never materializes a list of all
+        entries even on a multi-hundred-thousand-entry store.
+        """
+        if count <= 0:
             return []
-
-        sample_size = min(count, len(all_entries))
-        return random.sample(all_entries, sample_size)
+        reservoir: List[str] = []
+        seen = 0
+        with self._lock:
+            pools = itertools.chain(
+                self._domains,
+                self._urls,
+                self._ips,
+                (int_to_ip(ip_int) for ip_int in self._ips_int),
+                self._ips_str,
+                self._cidr_metadata,
+            )
+            for entry in pools:
+                seen += 1
+                if len(reservoir) < count:
+                    reservoir.append(entry)
+                else:
+                    slot = random.randrange(seen)
+                    if slot < count:
+                        reservoir[slot] = entry
+        return reservoir
 
     def get_last_update(self) -> datetime:
         """Get timestamp of last update from database."""
