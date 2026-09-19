@@ -15,7 +15,9 @@ These tests pin the new costs:
 ``pytest -k "lookup_cost or cache_bound"`` selects this whole file.
 """
 
+import ipaddress
 import sqlite3
+import threading
 
 from sec_mcp.sec_mcp import SecMCP
 from sec_mcp.storage import Storage
@@ -126,6 +128,61 @@ def test_lookup_cost_cidr_cache_tracks_writes(tmp_path):
     assert storage.remove_entry("10.0.0.0/8") is True
     assert storage.is_ip_blacklisted("10.1.2.3") is False
     assert storage.get_ip_blacklist_source("10.1.2.3") is None
+
+
+def test_lookup_cost_cidr_load_cannot_overwrite_invalidation(tmp_path, monkeypatch):
+    """A range load in flight during a write can never store over the invalidation.
+
+    The loader fetches its snapshot, a writer commits a new CIDR row and
+    invalidates, then the loader stores: serialized under ``_cidr_lock``
+    the store must be followed by the invalidation, so the new range still
+    matches — before the fix the stale store persisted and the new CIDR's
+    members missed the blacklist until the next write.
+    """
+    storage = Storage(str(tmp_path / "cidr_race.db"))
+    storage.add_ip("10.0.0.0/8", "2025-01-01", 8.0, "SrcA")
+
+    loading = threading.Event()
+    release = threading.Event()
+    real_ip_network = ipaddress.ip_network
+
+    def pausing_ip_network(*args, **kwargs):
+        # Pause between the loader's fetch and its store — the window in
+        # which a committed write's invalidation could be overwritten.
+        loading.set()
+        assert release.wait(5), "test did not release the loader"
+        return real_ip_network(*args, **kwargs)
+
+    monkeypatch.setattr(ipaddress, "ip_network", pausing_ip_network)
+
+    loader_errors = []
+
+    def load():
+        try:
+            storage._cidr_entries()
+        except Exception as exc:  # surfaced below, not lost in the thread
+            loader_errors.append(exc)
+
+    loader = threading.Thread(target=load)
+    loader.start()
+    assert loading.wait(5), "loader never reached the range parse"
+
+    # The writer commits the new row, then blocks on _cidr_lock — held by
+    # the in-flight load — before its invalidation can run.
+    writer = threading.Thread(
+        target=storage.add_ip, args=("192.168.0.0/16", "2025-01-01", 8.0, "SrcB")
+    )
+    writer.start()
+    release.set()
+    loader.join(5)
+    writer.join(5)
+    assert not loader.is_alive() and not writer.is_alive()
+    assert loader_errors == []
+
+    # However the load and the invalidation interleaved, the new CIDR's
+    # members are blacklisted — the stale snapshot could not win.
+    assert storage.is_ip_blacklisted("192.168.5.5") is True
+    assert storage.get_ip_blacklist_source("192.168.5.5") == "SrcB"
 
 
 def test_lookup_cost_schema_has_no_pk_duplicate_indexes(tmp_path):

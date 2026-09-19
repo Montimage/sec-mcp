@@ -119,26 +119,31 @@ class Storage(storage_base.StorageProtocol):
 
         The one SELECT this pays fetches only CIDR rows; every later IP
         lookup matches in memory — zero full-table CIDR scans per lookup.
+
+        The whole load runs under ``_cidr_lock``: a writer always commits
+        *before* calling ``_invalidate_cidr_ranges``, so serializing the
+        check + fetch + store against invalidation means a range list read
+        before a commit can never be stored after that commit's
+        invalidation — the stale store would otherwise leave a new CIDR
+        permanently unmatched until the next write.
         """
         with self._cidr_lock:
-            cached = self._cidr_ranges
-        if cached is not None:
-            return cached
-        with self._connection() as conn:
-            rows = conn.execute(
-                "SELECT ip, source FROM blacklist_ip WHERE INSTR(ip, '/') > 0"
-            ).fetchall()
-        ranges = []
-        for net_str, source in rows:
-            try:
-                ranges.append((ipaddress.ip_network(net_str, strict=False), source))
-            except ValueError:
-                # Invalid network string in DB — skip it, exactly as the
-                # per-lookup scan used to.
-                continue
-        with self._cidr_lock:
+            if self._cidr_ranges is not None:
+                return self._cidr_ranges
+            with self._connection() as conn:
+                rows = conn.execute(
+                    "SELECT ip, source FROM blacklist_ip WHERE INSTR(ip, '/') > 0"
+                ).fetchall()
+            ranges = []
+            for net_str, source in rows:
+                try:
+                    ranges.append((ipaddress.ip_network(net_str, strict=False), source))
+                except ValueError:
+                    # Invalid network string in DB — skip it, exactly as the
+                    # per-lookup scan used to.
+                    continue
             self._cidr_ranges = ranges
-        return ranges
+            return ranges
 
     def _invalidate_cidr_ranges(self) -> None:
         """Drop the cached CIDR ranges after a write to blacklist_ip."""
