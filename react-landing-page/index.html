@@ -11,6 +11,14 @@
     <link rel="describedby" href="/sec-mcp/llms.txt" />
     <link rel="alternate" type="text/markdown" href="/sec-mcp/index.md" />
 
+    <!-- Agent discovery (RFC 8288 / RFC 9727): GitHub Pages serves a fixed
+         header set and cannot emit HTTP `Link:` response headers, so the
+         links such a header would carry are serialized here as HTML <link>
+         elements — the equivalent in-document serialization. -->
+    <link rel="api-catalog" href="/sec-mcp/.well-known/api-catalog" />
+    <link rel="service-desc" type="application/json" href="/sec-mcp/server.json" />
+    <link rel="service-doc" type="text/markdown" href="/sec-mcp/index.md" />
+
     <link rel="icon" type="image/svg+xml" href="favicon.svg" />
     <link rel="apple-touch-icon" href="apple-touch-icon.svg" />
     <link rel="manifest" href="manifest.json" />

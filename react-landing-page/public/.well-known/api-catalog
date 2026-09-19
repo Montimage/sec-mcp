@@ -1,0 +1,42 @@
+{
+  "linkset": [
+    {
+      "anchor": "https://montimage.github.io/sec-mcp/.well-known/api-catalog",
+      "profile": [
+        { "href": "https://www.rfc-editor.org/info/rfc9727" }
+      ],
+      "item": [
+        { "href": "https://montimage.github.io/sec-mcp/" }
+      ]
+    },
+    {
+      "anchor": "https://montimage.github.io/sec-mcp/",
+      "service-desc": [
+        {
+          "href": "https://montimage.github.io/sec-mcp/server.json",
+          "type": "application/json",
+          "title": "MCP server manifest (modelcontextprotocol.io server schema)"
+        }
+      ],
+      "service-doc": [
+        {
+          "href": "https://montimage.github.io/sec-mcp/index.md",
+          "type": "text/markdown",
+          "title": "sec-mcp documentation — Python library, CLI and MCP server"
+        },
+        {
+          "href": "https://github.com/Montimage/sec-mcp#readme",
+          "type": "text/html",
+          "title": "sec-mcp repository README"
+        }
+      ],
+      "describedby": [
+        {
+          "href": "https://montimage.github.io/sec-mcp/llms.txt",
+          "type": "text/plain",
+          "title": "llms.txt — agent-oriented site overview"
+        }
+      ]
+    }
+  ]
+}
