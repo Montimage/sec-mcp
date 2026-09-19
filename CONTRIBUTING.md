@@ -2,7 +2,8 @@
 
 Thanks for helping improve sec-mcp. This file covers the dev setup, the test
 and lint commands CI enforces, and the branch/commit/PR conventions used in
-this repository.
+this repository. All contributors are expected to follow the
+[Code of Conduct](CODE_OF_CONDUCT.md).
 
 ## Dev setup
 

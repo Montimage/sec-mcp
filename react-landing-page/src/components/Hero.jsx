@@ -8,7 +8,7 @@ const STATS = [
     { value: '10', unit: 'feeds', note: 'Threat sources' },
     { value: '0.006', unit: 'ms', note: 'Domain lookup' },
     { value: '~45', unit: 'MB', note: '450K entries in memory' },
-    { value: 'MIT', unit: '', note: 'Open source' },
+    { value: 'Apache-2.0', unit: '', note: 'Open source' },
 ];
 
 const Hero = () => (
