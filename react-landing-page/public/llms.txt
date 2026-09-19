@@ -5,6 +5,7 @@
 ## Project
 
 - [Landing page](https://montimage.github.io/sec-mcp/): Feature overview, recorded CLI demo, install and API reference
+- [Landing page (Markdown)](https://montimage.github.io/sec-mcp/index.md): Same content as Markdown for agents
 - [GitHub repository](https://github.com/montimage/sec-mcp): Source code, README and issue tracker
 - [PyPI package](https://pypi.org/project/sec-mcp/): pip install sec-mcp
 
