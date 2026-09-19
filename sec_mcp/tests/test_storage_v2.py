@@ -2,7 +2,9 @@
 
 import os
 import sqlite3
+import sys
 import tempfile
+import threading
 import tracemalloc
 
 import pytest
@@ -483,6 +485,111 @@ def test_fail_closed_no_silent_v1_fallback(tmp_path, monkeypatch):
     db.write_bytes(b"not a sqlite database" * 64)
     with pytest.raises(RuntimeError):
         create_storage(str(db))
+
+
+class TestV2StateConsistency:
+    """Issue #49 — v2 state consistency acceptance tests.
+
+    All selected by ``-k "v2 and (count or cidr or reload)"``.
+    """
+
+    def test_v2_count_entries_equals_db_row_count(self, tmp_path):
+        """count_entries() reports exactly the rows persisted in SQLite."""
+        storage = HybridStorage(str(tmp_path / "count.db"))
+
+        storage.add_domain("evil.com", "2025-01-01", 9.0, "test")
+        storage.add_url("http://phishing.com/login", "2025-01-01", 8.5, "test")
+        storage.add_ip("192.0.2.1", "2025-01-01", 7.0, "test")
+        storage.add_ip("2001:db8::1", "2025-01-01", 7.0, "test")
+        storage.add_ip("10.0.0.0/8", "2025-01-01", 8.0, "test")
+
+        conn = sqlite3.connect(storage.db_path)
+        try:
+            db_rows = sum(
+                conn.execute(f"SELECT COUNT(*) FROM {table}").fetchone()[0]
+                for table in ("blacklist_domain", "blacklist_url", "blacklist_ip")
+            )
+        finally:
+            conn.close()
+
+        assert storage.count_entries() == db_rows == 5
+
+    def test_v2_count_unchanged_when_invalid_ip_rejected(self, tmp_path):
+        """add_ip rejects an out-of-range octet instead of storing a bogus int."""
+        storage = HybridStorage(str(tmp_path / "reject.db"))
+
+        with pytest.raises(ValueError):
+            storage.add_ip("1.2.3.999", "2025-01-01", 9.0, "test")
+
+        assert storage.count_entries() == 0
+        assert storage.is_ip_blacklisted("1.2.3.999") is False
+
+    def test_v2_cidr_lookup_rejects_malformed_ip(self, tmp_path):
+        """An out-of-range octet must not alias a real, different address.
+
+        ``1.2.3.999`` used to overflow into ``1.2.6.231`` inside
+        ``ip_to_int`` — matching that host — and unparseable input crashed
+        the radix-tree lookup (pytricia raises SystemError on bad keys).
+        """
+        storage = HybridStorage(str(tmp_path / "alias.db"))
+        storage.add_ip("1.2.6.231", "2025-01-01", 9.0, "test")
+
+        assert storage.is_ip_blacklisted("1.2.3.999") is False
+        assert storage.get_ip_blacklist_source("1.2.3.999") is None
+
+    @pytest.mark.parametrize("use_pytricia", [True, False], ids=["pytricia", "fallback"])
+    def test_v2_cidr_removal_stops_matching_without_reload(
+        self, tmp_path, monkeypatch, use_pytricia
+    ):
+        """remove_entry evicts the CIDR from the live matcher immediately."""
+        if not use_pytricia:
+            # Force the _cidr_ranges fallback path even where pytricia exists.
+            monkeypatch.setitem(sys.modules, "pytricia", None)
+        storage = HybridStorage(str(tmp_path / "cidr.db"))
+        storage.add_ip("10.0.0.0/8", "2025-01-01", 8.0, "test")
+
+        assert storage.is_ip_blacklisted("10.1.2.3") is True
+
+        assert storage.remove_entry("10.0.0.0/8") is True
+        assert storage.is_ip_blacklisted("10.1.2.3") is False
+        assert storage.get_ip_blacklist_source("10.1.2.3") is None
+
+    def test_v2_reload_lookup_never_returns_false_for_present_entry(self, tmp_path):
+        """Concurrent lookups observe a complete snapshot during reload().
+
+        Regression test: reload used to clear every in-memory structure and
+        refill it in place, so a racing lookup saw an empty table and
+        reported a blacklisted entry as clean.
+        """
+        storage = HybridStorage(str(tmp_path / "reload.db"))
+        storage.add_domain("evil.com", "2025-01-01", 9.0, "test")
+        storage.add_ip("192.0.2.1", "2025-01-01", 7.0, "test")
+
+        misses = []
+        stop = threading.Event()
+
+        def reader():
+            while not stop.is_set():
+                if not storage.is_domain_blacklisted("evil.com"):
+                    misses.append("domain")
+                if not storage.is_ip_blacklisted("192.0.2.1"):
+                    misses.append("ip")
+
+        readers = [threading.Thread(target=reader) for _ in range(4)]
+        for thread in readers:
+            thread.start()
+        try:
+            for _ in range(20):
+                storage.reload()
+        finally:
+            stop.set()
+            for thread in readers:
+                thread.join()
+
+        assert misses == []
+        assert storage.is_domain_blacklisted("evil.com") is True
+        assert storage.is_ip_blacklisted("192.0.2.1") is True
+        assert storage.count_entries() == 2
 
 
 if __name__ == "__main__":

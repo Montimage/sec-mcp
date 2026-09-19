@@ -165,11 +165,18 @@ def ip_to_int(ip: str) -> Optional[int]:
         if len(parts) != 4:
             return None
 
+        octets = [int(part) for part in parts]
+        # Reject out-of-range octets: without this check "1.2.3.999" sums to
+        # the same integer as "1.2.6.231", so an invalid address aliases a
+        # different, real one.
+        if any(octet < 0 or octet > 255 for octet in octets):
+            return None
+
         return (
-            (int(parts[0]) << 24) +
-            (int(parts[1]) << 16) +
-            (int(parts[2]) << 8) +
-            int(parts[3])
+            (octets[0] << 24) +
+            (octets[1] << 16) +
+            (octets[2] << 8) +
+            octets[3]
         )
     except (ValueError, IndexError):
         return None
@@ -213,6 +220,23 @@ class HybridStorage(StorageProtocol):
     Memory footprint: ~40-50MB for 450K entries (30% reduction from v0.3.0)
     Startup time: 5-10 seconds (one-time data loading)
     """
+
+    # Every in-memory structure a (re)load replaces. _load_all_data builds
+    # these on a scratch instance and swaps them in under the lock, so a
+    # concurrent reader always observes a complete snapshot — the previous
+    # one or the new one — and never a cleared table.
+    _SNAPSHOT_ATTRS = (
+        "_domains", "_urls",
+        "_hot_domains", "_cold_domains",
+        "_hot_urls", "_cold_urls",
+        "_ips_int", "_ips_str",
+        "_hot_ips_int", "_cold_ips_int",
+        "_hot_ips_str", "_cold_ips_str",
+        "_domain_meta", "_url_meta",
+        "_ip_meta", "_ip_int_meta",
+        "_cidr_metadata", "_cidr_ranges",
+        "_ipv4_cidr_tree", "_ipv6_cidr_tree",
+    )
 
     def __init__(self, db_path: str = None):
         """
@@ -321,43 +345,64 @@ class HybridStorage(StorageProtocol):
         """Get a database connection."""
         return sqlite3.connect(self.db_path, timeout=30.0)
 
+    def _scratch(self):
+        """Return a scratch HybridStorage with empty in-memory structures.
+
+        Reload builds the replacement snapshot on this detached receiver —
+        reusing the ``_load_*_from_db`` methods unchanged — while the live
+        structures stay intact for concurrent readers. Only the swap in
+        ``_load_all_data`` mutates what lookups see.
+        """
+        builder = object.__new__(HybridStorage)
+        builder.db_path = self.db_path
+        builder.logger = self.logger
+        builder.metrics = self.metrics
+        builder._use_pytricia = self._use_pytricia
+        builder._domains = set()
+        builder._urls = set()
+        builder._hot_domains = set()
+        builder._cold_domains = set()
+        builder._hot_urls = set()
+        builder._cold_urls = set()
+        builder._ips_int = set()
+        builder._ips_str = set()
+        builder._hot_ips_int = set()
+        builder._cold_ips_int = set()
+        builder._hot_ips_str = set()
+        builder._cold_ips_str = set()
+        builder._domain_meta = {}
+        builder._url_meta = {}
+        builder._ip_meta = {}
+        builder._ip_int_meta = {}
+        builder._cidr_metadata = {}
+        builder._cidr_ranges = []
+        builder._ipv4_cidr_tree = None
+        builder._ipv6_cidr_tree = None
+        if builder._use_pytricia:
+            builder._init_cidr_trees()
+        return builder
+
     def _load_all_data(self):
-        """Load all blacklist data from database into memory."""
+        """Load all blacklist data from database into memory.
+
+        The load runs on a scratch instance under the lock — writers keep
+        serializing against reload exactly as before — and the populated
+        structures are then swapped in. Readers never take the lock, so a
+        lookup racing the reload sees either the complete previous snapshot
+        or the complete new one: a present entry can never appear absent
+        mid-reload.
+        """
         start_time = time.perf_counter()
         self.logger.info("Loading blacklist data into memory (v0.4.0 optimized)...")
 
         with self._lock:
-            # Clear existing data
-            self._domains.clear()
-            self._urls.clear()
-            self._hot_domains.clear()
-            self._cold_domains.clear()
-            self._hot_urls.clear()
-            self._cold_urls.clear()
-            self._ips_int.clear()
-            self._ips_str.clear()
-            self._hot_ips_int.clear()
-            self._cold_ips_int.clear()
-            self._hot_ips_str.clear()
-            self._cold_ips_str.clear()
-            self._domain_meta.clear()
-            self._url_meta.clear()
-            self._ip_meta.clear()
-            self._ip_int_meta.clear()
-            self._cidr_metadata.clear()
+            builder = self._scratch()
+            builder._load_domains_from_db()
+            builder._load_urls_from_db()
+            builder._load_ips_from_db()
 
-            if self._use_pytricia:
-                # Clear CIDR trees
-                self._ipv4_cidr_tree = None
-                self._ipv6_cidr_tree = None
-                self._init_cidr_trees()
-            else:
-                self._cidr_ranges.clear()
-
-            # Load data
-            self._load_domains_from_db()
-            self._load_urls_from_db()
-            self._load_ips_from_db()
+            for attr in self._SNAPSHOT_ATTRS:
+                setattr(self, attr, getattr(builder, attr))
 
         elapsed = time.perf_counter() - start_time
         total_entries = len(self._domains) + len(self._urls) + len(self._ips_int) + len(self._ips_str) + len(self._cidr_metadata)
@@ -684,6 +729,15 @@ class HybridStorage(StorageProtocol):
                 self._update_metrics('ip', start, True)
                 return True
         else:
+            # Not a parseable IPv4 — reject malformed input before it can be
+            # treated as an IPv6 string or reach the radix trees, where
+            # pytricia raises SystemError on unparseable keys.
+            try:
+                ipaddress.ip_address(ip)
+            except ValueError:
+                self._update_metrics('ip', start, False)
+                return False
+
             # IPv6 - check as string (hot sources first)
             if ip in self._hot_ips_str:
                 self.metrics.hot_source_hits += 1
@@ -806,6 +860,13 @@ class HybridStorage(StorageProtocol):
             metadata = self._ip_int_meta.get(ip_int)
             if metadata:
                 return metadata.source
+        else:
+            # Reject malformed input: an unparseable key raises SystemError
+            # in the pytricia lookups below instead of returning None.
+            try:
+                ipaddress.ip_address(ip)
+            except ValueError:
+                return None
 
         # Check string IP (IPv6 or fallback)
         metadata = self._ip_meta.get(ip)
@@ -917,8 +978,21 @@ class HybridStorage(StorageProtocol):
                 raise
 
     def add_ip(self, ip: str, date: str, score: float, source: str):
-        """Add an IP or CIDR range to both memory and database."""
+        """Add an IP or CIDR range to both memory and database.
+
+        Raises:
+            ValueError: if ``ip`` is not a valid IP address or CIDR range
+                (e.g. an out-of-range octet like ``1.2.3.999``).
+        """
         with self._lock:
+            # Reject malformed input before any state changes: an out-of-range
+            # IPv4 octet otherwise silently aliases a different address in
+            # integer storage, and pytricia raises SystemError on bad keys.
+            if '/' in ip:
+                ipaddress.ip_network(ip, strict=False)
+            else:
+                ipaddress.ip_address(ip)
+
             metadata = EntryMetadata(source, date, score)
 
             # Determine if CIDR or single IP
@@ -926,18 +1000,20 @@ class HybridStorage(StorageProtocol):
 
             # Update memory first
             if is_cidr:
-                if self._use_pytricia:
-                    if ':' in ip:  # IPv6
-                        self._ipv6_cidr_tree[ip] = source
-                    else:  # IPv4
-                        self._ipv4_cidr_tree[ip] = source
-                else:
-                    try:
+                try:
+                    if self._use_pytricia:
+                        if ':' in ip:  # IPv6
+                            self._ipv6_cidr_tree[ip] = source
+                        else:  # IPv4
+                            self._ipv4_cidr_tree[ip] = source
+                    else:
                         network = ipaddress.ip_network(ip, strict=False)
                         self._cidr_ranges.append((network, metadata))
-                    except ValueError as e:
-                        self.logger.error(f"Invalid CIDR {ip}: {e}")
-                        raise
+                except (ValueError, SystemError) as e:
+                    # Surface every rejection as ValueError — pytricia raises
+                    # SystemError on keys it cannot store.
+                    self.logger.error(f"Invalid CIDR {ip}: {e}")
+                    raise ValueError(f"Invalid CIDR {ip}: {e}") from e
 
                 self._cidr_metadata[ip] = metadata
             else:
@@ -1056,22 +1132,26 @@ class HybridStorage(StorageProtocol):
     def add_ips(self, ips: List[Tuple[str, str, float, str]]):
         """Add multiple IPs efficiently (batch operation with integer storage)."""
         with self._lock:
-            # Update memory
+            # Update memory — and collect only the entries that validate, so
+            # skipped input can never drift between memory and the database.
+            persist = []
             for ip, date, score, source in ips:
                 metadata = EntryMetadata(source, date, score)
 
                 if '/' in ip:  # CIDR
-                    if self._use_pytricia:
-                        if ':' in ip:
-                            self._ipv6_cidr_tree[ip] = source
+                    # Skip networks the parser or radix tree rejects
+                    # (pytricia raises SystemError on unparseable keys).
+                    try:
+                        network = ipaddress.ip_network(ip, strict=False)
+                        if self._use_pytricia:
+                            if ':' in ip:
+                                self._ipv6_cidr_tree[ip] = source
+                            else:
+                                self._ipv4_cidr_tree[ip] = source
                         else:
-                            self._ipv4_cidr_tree[ip] = source
-                    else:
-                        try:
-                            network = ipaddress.ip_network(ip, strict=False)
                             self._cidr_ranges.append((network, metadata))
-                        except ValueError:
-                            continue
+                    except (ValueError, SystemError):
+                        continue
                     self._cidr_metadata[ip] = metadata
                 else:  # Single IP
                     ip_int = ip_to_int(ip)
@@ -1085,6 +1165,12 @@ class HybridStorage(StorageProtocol):
                         else:
                             self._cold_ips_int.add(ip_int)
                     else:
+                        # Skip invalid input — an unparseable IPv4 is not an
+                        # IPv6 address and must not be stored as one.
+                        try:
+                            ipaddress.ip_address(ip)
+                        except ValueError:
+                            continue
                         self._ips_str.add(ip)
                         self._ip_meta[ip] = metadata
 
@@ -1093,12 +1179,14 @@ class HybridStorage(StorageProtocol):
                         else:
                             self._cold_ips_str.add(ip)
 
+                persist.append((ip, date, score, source))
+
             # Persist to database
             conn = self._get_connection()
             try:
                 conn.executemany(
                     "INSERT OR REPLACE INTO blacklist_ip (ip, date, score, source) VALUES (?, ?, ?, ?)",
-                    ips
+                    persist
                 )
                 conn.commit()
             except Exception as e:
