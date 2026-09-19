@@ -192,6 +192,8 @@ sec-mcp can run as an MCP server for AI/LLM integration (e.g., Claude, Windsurf,
 
 **Note**: The tools have been optimized to reduce token usage while maintaining full functionality. The `get_diagnostics` tool consolidates multiple monitoring functions with different modes.
 
+All six tools declare a typed return model, so `tools/list` exposes an `outputSchema` for each and call results carry `structuredContent` alongside the serialized text `content` (older clients keep working unchanged). `check_batch` items report a tri-state `verdict` (`safe` / `blacklisted` / `invalid`), and tool failures surface as `isError: true` results rather than connection errors.
+
 #### Diagnostics Tool Modes
 
 The `get_diagnostics` tool provides flexible monitoring with the following modes:
