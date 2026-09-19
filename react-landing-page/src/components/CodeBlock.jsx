@@ -20,14 +20,18 @@ const codeTheme = {
 
 const CodeBlock = ({ children, language = "bash", label = null }) => {
     const [copied, setCopied] = useState(false);
+    const [failed, setFailed] = useState(false);
 
     const handleCopy = async () => {
         try {
             await navigator.clipboard.writeText(children);
             setCopied(true);
+            setFailed(false);
             setTimeout(() => setCopied(false), 2000);
         } catch (err) {
             console.error('Failed to copy text: ', err);
+            setFailed(true);
+            setTimeout(() => setFailed(false), 2000);
         }
     };
 
@@ -35,9 +39,13 @@ const CodeBlock = ({ children, language = "bash", label = null }) => {
         <div className="relative">
             <button
                 onClick={handleCopy}
-                className="absolute top-0 right-0 bg-slate-700 hover:bg-slate-600 text-slate-300 hover:text-white px-2 py-1 rounded-bl text-xs font-mono transition-colors"
+                className={`absolute top-0 right-0 min-w-[44px] min-h-[44px] flex items-center justify-center px-3 rounded-bl text-xs font-mono transition-colors ${
+                    failed
+                        ? 'bg-red-600 text-white'
+                        : 'bg-slate-700 hover:bg-slate-600 text-slate-300 hover:text-white'
+                }`}
             >
-                {copied ? 'Copied!' : 'Copy'}
+                {failed ? 'Failed' : copied ? 'Copied!' : 'Copy'}
             </button>
             <div className="absolute -left-1 top-0 bottom-0 w-1 bg-blue-500 rounded"></div>
             <SyntaxHighlighter
