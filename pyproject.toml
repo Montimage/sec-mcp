@@ -7,7 +7,7 @@ name = "sec-mcp"
 version = "0.5.0"
 description = "Python toolkit providing security checks for domains, URLs, IPs, and more."
 readme = "README.md"
-license = "MIT"
+license = "Apache-2.0"
 requires-python = ">=3.11"
 authors = [ { name = "Montimage" } ]
 dependencies = [

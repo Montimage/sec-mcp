@@ -1,0 +1,8 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Security vulnerability
+    url: https://github.com/Montimage/sec-mcp/blob/main/SECURITY.md
+    about: Do NOT open a public issue for security reports — see SECURITY.md for private reporting channels.
+  - name: General questions
+    url: https://github.com/Montimage
+    about: Questions and general contact via the Montimage organization profile.

@@ -22,9 +22,9 @@ this repository:
 
 (<https://github.com/Montimage/sec-mcp/security/advisories/new>)
 
-If private vulnerability reporting is not available, contact the Montimage
-organization through the public channels listed on its profile at
-<https://github.com/Montimage> — again without disclosing details publicly.
+If private vulnerability reporting is unavailable or you prefer email,
+contact **luong.nguyen@montimage.eu** — again without disclosing details
+publicly.
 
 When reporting, please include:
 

@@ -13,7 +13,7 @@ const tools = [
                 {
                     type: 'text',
                     text:
-                        'pip install sec-mcp (Python 3.11+, MIT) → sec-mcp update (index the feeds) → ' +
+                        'pip install sec-mcp (Python 3.11+, Apache-2.0) → sec-mcp update (index the feeds) → ' +
                         'sec-mcp check <domain|url|ip>. Package: https://pypi.org/project/sec-mcp/ · ' +
                         'Source: https://github.com/montimage/sec-mcp',
                 },

@@ -1,6 +1,6 @@
 # sec-mcp — Know what you're talking to
 
-> Check domains, URLs and IP addresses against ten live blacklist feeds — in process, in microseconds, with no API key and no request leaving your machine. Python 3.11+ · MIT license · use it as a library, a CLI, or an MCP server.
+> Check domains, URLs and IP addresses against ten live blacklist feeds — in process, in microseconds, with no API key and no request leaving your machine. Python 3.11+ · Apache-2.0 license · use it as a library, a CLI, or an MCP server.
 
 ## Install
 

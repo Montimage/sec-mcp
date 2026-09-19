@@ -392,7 +392,14 @@ Contributions are welcome! See [CONTRIBUTING.md](CONTRIBUTING.md) for the dev se
 
 ## Related Publications
 
-No publications referencing sec-mcp are known yet. If you use sec-mcp in academic work, talks or blog posts, please [open an issue](https://github.com/Montimage/sec-mcp/issues) so we can list it here.
+> **PLACEHOLDER — filled in by step 5 of the OSS-readiness flow.** Do not publish
+> this section as-is. Step 5 will insert Montimage papers, talks or blog posts
+> related to sec-mcp (e.g. threat-intelligence and network-monitoring
+> publications). If no publications apply, delete the whole section.
+
+<!-- STEP-5 TODO: add publication entries here, one bullet each:
+     - Author(s). "Title." Venue, Year. https://doi.org/... (or URL)
+-->
 
 ---
 

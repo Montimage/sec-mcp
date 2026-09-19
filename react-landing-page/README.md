@@ -92,4 +92,4 @@ Edit these files to update the content of the landing page.
 
 ## License
 
-This landing page is part of the sec-mcp project and is licensed under MIT.
+This landing page is part of the sec-mcp project and is licensed under Apache-2.0.

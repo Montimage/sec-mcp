@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+- License changed from MIT to Apache License 2.0 (`LICENSE`, `pyproject.toml`,
+  README badge/section, `react-landing-page` metadata and copy).
+
+### Added
+- Community and docs files: `CODE_OF_CONDUCT.md` (Contributor Covenant),
+  GitHub issue templates (bug report, feature request, contact links) and a
+  pull-request template; `docs/ARCHITECTURE.md`, `docs/DEVELOPMENT.md`,
+  `docs/DEPLOYMENT.md`.
+- `SECURITY.md` keeps GitHub private vulnerability reporting as the primary
+  channel and adds an email fallback contact.
+
 ## [0.5.0] - 2026-09-19
 
 Post-0.4.0 modernization work: MCP SDK 2.x migration, MCP Registry metadata,

@@ -1,6 +1,6 @@
 # sec-mcp
 
-> sec-mcp is a Python toolkit that checks domains, URLs and IP addresses against ten live blacklist feeds — in process, in microseconds, with no API key and no request leaving the machine. It works as a Python library, a CLI, and an MCP server for LLM workflows. MIT licensed, built by Montimage.
+> sec-mcp is a Python toolkit that checks domains, URLs and IP addresses against ten live blacklist feeds — in process, in microseconds, with no API key and no request leaving the machine. It works as a Python library, a CLI, and an MCP server for LLM workflows. Apache-2.0 licensed, built by Montimage.
 
 ## Project
 

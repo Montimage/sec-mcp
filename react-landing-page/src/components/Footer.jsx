@@ -59,7 +59,7 @@ const Footer = () => (
                         pip install sec-mcp
                     </CodeBlock>
                     <p className="mt-3 font-mono text-xs text-faint">
-                        Python 3.11+ &middot; MIT licence &middot; no API key
+                        Python 3.11+ &middot; Apache-2.0 licence &middot; no API key
                     </p>
                 </Reveal>
             </div>
@@ -152,8 +152,8 @@ const Footer = () => (
         <div className="border-t border-line">
             <div className="mx-auto flex max-w-[84rem] flex-col gap-4 px-4 py-8 text-xs text-dim sm:px-6 md:flex-row md:items-center md:justify-between lg:px-10">
                 <p>
-                    &copy; {new Date().getFullYear()} Montimage &middot; Released under the MIT
-                    licence
+                    &copy; {new Date().getFullYear()} Montimage &middot; Released under the
+                    Apache-2.0 licence
                 </p>
                 <p className="flex flex-wrap items-center gap-2">
                     <span>Built by</span>
