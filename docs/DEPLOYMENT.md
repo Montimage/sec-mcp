@@ -77,6 +77,26 @@ Production-relevant environment variables (full reference:
   `actions/deploy-pages` to <https://montimage.github.io/sec-mcp/>; one
   concurrent deployment (`concurrency: pages`).
 
+### Agent discovery (DNS-AID)
+
+The agent-readiness scanner (<https://isitagentready.com>) checks DNS for AI
+Discovery (DNS-AID): ServiceMode `SVCB`/`HTTPS` records under
+`_agents.montimage.github.io` in a DNSSEC-signed zone. That check cannot pass
+on this host — `github.io` is GitHub's own zone and delegates no DNS control
+to Pages sites, and no custom domain is configured
+(`react-landing-page/public/CNAME` does not exist). DNS records cannot be
+expressed as site files, so there is no in-repo fallback; the check stays
+`fail` until a custom domain is adopted (tracked as issue #140).
+
+When a custom domain is configured (`public/CNAME` plus registrar DNS),
+publish leaf records under `_agents.<domain>` in a DNSSEC-signed zone — e.g.
+`_index._agents.<domain>.` for the discovery index, or
+`_a2a._agents.<domain>. 3600 IN SVCB 1 <endpoint>. alpn="a2a" port=443
+mandatory=alpn,port` for an A2A endpoint — using numeric `keyNNNNN`
+SvcParamKeys for experimental parameters. Guide:
+<https://isitagentready.com/.well-known/agent-skills/dns-aid/SKILL.md>.
+`sec_mcp/tests/test_landing_dns_aid.py` pins this note.
+
 ## Operational notes
 
 - Feeds are downloaded over **HTTPS only** (non-HTTPS sources are rejected),
