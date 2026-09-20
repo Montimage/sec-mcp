@@ -16,6 +16,16 @@
           "href": "https://montimage.github.io/sec-mcp/server.json",
           "type": "application/json",
           "title": "MCP server manifest (modelcontextprotocol.io server schema)"
+        },
+        {
+          "href": "https://montimage.github.io/sec-mcp/.well-known/mcp/server-card.json",
+          "type": "application/json",
+          "title": "MCP Server Card (SEP-2127) — identity, transport and capabilities"
+        },
+        {
+          "href": "https://montimage.github.io/sec-mcp/.well-known/agent-card.json",
+          "type": "application/json",
+          "title": "A2A Agent Card — interfaces, capabilities and skills"
         }
       ],
       "service-doc": [
@@ -35,6 +45,16 @@
           "href": "https://montimage.github.io/sec-mcp/llms.txt",
           "type": "text/plain",
           "title": "llms.txt — agent-oriented site overview"
+        },
+        {
+          "href": "https://montimage.github.io/sec-mcp/.well-known/ai-catalog.json",
+          "type": "application/json",
+          "title": "ARD manifest — agentic resource catalog (ai-catalog data model)"
+        },
+        {
+          "href": "https://montimage.github.io/sec-mcp/.well-known/agent-skills/index.json",
+          "type": "application/json",
+          "title": "Agent skills discovery index (agentskills.io discovery schema)"
         }
       ]
     }

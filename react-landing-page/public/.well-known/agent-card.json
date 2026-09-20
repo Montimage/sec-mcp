@@ -1,0 +1,71 @@
+{
+  "protocolVersion": "0.3.0",
+  "name": "sec-mcp",
+  "version": "0.5.0",
+  "description": "Blacklist-checking agent: verifies domains, URLs and IP addresses against ten aggregated threat-intelligence feeds (OpenPhish, PhishStats, URLhaus, PhishTank, Spamhaus DROP, DShield, CINS Score, Emerging Threats, Feodo Tracker, Blocklist.de) backed by a local SQLite index. Distributed as the sec-mcp Python package; runs as a stdio MCP server (uvx --from sec-mcp sec-mcp-server) speaking JSON-RPC 2.0. No remote HTTP endpoint is hosted — the interface URL is the MCP Server Card describing how to connect.",
+  "url": "https://montimage.github.io/sec-mcp/.well-known/mcp/server-card.json",
+  "preferredTransport": "JSONRPC",
+  "supportedInterfaces": [
+    {
+      "url": "https://montimage.github.io/sec-mcp/.well-known/mcp/server-card.json",
+      "protocolBinding": "JSONRPC",
+      "protocolVersion": "2025-06-18",
+      "tenant": "local"
+    }
+  ],
+  "provider": {
+    "organization": "Montimage",
+    "url": "https://www.montimage.eu"
+  },
+  "iconUrl": "https://montimage.github.io/sec-mcp/favicon.svg",
+  "documentationUrl": "https://montimage.github.io/sec-mcp/",
+  "capabilities": {
+    "streaming": false,
+    "pushNotifications": false,
+    "stateTransitionHistory": false
+  },
+  "securitySchemes": {},
+  "security": [],
+  "defaultInputModes": ["text/plain", "application/json"],
+  "defaultOutputModes": ["application/json"],
+  "skills": [
+    {
+      "id": "indicator-check",
+      "name": "Indicator blacklist check",
+      "description": "Check one or more domains, URLs or IP addresses against the aggregated blacklist index (MCP tool: check_batch). Returns a per-indicator verdict — safe, blacklisted or invalid — with an explanation.",
+      "tags": ["security", "threat-intelligence", "blacklist", "phishing", "malware"],
+      "examples": [
+        "is example.com on any blacklist",
+        "check https://example.com/login and 203.0.113.7 against the feeds"
+      ]
+    },
+    {
+      "id": "blacklist-status",
+      "name": "Blacklist index status",
+      "description": "Report index size, per-source entry counts, last update time and scheduler health (MCP tool: get_status).",
+      "tags": ["status", "monitoring"],
+      "examples": ["how many blacklist entries are indexed", "when were the feeds last updated"]
+    },
+    {
+      "id": "blacklist-refresh",
+      "name": "Blacklist refresh",
+      "description": "Force an immediate re-download and re-index of all feeds; rate limited to one forced update per interval (MCP tool: update_blacklists).",
+      "tags": ["update", "feeds"],
+      "examples": ["refresh the blacklists now"]
+    },
+    {
+      "id": "server-diagnostics",
+      "name": "Server diagnostics",
+      "description": "Diagnostic snapshot of the server: summary, full, health, performance or sample modes (MCP tool: get_diagnostics).",
+      "tags": ["diagnostics", "observability"],
+      "examples": ["show blacklist health", "sample 5 indexed entries"]
+    },
+    {
+      "id": "manual-list-management",
+      "name": "Manual blacklist management",
+      "description": "Add or remove operator-curated blacklist entries by domain, URL or IP (MCP tools: add_entry, remove_entry).",
+      "tags": ["admin", "blacklist"],
+      "examples": ["blacklist evil.example manually", "remove 198.51.100.10 from the blacklist"]
+    }
+  ]
+}
