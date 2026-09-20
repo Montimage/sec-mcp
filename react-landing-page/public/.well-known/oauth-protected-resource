@@ -1,0 +1,8 @@
+{
+  "resource": "https://montimage.github.io/sec-mcp/",
+  "resource_name": "sec-mcp — blacklist-check landing site and agent manifests",
+  "authorization_servers": [],
+  "scopes_supported": [],
+  "bearer_methods_supported": [],
+  "resource_documentation": "https://montimage.github.io/sec-mcp/auth.md"
+}

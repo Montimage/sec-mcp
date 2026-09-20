@@ -38,6 +38,11 @@
           "href": "https://github.com/Montimage/sec-mcp#readme",
           "type": "text/html",
           "title": "sec-mcp repository README"
+        },
+        {
+          "href": "https://montimage.github.io/sec-mcp/auth.md",
+          "type": "text/markdown",
+          "title": "auth.md — agent authentication statement (no auth required)"
         }
       ],
       "describedby": [
@@ -55,6 +60,11 @@
           "href": "https://montimage.github.io/sec-mcp/.well-known/agent-skills/index.json",
           "type": "application/json",
           "title": "Agent skills discovery index (agentskills.io discovery schema)"
+        },
+        {
+          "href": "https://montimage.github.io/sec-mcp/.well-known/oauth-protected-resource",
+          "type": "application/json",
+          "title": "OAuth Protected Resource Metadata (RFC 9728) — empty authorization_servers: no auth exists"
         }
       ]
     }
