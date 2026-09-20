@@ -1,15 +1,21 @@
 # sec-mcp landing page — open-source project; all crawlers welcome.
+# Content Signals (IETF draft-romm-aipref-contentsignals): AI usage preferences
+# for this site — training, search and AI input are all permitted.
 User-agent: *
 Allow: /
+Content-Signal: ai-train=yes, search=yes, ai-input=yes
 
 # AI crawlers explicitly welcome: training, AI-search and on-demand fetchers.
-# robots.txt only controls access — it cannot express usage policy.
+# Content-Signal is restated inside this group so it also reaches agents that
+# match only their own entry (RFC 9309 group selection).
 User-agent: GPTBot
 User-agent: OAI-SearchBot
 User-agent: ChatGPT-User
 User-agent: ClaudeBot
+User-agent: Claude-Web
 User-agent: Claude-SearchBot
 User-agent: Claude-User
+User-agent: anthropic-ai
 User-agent: Google-Extended
 User-agent: PerplexityBot
 User-agent: Perplexity-User
@@ -23,5 +29,6 @@ User-agent: MistralAI-User
 User-agent: DeepSeekBot
 User-agent: cohere-training-data-crawler
 Allow: /
+Content-Signal: ai-train=yes, search=yes, ai-input=yes
 
 Sitemap: https://montimage.github.io/sec-mcp/sitemap.xml
