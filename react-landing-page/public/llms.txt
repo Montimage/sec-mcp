@@ -11,6 +11,7 @@
 
 ## Optional
 
+- [Auth.md](https://montimage.github.io/sec-mcp/auth.md): Agent authentication statement — no auth, registration, or credentials required
 - [MCP documentation](https://modelcontextprotocol.io/examples): The Model Context Protocol that sec-mcp implements
 - [Download stats](https://pepy.tech/projects/sec-mcp): PyPI download counters
 - [Montimage](https://www.montimage.eu): Company behind the project

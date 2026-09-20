@@ -110,6 +110,7 @@ SvcParamKeys for experimental parameters. Guide:
 | `/sec-mcp/.well-known/api-catalog` | RFC 9727 linkset (created in #136, extended here) |
 | `/sec-mcp/.well-known/ai-catalog.json` | ARD manifest cataloguing the siblings above |
 | `/sec-mcp/.well-known/mcp/server-card.json` | MCP Server Card (SEP-2127), mirrors `server.json` |
+| `/sec-mcp/.well-known/oauth-protected-resource` | RFC 9728 Protected Resource Metadata — `authorization_servers` is empty (#150) |
 
 Two platform limitations keep the scanner's live-site acceptance checks red
 regardless of this content:
@@ -126,6 +127,40 @@ regardless of this content:
 The documents are still correct and interlinked (`<link rel="ai-catalog">` in
 `index.html`, `Agentmap:` in `robots.txt`, catalog cross-references), so the
 surface resolves as soon as a custom domain with header control is adopted.
+
+### Agent authentication (auth.md and OAuth metadata)
+
+Issues #147–#150 ask for the agent-auth discovery surface the
+[isitagentready.com](https://isitagentready.com) guides describe. sec-mcp has
+**no authorization server and no protected HTTP API** — the site is static
+and public, and the MCP server is a local stdio process — so the shipped
+deliverables are the truthful subset:
+
+- `public/auth.md` → `/sec-mcp/auth.md`: a self-contained Auth.md statement
+  following the guide's no-OAuth path — it identifies the agent audience,
+  states there is no registration/provisioning endpoint, lists `none` as the
+  supported method and explains that no credentials are used (#147).
+- `public/.well-known/oauth-protected-resource` → RFC 9728 Protected
+  Resource Metadata naming `https://montimage.github.io/sec-mcp/` as the
+  `resource` with an **empty** `authorization_servers` array — the accurate
+  answer to "how do agents authenticate" is "they don't; no authorization
+  server exists" (#150).
+- **Deliberately absent:** `/.well-known/oauth-authorization-server` and
+  `/.well-known/openid-configuration` (#149). RFC 8414 / OIDC Discovery
+  metadata describes a live issuer and its endpoints; sec-mcp runs no issuer,
+  so any document at those paths would fabricate `authorization_endpoint`,
+  `token_endpoint` or `jwks_uri` values. A `404` is the honest signal that no
+  authorization server serves this origin. If a protected HTTP API is ever
+  added, publish the AS metadata then — this note is the runbook.
+
+The GitHub Pages limitations of the other manifests apply here too: the
+scanner probes `montimage.github.io/auth.md` and
+`montimage.github.io/.well-known/…` at the **origin root** while the files
+deploy under `/sec-mcp/`, and the extensionless PRM document is served as
+`application/octet-stream`. So `authMd` and `oauthProtectedResource` stay
+`fail` until a custom domain lands, and `oauthDiscovery` additionally
+requires a real authorization server this service does not run.
+`sec_mcp/tests/test_landing_auth_metadata.py` pins this surface.
 
 ## Operational notes
 
