@@ -1,0 +1,50 @@
+{
+  "specVersion": "1.0",
+  "host": {
+    "displayName": "sec-mcp",
+    "identifier": "did:web:montimage.github.io"
+  },
+  "entries": [
+    {
+      "identifier": "urn:air:montimage.github.io:mcp-server:sec-mcp",
+      "displayName": "sec-mcp MCP server",
+      "type": "application/mcp-server-card+json",
+      "url": "https://montimage.github.io/sec-mcp/.well-known/mcp/server-card.json",
+      "representativeQueries": [
+        "check if this domain is malicious",
+        "is this URL on a phishing blacklist",
+        "screen these IP addresses against threat feeds"
+      ]
+    },
+    {
+      "identifier": "urn:air:montimage.github.io:a2a-agent:sec-mcp",
+      "displayName": "sec-mcp blacklist-checking agent",
+      "type": "application/json",
+      "url": "https://montimage.github.io/sec-mcp/.well-known/agent-card.json",
+      "representativeQueries": [
+        "agent that verifies indicators against security blacklists",
+        "threat intelligence lookup for domains and IPs"
+      ]
+    },
+    {
+      "identifier": "urn:air:montimage.github.io:skills:sec-mcp",
+      "displayName": "sec-mcp agent skills index",
+      "type": "application/json",
+      "url": "https://montimage.github.io/sec-mcp/.well-known/agent-skills/index.json",
+      "representativeQueries": [
+        "skill for checking links before opening them",
+        "blacklist screening skill for an agent"
+      ]
+    },
+    {
+      "identifier": "urn:air:montimage.github.io:api:sec-mcp",
+      "displayName": "sec-mcp API catalog",
+      "type": "application/linkset+json",
+      "url": "https://montimage.github.io/sec-mcp/.well-known/api-catalog",
+      "representativeQueries": [
+        "what APIs does sec-mcp expose",
+        "machine-readable description of the sec-mcp service"
+      ]
+    }
+  ]
+}

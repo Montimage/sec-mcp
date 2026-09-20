@@ -97,6 +97,36 @@ SvcParamKeys for experimental parameters. Guide:
 <https://isitagentready.com/.well-known/agent-skills/dns-aid/SKILL.md>.
 `sec_mcp/tests/test_landing_dns_aid.py` pins this note.
 
+### Well-known agent manifests
+
+`public/.well-known/` publishes the static agent-discovery manifests (issues
+#143–#146, #148), all covered by `sec_mcp/tests/test_landing_agent_manifests.py`:
+
+| Deployed path | Manifest |
+|---------------|----------|
+| `/sec-mcp/.well-known/agent-card.json` | A2A Agent Card — interfaces, capabilities, skills |
+| `/sec-mcp/.well-known/agent-skills/index.json` | agentskills.io discovery index (sha256 digests) |
+| `/sec-mcp/.well-known/agent-skills/sec-mcp/SKILL.md` | the skill artifact the index references |
+| `/sec-mcp/.well-known/api-catalog` | RFC 9727 linkset (created in #136, extended here) |
+| `/sec-mcp/.well-known/ai-catalog.json` | ARD manifest cataloguing the siblings above |
+| `/sec-mcp/.well-known/mcp/server-card.json` | MCP Server Card (SEP-2127), mirrors `server.json` |
+
+Two platform limitations keep the scanner's live-site acceptance checks red
+regardless of this content:
+
+- **Base path.** The site deploys under `/sec-mcp/`, so the manifests land at
+  `/sec-mcp/.well-known/…`, while the scanner probes the origin root
+  (`montimage.github.io/.well-known/…`). Nothing in-repo can serve the origin
+  root — that needs a custom domain, same as DNS-AID above.
+- **Content types.** GitHub Pages serves the extensionless `api-catalog` as
+  `application/octet-stream`, not `application/linkset+json`, and emits no
+  `Access-Control-Allow-Origin` header — Pages does not let a static site set
+  response headers.
+
+The documents are still correct and interlinked (`<link rel="ai-catalog">` in
+`index.html`, `Agentmap:` in `robots.txt`, catalog cross-references), so the
+surface resolves as soon as a custom domain with header control is adopted.
+
 ## Operational notes
 
 - Feeds are downloaded over **HTTPS only** (non-HTTPS sources are rejected),

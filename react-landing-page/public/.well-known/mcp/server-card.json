@@ -1,0 +1,43 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/v1/server-card.schema.json",
+  "name": "io.github.montimage/sec-mcp",
+  "version": "0.5.0",
+  "title": "sec-mcp",
+  "description": "Check domains, URLs and IPs against security blacklists backed by SQLite.",
+  "websiteUrl": "https://montimage.github.io/sec-mcp/",
+  "repository": {
+    "url": "https://github.com/Montimage/sec-mcp",
+    "source": "github"
+  },
+  "icons": [
+    {
+      "src": "https://montimage.github.io/sec-mcp/favicon.svg",
+      "mimeType": "image/svg+xml"
+    }
+  ],
+  "serverInfo": {
+    "name": "sec-mcp",
+    "version": "0.5.0"
+  },
+  "transport": {
+    "type": "stdio",
+    "endpoint": "uvx --from sec-mcp sec-mcp-server",
+    "command": "uvx",
+    "args": ["--from", "sec-mcp", "sec-mcp-server"],
+    "supportedProtocolVersions": ["2025-06-18"],
+    "description": "Local stdio server only — sec-mcp hosts no remote HTTP endpoint. The endpoint is the launch command that starts the server on the client's machine (equivalent to 'pip install sec-mcp' then 'sec-mcp-server')."
+  },
+  "capabilities": {
+    "tools": {
+      "listChanged": false
+    }
+  },
+  "tools": [
+    "check_batch",
+    "get_status",
+    "update_blacklists",
+    "get_diagnostics",
+    "add_entry",
+    "remove_entry"
+  ]
+}

@@ -1,0 +1,12 @@
+{
+  "$schema": "https://schemas.agentskills.io/discovery/0.2.0/schema.json",
+  "skills": [
+    {
+      "name": "sec-mcp",
+      "type": "skill-md",
+      "description": "Check domains, URLs and IP addresses against ten aggregated security blacklists via the sec-mcp MCP server or Python library — in-process, no API key, no request leaving the machine.",
+      "url": "https://montimage.github.io/sec-mcp/.well-known/agent-skills/sec-mcp/SKILL.md",
+      "digest": "sha256:ca19470cef4dfeb2b9fe2bc5285106f13d09dd3ff4396d5e8ece60cbca1e0465"
+    }
+  ]
+}
