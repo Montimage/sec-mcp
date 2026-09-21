@@ -252,7 +252,15 @@ const Playground = ({ onStatusChange }) => {
         const saved = readStore();
         const target = saved.endpoint || defaultEndpoint();
         setEndpoint(target);
-        if (saved.connected || !STATIC_HOSTS.test(window.location.hostname)) {
+        // A link from sec-mcp-server's startup banner carries #token=… (a
+        // fragment never reaches the web server). Take it, then scrub it
+        // from the address bar so it is not shared or bookmarked.
+        const hashToken = new URLSearchParams(window.location.hash.slice(1)).get('token');
+        if (hashToken) {
+            setToken(hashToken);
+            window.history.replaceState(null, '', window.location.pathname + window.location.search);
+            connect(target, hashToken);
+        } else if (saved.connected || !STATIC_HOSTS.test(window.location.hostname)) {
             connect(target, '', { quiet: true });
         }
         return () => clientRef.current?.close();

@@ -223,7 +223,10 @@ sec-mcp-server --http --host 0.0.0.0 --port 9000
   on ports 3000/4173 and `https://montimage.github.io`); credentials are never allowed.
   `*` allows any origin and also disables DNS-rebinding protection.
 - Set `SEC_MCP_HTTP_AUTH_TOKEN` to require `Authorization: Bearer <token>` on every
-  request. Binding a non-loopback host without a token logs a warning.
+  request. Binding a non-loopback host (e.g. `--host 0.0.0.0`) without one generates
+  a random token for that run and prints it with a `#token=…` fragment: append it to
+  the landing-page URL and the playground connects with it. Pass `--no-auth` to opt
+  out (a warning is logged).
 
 ---
 
@@ -313,7 +316,7 @@ Methodology and expected output: [BENCHMARK_PLAYBOOK.md](BENCHMARK_PLAYBOOK.md).
 | `MCP_CACHE_DIR`         | Feed download cache directory                              | platformdirs cache dir         |
 | `MCP_DISABLE_SCHEDULER` | Set to `1` to not start the daily-update scheduler thread  | unset (scheduler runs)         |
 | `SEC_MCP_CORS_ORIGINS`  | Comma-separated CORS origins for `sec-mcp-server --http`; `*` = any | local Vite ports + GitHub Pages |
-| `SEC_MCP_HTTP_AUTH_TOKEN` | Bearer token required by `sec-mcp-server --http`         | unset (no auth)                |
+| `SEC_MCP_HTTP_AUTH_TOKEN` | Bearer token required by `sec-mcp-server --http`         | unset (generated per run on a non-loopback host) |
 
 ### Default database locations
 

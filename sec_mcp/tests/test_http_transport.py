@@ -285,3 +285,35 @@ def test_main_http_runs_uvicorn(monkeypatch, capsys):
     err = capsys.readouterr()
     assert "http://127.0.0.1:8123/mcp" in err.err
     assert err.out == ""
+
+
+@pytest.fixture
+def clean_env(monkeypatch):
+    # ensure_token exports the token; keep that write out of the real environment.
+    monkeypatch.setattr(start_server.os, "environ", {})
+
+
+def test_ensure_token_generates_for_network_bind(clean_env, capsys):
+    token = start_server.ensure_token("0.0.0.0")
+    assert token and len(token) >= 32
+    assert http_transport.auth_token() == token
+    err = capsys.readouterr().err
+    assert f"#token={token}" in err
+
+
+@pytest.mark.parametrize("host,no_auth,preset", [
+    ("127.0.0.1", False, None),   # loopback: no token needed
+    ("0.0.0.0", True, None),      # explicit --no-auth
+    ("0.0.0.0", False, "mine"),   # operator-supplied token wins
+])
+def test_ensure_token_skips(clean_env, capsys, host, no_auth, preset):
+    if preset:
+        start_server.os.environ["SEC_MCP_HTTP_AUTH_TOKEN"] = preset
+    assert start_server.ensure_token(host, no_auth) is None
+    assert http_transport.auth_token() == preset
+    assert capsys.readouterr().err == ""
+
+
+def test_parse_args_no_auth_flag():
+    assert start_server.parse_args(["--http", "--no-auth"]).no_auth is True
+    assert start_server.parse_args([]).no_auth is False
