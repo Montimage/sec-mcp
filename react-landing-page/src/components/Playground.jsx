@@ -19,7 +19,24 @@ import { DEMO_VALUES, SIMULATED_STATUS, TOOLS, simulateTool } from '../services/
  */
 
 export const PLAYGROUND_EVENT = 'secmcp:playground';
-export const DEFAULT_ENDPOINT = 'http://127.0.0.1:8000/mcp';
+export const DEFAULT_MCP_PORT = import.meta.env.VITE_MCP_PORT || '8000';
+export const DEFAULT_ENDPOINT = `http://127.0.0.1:${DEFAULT_MCP_PORT}/mcp`;
+
+// Hosted statically (GitHub Pages), with no MCP server alongside.
+const STATIC_HOSTS = /(^|\.)github\.io$/i;
+
+/**
+ * Default server: the host serving this page, so a page opened from another
+ * machine points back at the server next to it. Falls back to loopback on
+ * the public static site and during SSR. Plain http — sec-mcp-server --http
+ * has no TLS.
+ */
+export const defaultEndpoint = () => {
+    if (typeof window === 'undefined') return DEFAULT_ENDPOINT;
+    const { hostname } = window.location;
+    if (!hostname || STATIC_HOSTS.test(hostname)) return DEFAULT_ENDPOINT;
+    return `http://${hostname}:${DEFAULT_MCP_PORT}/mcp`;
+};
 
 // Origins sec-mcp-server --http allows without configuration (keep in sync
 // with the SEC_MCP_CORS_ORIGINS default in sec_mcp/http_transport.py).
@@ -48,9 +65,6 @@ const writeStore = (patch) => {
         // private mode / blocked storage: the console still works, it just forgets
     }
 };
-
-const isLoopbackPage = () =>
-    typeof window !== 'undefined' && /^(localhost|127\.\d+\.\d+\.\d+|\[::1\])$/.test(window.location.hostname);
 
 /** Split pasted text into values: newlines, commas and spaces all separate. */
 export const parseValues = (text) =>
@@ -222,19 +236,25 @@ const Playground = ({ onStatusChange }) => {
             }
         } catch (err) {
             clientRef.current = null;
-            setConn({ status: quiet ? 'idle' : 'error', error: quiet ? null : err, server: null, tools: null });
+            // A 401 is never noise: the server is there and only wants a token.
+            const needsToken = err instanceof McpError && err.code === 401;
+            if (needsToken) setShowToken(true);
+            const silent = quiet && !needsToken;
+            setConn({ status: silent ? 'idle' : 'error', error: silent ? null : err, server: null, tools: null });
         }
     }, []);
 
-    // Restore the last endpoint. Only auto-connect where it cannot surprise
-    // anyone: on a loopback-served page, or when this visitor connected
-    // before (a public page probing localhost unprompted would trigger the
-    // browser's local-network permission prompt on first visit).
+    // Restore the last endpoint. Auto-connect (quietly) unless this is the
+    // public static site: there, probing localhost unprompted would trigger
+    // the browser's local-network permission prompt on first visit — so only
+    // do it for a visitor who connected before.
     useEffect(() => {
         const saved = readStore();
-        const target = saved.endpoint || DEFAULT_ENDPOINT;
+        const target = saved.endpoint || defaultEndpoint();
         setEndpoint(target);
-        if (isLoopbackPage() || saved.connected) connect(target, '', { quiet: true });
+        if (saved.connected || !STATIC_HOSTS.test(window.location.hostname)) {
+            connect(target, '', { quiet: true });
+        }
         return () => clientRef.current?.close();
     }, [connect]);
 

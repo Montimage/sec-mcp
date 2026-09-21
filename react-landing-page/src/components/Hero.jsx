@@ -1,5 +1,5 @@
 import React, { useCallback, useState } from 'react';
-import Playground from './Playground';
+import Playground, { DEFAULT_MCP_PORT } from './Playground';
 
 /** Load-in cascade: each element rises 90ms after the one above it. */
 const step = (i) => ({ animationDelay: `${120 + i * 90}ms` });
@@ -137,7 +137,8 @@ const Hero = () => {
                                     Press <span className="font-mono text-xs tracking-[0.12em] uppercase">Connect</span> in
                                     the console.{' '}
                                     <span className="text-dim">
-                                        It uses <code className="font-mono text-xs">http://127.0.0.1:8000/mcp</code> by default.
+                                        It defaults to port <code className="font-mono text-xs">{DEFAULT_MCP_PORT}</code> on the host serving this page.
+                                        On the public site, that host is <code className="font-mono text-xs">127.0.0.1</code>.
                                     </span>
                                 </p>
                             </li>
