@@ -1,6 +1,7 @@
 import React from 'react';
 import Header from './components/Header';
 import Hero from './components/Hero';
+import Playbooks from './components/Playbooks';
 import Features from './components/Features';
 import Sources from './components/Sources';
 import MCPServer from './components/MCPServer';
@@ -20,6 +21,7 @@ const App = () => (
 
         <main id="main" tabIndex={-1}>
             <Hero />
+            <Playbooks />
             <Features />
             <Sources />
             <MCPServer />

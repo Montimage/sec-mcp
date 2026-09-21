@@ -5,6 +5,8 @@ import CodeBlock from './CodeBlock';
 import montimageIconSvg from '../assets/montimage-logo.svg';
 
 const SECTION_LINKS = [
+    { href: '#playground', label: 'Playground' },
+    { href: '#playbooks', label: 'Playbooks' },
     { href: '#features', label: 'Features' },
     { href: '#sources', label: 'Sources' },
     { href: '#mcp', label: 'MCP Server' },

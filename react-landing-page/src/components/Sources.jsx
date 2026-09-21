@@ -32,7 +32,7 @@ const Sources = () => (
     <section id="sources" className="field relative py-24 md:py-32">
         <div className="mx-auto max-w-[84rem] px-4 sm:px-6 lg:px-10">
             <SectionHeading
-                index="03"
+                index="04"
                 label="Sources"
                 meta="Refreshed daily at 00:00"
                 title="Ten public feeds, normalised into one register."

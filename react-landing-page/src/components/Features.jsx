@@ -82,7 +82,7 @@ const Features = () => (
     <section id="features" className="field relative py-24 md:py-32">
         <div className="mx-auto max-w-[84rem] px-4 sm:px-6 lg:px-10">
             <SectionHeading
-                index="02"
+                index="03"
                 label="Capabilities"
                 meta="Six things it does well"
                 title="A blacklist engine that behaves like a local function call."
