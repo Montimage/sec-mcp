@@ -115,10 +115,12 @@ def build_transport_security(host: str, port: int) -> TransportSecuritySettings:
     allowed_hosts = list(_LOOPBACK_HOSTS)
     if not is_loopback_host(host):
         allowed_hosts.append(f"{host}:*")
+    # A trusted origin's hostname is allowed on any port: the UI and the MCP
+    # endpoint commonly share a host but not a port (e.g. :4173 and :8001).
     for origin in origins:
-        netloc = urlparse(origin).netloc
-        if netloc:
-            allowed_hosts.append(netloc if ":" in netloc else f"{netloc}:*")
+        hostname = urlparse(origin).hostname
+        if hostname:
+            allowed_hosts.append(f"[{hostname}]:*" if ":" in hostname else f"{hostname}:*")
 
     return TransportSecuritySettings(
         enable_dns_rebinding_protection=True,

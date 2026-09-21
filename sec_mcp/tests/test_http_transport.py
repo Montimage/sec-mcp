@@ -88,9 +88,9 @@ def test_transport_security_loopback_bind():
     assert sec.allowed_hosts[:3] == ["127.0.0.1:*", "localhost:*", "[::1]:*"]
     assert "http://localhost:*" in sec.allowed_origins
     assert "https://montimage.github.io" in sec.allowed_origins
-    # Configured origins contribute their host part; ports are kept verbatim.
+    # Configured origins contribute their hostname on any port.
     assert "montimage.github.io:*" in sec.allowed_hosts
-    assert "localhost:3000" in sec.allowed_hosts
+    assert "localhost:3000" not in sec.allowed_hosts
     assert len(sec.allowed_hosts) == len(set(sec.allowed_hosts))
 
 
@@ -100,6 +100,14 @@ def test_transport_security_non_loopback_bind_adds_host(monkeypatch):
     assert "0.0.0.0:*" in sec.allowed_hosts
     assert "ui.example:*" in sec.allowed_hosts
     assert sec.allowed_origins[-1] == "https://ui.example"
+
+
+def test_transport_security_origin_host_allowed_on_other_ports(monkeypatch):
+    # UI on :4173, MCP endpoint on :8001 of the same LAN host (Host header differs by port).
+    monkeypatch.setenv("SEC_MCP_CORS_ORIGINS", "http://192.168.0.120:4173,http://[fd00::1]:4173")
+    sec = build_transport_security("0.0.0.0", 8001)
+    assert "192.168.0.120:*" in sec.allowed_hosts
+    assert "[fd00::1]:*" in sec.allowed_hosts
 
 
 def test_transport_security_wildcard_disables_protection(monkeypatch, caplog):
