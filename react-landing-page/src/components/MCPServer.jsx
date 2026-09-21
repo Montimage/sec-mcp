@@ -6,7 +6,7 @@ import Reveal from './Reveal';
 const MCPServer = () => {
     // Keep in sync with the tools registered in sec_mcp/mcp_server.py (tools/list).
     const mcpTools = [
-        { name: 'check_batch', signature: 'check_batch(values: List[str])', description: 'Check multiple domains/URLs/IPs in one call. Returns list of {value, is_safe, explanation}.' },
+        { name: 'check_batch', signature: 'check_batch(values: List[str])', description: 'Check multiple domains/URLs/IPs in one call. Returns list of {value, is_safe, verdict, explanation}.' },
         { name: 'get_status', signature: 'get_status()', description: 'Get blacklist status including entry counts and sources. Returns {entry_count, last_update, sources, server_status, source_counts}.' },
         { name: 'update_blacklists', signature: 'update_blacklists()', description: 'Force immediate update of all blacklists. Returns {updated: bool}.' },
         { name: 'get_diagnostics', signature: 'get_diagnostics(mode: str = "summary", sample_count: int = 10)', description: "Get diagnostic information. Mode options: 'summary' (default), 'full', 'health', 'performance', 'sample'." },
@@ -18,9 +18,9 @@ const MCPServer = () => {
         <section id="mcp" className="field relative py-24 md:py-32">
             <div className="mx-auto max-w-[84rem] px-4 sm:px-6 lg:px-10">
                 <SectionHeading
-                    index="04"
+                    index="05"
                     label="Model Context Protocol"
-                    meta="stdio · JSON-RPC"
+                    meta="stdio · streamable HTTP"
                     title="Give your assistant a way to check before it recommends."
                     lede="Run sec-mcp as an MCP server and six tools appear in your client. The model can verify a link mid-conversation instead of guessing at it."
                 />
@@ -51,6 +51,29 @@ const MCPServer = () => {
                             </CodeBlock>
                         </Reveal>
 
+                        <Reveal delay={110} className="mt-6">
+                            <p className="text-[0.9375rem] leading-relaxed text-dim text-pretty">
+                                Or serve it over streamable HTTP for remote clients and the{' '}
+                                <a
+                                    href="#playground"
+                                    className="text-signal underline decoration-line-signal underline-offset-4 transition-colors hover:decoration-signal"
+                                >
+                                    playground
+                                </a>{' '}
+                                above. It binds to 127.0.0.1 unless you pass <code className="font-mono text-bright">--host</code>.
+                            </p>
+                            <div className="mt-4">
+                                <CodeBlock language="bash" label="http transport">
+{`sec-mcp-server --http --port 8000
+# → http://127.0.0.1:8000/mcp
+
+# optional: allow another web origin, require a token
+export SEC_MCP_CORS_ORIGINS=https://your.site
+export SEC_MCP_HTTP_AUTH_TOKEN=change-me`}
+                                </CodeBlock>
+                            </div>
+                        </Reveal>
+
                         {/* The one thing people get wrong — called out, not buried. */}
                         <Reveal delay={140} className="mt-6 border-l border-signal bg-raise p-5">
                             <p className="font-mono text-xs tracking-[0.16em] uppercase text-signal">
@@ -69,7 +92,7 @@ const MCPServer = () => {
                                     <code className="font-mono text-bright">sec-mcp status</code> to
                                     confirm the database is populated.
                                 </li>
-                                <li>The server starts and stops with your MCP client.</li>
+                                <li>Over stdio the server starts and stops with your MCP client; over HTTP it runs until you stop it.</li>
                             </ul>
                             <p className="mt-4 text-sm text-dim">
                                 Full steps in the{' '}

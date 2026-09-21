@@ -44,7 +44,7 @@ const Installation = () => (
     <section id="install" className="field relative py-24 md:py-32">
         <div className="mx-auto max-w-[84rem] px-4 sm:px-6 lg:px-10">
             <SectionHeading
-                index="05"
+                index="06"
                 label="Install"
                 meta="~5 minutes"
                 title="From pip install to a first verdict."
