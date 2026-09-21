@@ -44,7 +44,7 @@ Developed by [Montimage](https://www.montimage.eu), a company specializing in cy
 
 - **Comprehensive security checks** — validate domains, URLs and IPv4/IPv6 addresses, with domain→URL cascade semantics (a blacklisted domain condemns its URLs and subdomains; a blacklisted URL does not condemn its domain) and CIDR-range matching for IPs
 - **Ten threat-intelligence feeds** — OpenPhish, PhishStats, URLhaus, PhishTank, Spamhaus DROP, Dshield, CINSSCORE, EmergingThreats, FeodoTracker and BlocklistDE
-- **Three interfaces, one engine** — Python API (`SecMCP`), Click CLI (`sec-mcp`), and a stdio MCP server (`sec-mcp-server`) exposing six typed tools
+- **Three interfaces, one engine** — Python API (`SecMCP`), Click CLI (`sec-mcp`), and an MCP server (`sec-mcp-server`, stdio or streamable HTTP) exposing six typed tools
 - **Two storage backends** — default SQLite storage (v1), or an in-memory hybrid (v2, `MCP_USE_V2_STORAGE=true`) with O(1) per-type indexes; up to ~28,000x faster lookups than the database-only path on the bundled benchmark
 - **URL normalization** — one canonicalizer shared by both backends: lowercasing, default-scheme handling and tracking-parameter stripping (`utm_*`, `fbclid`, …), so URL variants share one verdict
 - **Safe feed ingestion** — HTTPS-only downloads bounded by `max_feed_bytes` and entry-count sanity checks; a failing feed never aborts the others
@@ -207,6 +207,24 @@ The `get_diagnostics` modes:
 - **`performance`**: lookup metrics and hit rates (v2 storage only)
 - **`sample`**: random sample of blacklist entries (`sample_count` parameter, 1–100)
 
+#### HTTP transport and the landing-page playground
+
+`sec-mcp-server` speaks stdio by default. Add `--http` to serve MCP over
+streamable HTTP instead, so a browser — including the live playground on the
+[landing page](https://montimage.github.io/sec-mcp/) — can call the tools:
+
+```bash
+sec-mcp update                       # populate the database once
+sec-mcp-server --http                # → http://127.0.0.1:8000/mcp
+sec-mcp-server --http --host 0.0.0.0 --port 9000
+```
+
+- CORS allows the origins in `SEC_MCP_CORS_ORIGINS` (default: local Vite dev/preview
+  on ports 3000/4173 and `https://montimage.github.io`); credentials are never allowed.
+  `*` allows any origin and also disables DNS-rebinding protection.
+- Set `SEC_MCP_HTTP_AUTH_TOKEN` to require `Authorization: Bearer <token>` on every
+  request. Binding a non-loopback host without a token logs a warning.
+
 ---
 
 ## Performance Optimization
@@ -294,6 +312,8 @@ Methodology and expected output: [BENCHMARK_PLAYBOOK.md](BENCHMARK_PLAYBOOK.md).
 | `MCP_LOG_PATH`          | Log file location                                          | platformdirs log dir           |
 | `MCP_CACHE_DIR`         | Feed download cache directory                              | platformdirs cache dir         |
 | `MCP_DISABLE_SCHEDULER` | Set to `1` to not start the daily-update scheduler thread  | unset (scheduler runs)         |
+| `SEC_MCP_CORS_ORIGINS`  | Comma-separated CORS origins for `sec-mcp-server --http`; `*` = any | local Vite ports + GitHub Pages |
+| `SEC_MCP_HTTP_AUTH_TOKEN` | Bearer token required by `sec-mcp-server --http`         | unset (no auth)                |
 
 ### Default database locations
 
@@ -332,7 +352,8 @@ sec-mcp/
 │   ├── sec_mcp.py            # SecMCP facade (check/check_batch/update/get_status/…)
 │   ├── cli.py                # `sec-mcp` CLI (click)
 │   ├── mcp_server.py         # Six MCP tools (SDK 2.x MCPServer)
-│   ├── start_server.py       # `sec-mcp-server` entry point (stdio)
+│   ├── start_server.py       # `sec-mcp-server` entry point (stdio, or --http)
+│   ├── http_transport.py     # Streamable-HTTP app: CORS, DNS-rebinding, bearer auth
 │   ├── storage.py            # Backend selector + v1 database-only storage
 │   ├── storage_queries.py    # v1 read/query half
 │   ├── storage_base.py       # Shared schema, DB-path resolution, normalize_url

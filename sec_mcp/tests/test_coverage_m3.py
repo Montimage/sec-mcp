@@ -1100,5 +1100,5 @@ def test_start_server_main(monkeypatch):
     monkeypatch.setattr(
         start_server.mcp, "run",
         lambda transport: calls.setdefault("transport", transport))
-    start_server.main()
+    start_server.main([])
     assert calls == {"log": "INFO", "core": True, "transport": "stdio"}
