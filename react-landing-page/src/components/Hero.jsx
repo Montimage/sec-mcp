@@ -104,7 +104,8 @@ const Hero = () => {
                         clear of the 64px fixed header. */}
                     <div
                         id="playground"
-                        className="enter min-w-0 scroll-mt-24 lg:col-span-6 lg:col-start-7 lg:row-span-2 lg:row-start-1"
+                        tabIndex={-1}
+                        className="enter min-w-0 scroll-mt-24 focus:outline-none lg:col-span-6 lg:col-start-7 lg:row-span-2 lg:row-start-1"
                         style={step(3)}
                     >
                         <Playground onStatusChange={onStatusChange} />

@@ -58,7 +58,9 @@ const callLabel = ({ values, tool, args }) =>
 
 const runInConsole = (call) => {
     window.dispatchEvent(new CustomEvent(PLAYGROUND_EVENT, { detail: call }));
-    document.getElementById('playground')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    const target = document.getElementById('playground');
+    target?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    target?.focus({ preventScroll: true });
 };
 
 const Playbooks = () => (
