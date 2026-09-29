@@ -3,8 +3,9 @@ import Logo from './Logo';
 import montimageIconSvg from '../assets/montimage-logo.svg';
 
 const NAV = [
+    { href: '#playground', label: 'Playground' },
+    { href: '#playbooks', label: 'Playbooks' },
     { href: '#features', label: 'Features' },
-    { href: '#sources', label: 'Sources' },
     { href: '#mcp', label: 'MCP Server' },
     { href: '#install', label: 'Install' },
     { href: '#api', label: 'API' },

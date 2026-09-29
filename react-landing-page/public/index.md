@@ -60,6 +60,17 @@ Run `sec-mcp` as an MCP server and six tools appear in your client, so the model
 - `add_entry(url, ip, date, score, source)` — manual blacklist entry
 - `remove_entry(value)` — remove an entry by URL or IP
 
+## Try it in the browser
+
+The landing page has a live console for the MCP server. It answers from a labelled demo dataset until you connect your own server:
+
+```bash
+pip install sec-mcp && sec-mcp update
+sec-mcp-server --http        # serves http://127.0.0.1:8000/mcp
+```
+
+Then press **Connect** in the console. `SEC_MCP_CORS_ORIGINS` allows extra web origins; `SEC_MCP_HTTP_AUTH_TOKEN` requires a bearer token.
+
 ## Links
 
 - Repository: https://github.com/montimage/sec-mcp

@@ -39,7 +39,7 @@ const APIReference = () => (
     <section id="api" className="field relative py-24 md:py-32">
         <div className="mx-auto max-w-[84rem] px-4 sm:px-6 lg:px-10">
             <SectionHeading
-                index="06"
+                index="07"
                 label="Python API"
                 meta="from sec_mcp import SecMCP"
                 title="Nine methods and two dataclasses. That is the whole surface."

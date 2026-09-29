@@ -20,6 +20,8 @@ probes, which are not side-effect free here (see *Probe isolation*).
 | `MCP_USE_V2_STORAGE` | Storage backend selector in `create_storage()`: `true` enables `HybridStorage` (v2); any other value (or unset) uses legacy `Storage` (v1). |
 | `MCP_LOG_PATH` | Log file path for `setup_logging()`; default is `platformdirs.user_log_dir("sec-mcp", "montimage")/mcp-server.log`. |
 | `MCP_CACHE_DIR` | Feed cache directory used by the blacklist updater; default is `platformdirs.user_cache_dir("sec-mcp", "montimage")`. |
+| `SEC_MCP_CORS_ORIGINS` | CORS origins (comma-separated) for `sec-mcp-server --http`, read at app build time in `sec_mcp/http_transport.py`; default is the local Vite ports 3000/4173 plus `https://montimage.github.io`; `*` allows any origin and disables DNS-rebinding protection. |
+| `SEC_MCP_HTTP_AUTH_TOKEN` | Optional bearer token that `sec-mcp-server --http` requires on every request. |
 
 ## Build and test commands
 
